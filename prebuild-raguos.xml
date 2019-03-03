@@ -1,0 +1,47 @@
+    <Project frameworkVersion="v4_6" name="RaguOS" path="addon-modules/RaguOS/RaguOS" type="Library">
+      <Configuration name="Debug">
+        <Options>
+          <OutputPath>../../../bin/</OutputPath>
+          <AllowUnsafe>true</AllowUnsafe>
+        </Options>
+      </Configuration>
+      <Configuration name="Release">
+        <Options>
+          <OutputPath>../../../bin/</OutputPath>
+          <AllowUnsafe>true</AllowUnsafe>
+        </Options>
+      </Configuration>
+
+      <ReferencePath>../../../bin/</ReferencePath>
+      <Reference name="System"/>
+      <Reference name="System.Drawing"/>
+      <Reference name="System.Reflection"/>
+      <Reference name="Mono.Addins"/>
+
+      <Reference name="OpenMetaverse"/>
+      <Reference name="OpenMetaverseTypes"/>
+      <Reference name="OpenMetaverse.StructuredData"/>
+      <Reference name="OpenMetaverse.Rendering.Meshmerizer"/>
+
+      <Reference name="OpenSim.Framework"/>
+      <Reference name="OpenSim.Services.Interfaces"/>
+      <Reference name="OpenSim.Region.Framework"/>
+      <Reference name="OpenSim.Region.CoreModules"/>
+      <Reference name="OpenSim.Region.PhysicsModules.SharedBase"/>
+
+      <Reference name="CommonEntitiesUtil"/>
+      <Reference name="CommonEntities"/>
+      <Reference name="HerbalTransportCS"/>
+
+      <Reference name="Nini"/>
+      <Reference name="log4net"/>
+
+      <Reference name="Newtonsoft.Json"/>
+
+      <Files>
+        <Match pattern="*.cs" recurse="true">
+          <Exclude name="Tests" pattern="Tests"/>
+          <Exclude name="Object" pattern="obj"/>
+        </Match>
+      </Files>
+    </Project>

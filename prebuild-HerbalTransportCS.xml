@@ -1,0 +1,49 @@
+    <Project frameworkVersion="v4_6" name="HerbalTransportCS" path="addon-modules/HerbalTransportCS" type="Library">
+      <Configuration name="Debug">
+        <Options>
+          <OutputPath>../../../bin/</OutputPath>
+          <AllowUnsafe>true</AllowUnsafe>
+        </Options>
+      </Configuration>
+      <Configuration name="Release">
+        <Options>
+          <OutputPath>../../../bin/</OutputPath>
+          <AllowUnsafe>true</AllowUnsafe>
+        </Options>
+      </Configuration>
+
+      <ReferencePath>../../../bin/</ReferencePath>
+      <Reference name="System"/>
+      <Reference name="System.Data"/>
+      <Reference name="System.Data.DataSetExtensions"/>
+      <Reference name="System.Drawing"/>
+      <Reference name="System.Net.Http"/>
+      <Reference name="System.Reflection"/>
+      <Reference name="System.XML"/>
+      <Reference name="Mono.Addins"/>
+
+      <Reference name="OpenMetaverse"/>
+      <Reference name="OpenMetaverseTypes"/>
+      <Reference name="OpenMetaverse.StructuredData"/>
+      <Reference name="OpenMetaverse.Rendering.Meshmerizer"/>
+
+      <Reference name="PrimMesher"/>
+
+      <Reference name="OpenSim.Framework"/>
+      <Reference name="OpenSim.Region.CoreModules"/>
+      <Reference name="OpenSim.Region.Framework"/>
+      <Reference name="OpenSim.Region.PhysicsModules.SharedBase"/>
+      <Reference name="OpenSim.Services.Interfaces"/>
+
+      <Reference name="CommonEntitiesUtil"/>
+
+      <Reference name="Nini"/>
+      <Reference name="log4net"/>
+
+      <Files>
+        <Match pattern="*.cs" recurse="true">
+          <Exclude name="Tests" pattern="Tests"/>
+          <Exclude name="Object" pattern="obj"/>
+        </Match>
+      </Files>
+    </Project>
