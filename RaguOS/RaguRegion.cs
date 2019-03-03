@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019 Robert Adams
+// Copyright (c) 2019 Robert Adams
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -47,10 +47,13 @@ namespace org.herbal3d.Ragu {
         }
 
         public void Stop() {
-            if (_canceller != null) {
-                _canceller.Cancel();
-                _client = null;
-                _spaceServer = null;
+            if (_running) {
+                _running = false;
+                if (_canceller != null) {
+                    _canceller.Cancel();
+                    _client = null;
+                    _spaceServer = null;
+                }
             }
         }
 

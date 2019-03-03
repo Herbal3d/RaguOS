@@ -53,6 +53,17 @@ namespace org.herbal3d.Ragu {
             new ParameterDefn<bool>("Enabled", "If false, module is not enabled to operate",
                 false ),
 
+            new ParameterDefn<bool>("IsSecure", "Base directory for Loden asset storage",
+                false),
+            new ParameterDefn<string>("SecureConnectionURL", "URL to use to create inbound connection",
+                "wss://0.0.0.0:11440"),
+            new ParameterDefn<string>("Certificate", "Certificate to accept for secure inbound connection",
+                ""),
+            new ParameterDefn<string>("ConnectionURL", "URL to use to create inbound connection",
+                "ws://0.0.0.0:11440"),
+            new ParameterDefn<bool>("DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
+                true),
+
             new ParameterDefn<string>("OutputDir", "Base directory for Loden asset storage",
                 "./LodenAssets" ),
 
