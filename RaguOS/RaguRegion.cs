@@ -24,10 +24,9 @@ namespace org.herbal3d.Ragu {
     public class RaguRegion {
         private static readonly String _logHeader = "[RaguRegion]";
 
-        private readonly Scene _scene;
         private readonly RaguContext _context;
-        private bool _running;  // 'true' if should be doing stuff
-        private CancellationTokenSource _canceller;
+        private readonly Scene _scene;
+        private readonly CancellationTokenSource _canceller;
 
         private BasilClient _client;
         private ISpaceServer _spaceServer;
@@ -36,43 +35,27 @@ namespace org.herbal3d.Ragu {
         public RaguRegion(Scene pScene, RaguContext pContext) {
             _scene = pScene;
             _context = pContext;
-            _running = false;
             _canceller = new CancellationTokenSource();
         }
 
         public void Start() {
-            _running = true;
             // Wait for the region to have all its content before scanning
             _scene.EventManager.OnPrimsLoaded += Event_OnPrimsLoaded;
         }
 
         public void Stop() {
-            if (_running) {
-                _running = false;
-                if (_canceller != null) {
-                    _canceller.Cancel();
-                    _client = null;
-                    _spaceServer = null;
-                }
+            if (_canceller != null) {
+                _canceller.Cancel();
+                _client = null;
+                _spaceServer = null;
             }
         }
 
         // All prims have been loaded into the region.
-        // Verify they have been converted into the LOD'ed versions.
+        // Start the 'command and control' SpaceServer.
         private void Event_OnPrimsLoaded(Scene pScene) {
-            // Loading is going to take a while. Start up a Task.
-            HerbalTransport transport = new HerbalTransport(HaveNewClient, ReturnSpaceServer, _context.parms, _context.log);
-            transport.Start(_canceller);
-        }
-
-        // When a Basil server connects, we get a handle to call the server
-        private void HaveNewClient(BasilClient pClient) {
-            _client = pClient;
-        }
-
-        // When someone needs a SpaceServer to do SpaceServer operations, this is called
-        private ISpaceServer ReturnSpaceServer(BasilConnection pConnection) {
-            return null;
+            _context.log.DebugFormat("{0} Prims loader. Starting command-and-control SpaceServer", _logHeader);
+            SpaceServerCC ServerCC = new SpaceServerCC(_context, _canceller);
         }
     }
 }

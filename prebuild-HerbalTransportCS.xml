@@ -1,4 +1,4 @@
-    <Project frameworkVersion="v4_6" name="HerbalTransportCS" path="addon-modules/HerbalTransportCS" type="Library">
+    <Project frameworkVersion="v4_6" name="HerbalTransportCS" path="addon-modules/HerbalTransportCS/HerbalTransportCS" type="Library">
       <Configuration name="Debug">
         <Options>
           <OutputPath>../../../bin/</OutputPath>
@@ -39,6 +39,9 @@
 
       <Reference name="Nini"/>
       <Reference name="log4net"/>
+
+      <Reference name="Fleck"/>
+      <Reference name="Google.Protobuf"/>
 
       <Files>
         <Match pattern="*.cs" recurse="true">

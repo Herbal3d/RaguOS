@@ -101,6 +101,7 @@ namespace org.herbal3d.Ragu {
         // Called once for each region loaded after all other regions have been loaded.
         public void RegionLoaded(Scene scene) {
             if (_context.parms.P<bool>("Enabled")) {
+                _context.log.DebugFormat("{0} Region loaded. Starting region manager", _logHeader);
                 _regionProcessor = new RaguRegion(_scene, _context);
                 _regionProcessor.Start();
             }
