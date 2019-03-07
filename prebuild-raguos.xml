@@ -15,7 +15,9 @@
       <ReferencePath>../../../bin/</ReferencePath>
       <Reference name="System"/>
       <Reference name="System.Drawing"/>
+      <Reference name="System.IO"/>
       <Reference name="System.Reflection"/>
+      <Reference name="System.Web"/>
       <Reference name="Mono.Addins"/>
 
       <Reference name="OpenMetaverse"/>
@@ -24,6 +26,8 @@
       <Reference name="OpenMetaverse.Rendering.Meshmerizer"/>
 
       <Reference name="OpenSim.Framework"/>
+      <Reference name="OpenSim.Framework.Servers"/>
+      <Reference name="OpenSim.Framework.Servers.HttpServer"/>
       <Reference name="OpenSim.Services.Interfaces"/>
       <Reference name="OpenSim.Region.Framework"/>
       <Reference name="OpenSim.Region.CoreModules"/>
