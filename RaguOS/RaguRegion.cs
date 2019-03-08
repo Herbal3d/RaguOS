@@ -30,6 +30,7 @@ namespace org.herbal3d.Ragu {
 
         private BasilClient _client;
         private ISpaceServer _spaceServer;
+        private RaguAssetService _assetService;
 
         // Given a scene, do the LOD ("level of detail") conversion
         public RaguRegion(Scene pScene, RaguContext pContext) {
@@ -41,9 +42,16 @@ namespace org.herbal3d.Ragu {
         public void Start() {
             // Wait for the region to have all its content before scanning
             _scene.EventManager.OnPrimsLoaded += Event_OnPrimsLoaded;
+
+            _assetService = new RaguAssetService(_context);
+
         }
 
         public void Stop() {
+            if (_assetService != null) {
+                _assetService.Stop();
+                _assetService = null;
+            }
             if (_canceller != null) {
                 _canceller.Cancel();
                 _client = null;

@@ -1,4 +1,4 @@
-﻿// Copyright 2019 Robert Adams
+// Copyright 2019 Robert Adams
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -32,107 +32,83 @@ namespace org.herbal3d.Ragu {
     public class RaguAssetService {
 
         private RaguContext _context;
+        private RaguGETStreamHandler _getHandler;
+        private string _handlerPath = "/Ragu/Assets";
+
+
 
         public RaguAssetService(RaguContext pContext) {
             _context = pContext;
 
-            RaguGETStreamHandler getHandler = new RaguGETStreamHandler(_context);
+            BAssetStorage storage = new BAssetStorage(_context.log, _context.parms);
+            _getHandler = new RaguGETStreamHandler(_context, _handlerPath, storage);
 
-            MainServer.Instance.AddStreamHandler(getHandler);
+            MainServer.Instance.AddStreamHandler(_getHandler);
+        }
+
+        public void Stop() {
+            if (_getHandler != null) {
+                MainServer.Instance.RemoveStreamHandler("GET", _handlerPath);
+                _getHandler = null;
+            }
         }
 
     }
 
     public class RaguGETStreamHandler : BaseStreamHandler {
+        private readonly string _logHeader = "[RaguGetStreamHandler]";
 
         private RaguContext _context;
         private BAssetStorage _assetStorage;
 
-        public RaguGETStreamHandler(RaguContext pContext)
-                        : base("GET", "/Ragu/Assets" , "RaguGET" , "Ragu asset fetcher") {
+        private Dictionary<string, string> MimeCodes = new Dictionary<string, string>() {
+            {".jpg", "image/jpeg" },
+            {".jpeg", "image/jpeg" },
+            {".png", "image/png" },
+            {".bmp", "image/bmp" },
+            {".gif", "image/gif" },
+            {".buf", "application/octet-stream" },
+            {".json", "application/json" },
+            {".txt", "application/text" },
+            {".gltf", "model/gltf+json" },
+            {".glb", "model/gltf-binary" }
+        };
+
+        public RaguGETStreamHandler(RaguContext pContext, string pPath, BAssetStorage pStorage)
+                        : base("GET", pPath, "RaguGET" , "Ragu asset fetcher") {
             _context = pContext;
-
-
+            _assetStorage = pStorage;
         }
 
         protected override byte[] ProcessRequest(string path, Stream request, IOSHttpRequest httpRequest, IOSHttpResponse httpResponse)
         {
-            byte[] ret = null;
             NameValueCollection headers = httpRequest.Headers;
             string authValue = headers.GetOne("Authorization");
-            if (authValue != null) {
+            // if (authValue != null) {
+                // _context.log.DebugFormat("{0} ProcessRequest: Authorization={1}", _logHeader, authValue);
                 // Check authorization
 
                 // The thing to get is in the last field of the URL
                 string[] segments = httpRequest.Url.Segments;
                 string filename = segments.Last();
-                Stream strm = _assetStorage.GetStream(filename).Result;
-
-
-                var continuation = _assetStorage.GetStream(filename).ContinueWith(strm => {
-                    if (strm.Result != null) {
-                        strm.CopyTo(httpResponse.OutputStream);
-                    }
-                    else {
-                        httpResponse.StatusCode = (int)System.Net.HttpStatusCode.NotFound;
-                        ret = null;
-                    }
-                });
-                continuation.Wait();
-            }
-            return ret;
-
-            else {
-            }
-            // Try to parse the texture ID from the request URL
-            NameValueCollection query = HttpUtility.ParseQueryString(httpRequest.Url.Query);
-            string textureStr = query.GetOne("texture_id");
-            string format = query.GetOne("format");
-
-            //m_log.DebugFormat("[GETTEXTURE]: called {0}", textureStr);
-
-            if (m_assetService == null)
-            {
-                m_log.Error("[GETTEXTURE]: Cannot fetch texture " + textureStr + " without an asset service");
-                httpResponse.StatusCode = (int)System.Net.HttpStatusCode.NotFound;
-                return null;
-            }
-
-            UUID textureID;
-            if (!String.IsNullOrEmpty(textureStr) && UUID.TryParse(textureStr, out textureID))
-            {
-//                m_log.DebugFormat("[GETTEXTURE]: Received request for texture id {0}", textureID);
-
-                string[] formats;
-                if (!string.IsNullOrEmpty(format))
-                {
-                    formats = new string[1] { format.ToLower() };
+                string extension = System.IO.Path.GetExtension(filename);
+                string mimeType = "application/text";
+                if (MimeCodes.ContainsKey(extension)) {
+                    mimeType = MimeCodes[extension];
                 }
-                else
-                {
-                    formats = WebUtil.GetPreferredImageTypes(httpRequest.Headers.Get("Accept"));
-                    if (formats.Length == 0)
-                        formats = new string[1] { DefaultFormat }; // default
 
+                byte[] asset = _assetStorage.Fetch(filename).Result;
+                int assetLength = asset.Length;
+                if (asset.Length > 0) {
+                    httpResponse.StatusCode = (int)System.Net.HttpStatusCode.OK;
+                    httpResponse.ContentLength = assetLength;
+                    httpResponse.ContentType = mimeType;
+                    httpResponse.Body.Write(asset, 0, assetLength);
                 }
-                // OK, we have an array with preferred formats, possibly with only one entry
-
-                httpResponse.StatusCode = (int)System.Net.HttpStatusCode.NotFound;
-                foreach (string f in formats)
-                {
-                    if (FetchTexture(httpRequest, httpResponse, textureID, f))
-                        break;
+                else {
+                    httpResponse.StatusCode = (int)System.Net.HttpStatusCode.NotFound;
                 }
-            }
-            else
-            {
-                m_log.Warn("[GETTEXTURE]: Failed to parse a texture_id from GetTexture request: " + httpRequest.Url);
-            }
-
-//            m_log.DebugFormat(
-//                "[GETTEXTURE]: For texture {0} sending back response {1}, data length {2}",
-//                textureID, httpResponse.StatusCode, httpResponse.ContentLength);
-
+            // }
             return null;
         }
 

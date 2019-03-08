@@ -66,6 +66,8 @@ namespace org.herbal3d.Ragu {
 
             new ParameterDefn<string>("OutputDir", "Base directory for Loden asset storage",
                 "./LodenAssets" ),
+            new ParameterDefn<bool>("UseDeepFilenames", "Reference Loden assets in multi-directory deep file storage",
+                true ),
 
             new ParameterDefn<bool>("LogBuilding", "log detail BScene/BInstance object building",
                 true ),
