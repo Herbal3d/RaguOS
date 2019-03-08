@@ -32,7 +32,7 @@ namespace org.herbal3d.Ragu {
     // Class passed around for global context for this region module instance
     public class RaguContext {
         public readonly IConfig sysConfig;
-        public readonly RaguParams parms;
+        public RaguParams parms;    // assume it's readonly
         public readonly RaguStats stats;
         public readonly BLogger log;
         public readonly string contextName;  // a unique identifier for this context -- used in filenames, ...
