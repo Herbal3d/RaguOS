@@ -19,6 +19,10 @@ using System.Threading.Tasks;
 using SpaceServer = org.herbal3d.basil.protocol.SpaceServer;
 using HTransport = org.herbal3d.transport;
 
+using Google.Protobuf;
+
+using OMV = OpenMetaverse;
+
 namespace org.herbal3d.Ragu {
 
     public class SpaceServerCC : HTransport.ISpaceServer {
@@ -45,7 +49,22 @@ namespace org.herbal3d.Ragu {
         }
 
         public SpaceServer.OpenSessionResp OpenSession(SpaceServer.OpenSessionReq pReq) {
-            throw new NotImplementedException();
+            _context.log.DebugFormat("{0} OpenSession.", _logHeader);
+            if (pReq.Features != null) {
+            }
+            Dictionary<string, string> props = new Dictionary<string, string>() {
+                { "SessionKey", _context.sessionKey },
+                // For the moment, fake an asset access key
+                { "AssetKey", _context.assetKey },
+                { "AssetKeyExpiration", DateTime.UtcNow.AddHours(2).ToString("O") },
+                { "AssetBase", RaguAssetService.Instance.AssetServiceURL }
+            };
+
+
+            var ret = new SpaceServer.OpenSessionResp() {
+            };
+            ret.Properties.Add(props);
+            return ret;
         }
 
         public SpaceServer.CloseSessionResp CloseSession(SpaceServer.CloseSessionReq pReq) {

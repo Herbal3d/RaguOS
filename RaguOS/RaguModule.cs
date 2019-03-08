@@ -20,6 +20,8 @@ using Mono.Addins;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
 
+using OMV = OpenMetaverse;
+
 using org.herbal3d.cs.CommonEntitiesUtil;
 
 using Nini.Config;
@@ -29,18 +31,26 @@ namespace org.herbal3d.Ragu {
 
     // Class passed around for global context for this region module instance
     public class RaguContext {
-        public IConfig sysConfig;
-        public RaguParams parms;
-        public RaguStats stats;
-        public BLogger log;
-        public string contextName;  // a unique identifier for this context -- used in filenames, ...
+        public readonly IConfig sysConfig;
+        public readonly RaguParams parms;
+        public readonly RaguStats stats;
+        public readonly BLogger log;
+        public readonly string contextName;  // a unique identifier for this context -- used in filenames, ...
+        public readonly string sessionKey;
+        public string assetKey;
+        public DateTime assetKeyExpiration;
 
         public RaguContext(IConfig pSysConfig, RaguParams pParms, ILog pLog) {
+            var randomNumbers = new Random();
             sysConfig = pSysConfig;
             parms = pParms;
             log = new LoggerLog4Net(pLog);
             stats = new RaguStats(this);
-            contextName = String.Empty;
+            contextName = "Context" + randomNumbers.Next().ToString();
+            // TODO: make session and asset keys bearer certificates with expiration, etc
+            sessionKey = randomNumbers.Next().ToString();
+            assetKey = randomNumbers.Next().ToString();
+            assetKeyExpiration = DateTime.UtcNow.AddHours(2);
         }
     }
 

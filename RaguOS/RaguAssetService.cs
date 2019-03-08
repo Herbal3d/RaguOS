@@ -31,28 +31,59 @@ using org.herbal3d.cs.CommonEntities;
 namespace org.herbal3d.Ragu {
     public class RaguAssetService {
 
+        private readonly string _logHeader = "[RaguAssetService]";
+
+        // There is only one instance of the asset service.
+        // TODO: Someday make this kludge into a separate service.
+        public static RaguAssetService Instance {
+            get {
+                if (Instance == null) {
+                    throw new Exception("RaguAssetService: reference to Instance before initialized");
+                }
+                return Instance;
+            }
+            protected set {
+                Instance = value;
+            }
+        }
+        public string HandlerPath;
+        public string AssetServiceURL;
+
         private RaguContext _context;
         private RaguGETStreamHandler _getHandler;
-        private string _handlerPath = "/Ragu/Assets";
-
-
 
         public RaguAssetService(RaguContext pContext) {
             _context = pContext;
+            HandlerPath = "/Ragu/Assets";
 
-            BAssetStorage storage = new BAssetStorage(_context.log, _context.parms);
-            _getHandler = new RaguGETStreamHandler(_context, _handlerPath, storage);
+            string hostAddress = Util.GetLocalHost().ToString();
+            if (MainServer.Instance.UseSSL) {
+                AssetServiceURL = Util.GetURI("https", hostAddress, (int)MainServer.Instance.Port, HandlerPath).ToString();
+            }
+            else {
+                AssetServiceURL = Util.GetURI("http", hostAddress, (int)MainServer.Instance.Port, HandlerPath).ToString();
+            }
 
-            MainServer.Instance.AddStreamHandler(_getHandler);
+            // If there is not already an asset server, start one.
+            // TODO: someday move this asset server into its own shared region module.
+            var handlerKeys = MainServer.Instance.GetHTTPHandlerKeys();
+            string thisHandler = "GET:" + HandlerPath;
+            if (!handlerKeys.Contains(thisHandler)) {
+                _context.log.DebugFormat("{0} Creating GET handler for path '{1}'", _logHeader, HandlerPath);
+                Instance = this;
+                BAssetStorage storage = new BAssetStorage(_context.log, _context.parms);
+                _getHandler = new RaguGETStreamHandler(_context, HandlerPath, storage);
+
+                MainServer.Instance.AddStreamHandler(_getHandler);
+            }
         }
 
         public void Stop() {
             if (_getHandler != null) {
-                MainServer.Instance.RemoveStreamHandler("GET", _handlerPath);
+                MainServer.Instance.RemoveStreamHandler("GET", HandlerPath);
                 _getHandler = null;
             }
         }
-
     }
 
     public class RaguGETStreamHandler : BaseStreamHandler {
@@ -69,6 +100,7 @@ namespace org.herbal3d.Ragu {
             {".gif", "image/gif" },
             {".buf", "application/octet-stream" },
             {".json", "application/json" },
+            {".meta", "application/json" },
             {".txt", "application/text" },
             {".gltf", "model/gltf+json" },
             {".glb", "model/gltf-binary" }
