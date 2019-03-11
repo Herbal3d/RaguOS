@@ -69,12 +69,16 @@ namespace org.herbal3d.Ragu {
             var handlerKeys = MainServer.Instance.GetHTTPHandlerKeys();
             string thisHandler = "GET:" + HandlerPath;
             if (!handlerKeys.Contains(thisHandler)) {
-                _context.log.DebugFormat("{0} Creating GET handler for path '{1}'", _logHeader, HandlerPath);
+                _context.log.DebugFormat("{0} Creating GET handler for path '{1}' at '{2}",
+                                    _logHeader, HandlerPath, AssetServiceURL);
                 Instance = this;
                 BAssetStorage storage = new BAssetStorage(_context.log, _context.parms);
                 _getHandler = new RaguGETStreamHandler(_context, HandlerPath, storage);
 
                 MainServer.Instance.AddStreamHandler(_getHandler);
+            }
+            else {
+                _context.log.DebugFormat("{0} GET handler already exists. Not creating.", _logHeader);
             }
         }
 

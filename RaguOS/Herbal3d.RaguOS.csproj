@@ -3,12 +3,12 @@
 	  <ProjectType>Local</ProjectType>
 	  <ProductVersion>14.0.23107.0</ProductVersion>
 	  <SchemaVersion>2.0</SchemaVersion>
-	  <ProjectGuid>{5F7A1D2E-0000-0000-0000-000000000000}</ProjectGuid>
+	  <ProjectGuid>{E92C47B4-0000-0000-0000-000000000000}</ProjectGuid>
 	  <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
 	  <ApplicationIcon></ApplicationIcon>
 	  <AssemblyKeyContainerName>
 	  </AssemblyKeyContainerName>
-	  <AssemblyName>Loden</AssemblyName>
+	  <AssemblyName>Herbal3d.RaguOS</AssemblyName>
 	  <DefaultClientScript>JScript</DefaultClientScript>
 	  <DefaultHTMLPageLayout>Grid</DefaultHTMLPageLayout>
 	  <DefaultTargetSchema>IE50</DefaultTargetSchema>
@@ -16,7 +16,7 @@
 	  <TargetFrameworkVersion>v4.6</TargetFrameworkVersion>
 	  <OutputType>Library</OutputType>
 	  <AppDesignerFolder></AppDesignerFolder>
-	  <RootNamespace>Loden</RootNamespace>
+	  <RootNamespace>Herbal3d.RaguOS</RootNamespace>
 	  <StartupObject></StartupObject>
 	  <StartArguments></StartArguments>
 	  <FileUpgradeFlags>
@@ -65,6 +65,18 @@
 	  <Prefer32Bit>False</Prefer32Bit>
 	</PropertyGroup>
 	<ItemGroup>
+	  <Reference Include="CommonEntities" >
+		  <Name>CommonEntities</Name>
+		<Private>False</Private>
+	  </Reference>
+	  <Reference Include="CommonEntitiesUtil" >
+		  <Name>CommonEntitiesUtil</Name>
+		<Private>False</Private>
+	  </Reference>
+	  <Reference Include="Google.Protobuf" >
+		  <Name>Google.Protobuf</Name>
+		<Private>False</Private>
+	  </Reference>
 	  <Reference Include="HerbalTransportCS" >
 		  <Name>HerbalTransportCS</Name>
 		<Private>False</Private>
@@ -109,27 +121,35 @@
 		  <Name>System.Drawing</Name>
 		<Private>False</Private>
 	  </Reference>
+	  <Reference Include="System.IO" >
+		  <Name>System.IO</Name>
+		<Private>False</Private>
+	  </Reference>
 	  <Reference Include="System.Reflection" >
 		  <Name>System.Reflection</Name>
 		<Private>False</Private>
 	  </Reference>
+	  <Reference Include="System.Web" >
+		  <Name>System.Web</Name>
+		<Private>False</Private>
+	  </Reference>
 	</ItemGroup>
 	<ItemGroup>
-	  <ProjectReference Include="..\..\HerbalTransportCS\CommonEntities.csproj">
-		<Name>CommonEntities</Name>
-		<Project>{E5FBCD68-0000-0000-0000-000000000000}</Project>
-		<Package>{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</Package>
-		<Private>False</Private>
-	  </ProjectReference>
-	  <ProjectReference Include="..\..\HerbalCommonEntitiesCS\CommonEntitiesUtil\CommonEntitiesUtil.csproj">
-		<Name>CommonEntitiesUtil</Name>
-		<Project>{A9D65554-0000-0000-0000-000000000000}</Project>
-		<Package>{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</Package>
-		<Private>False</Private>
-	  </ProjectReference>
 	  <ProjectReference Include="..\..\..\OpenSim\Framework\OpenSim.Framework.csproj">
 		<Name>OpenSim.Framework</Name>
 		<Project>{BCCDBB55-0000-0000-0000-000000000000}</Project>
+		<Package>{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</Package>
+		<Private>False</Private>
+	  </ProjectReference>
+	  <ProjectReference Include="..\..\..\OpenSim\Framework\Servers\OpenSim.Framework.Servers.csproj">
+		<Name>OpenSim.Framework.Servers</Name>
+		<Project>{726D540D-0000-0000-0000-000000000000}</Project>
+		<Package>{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</Package>
+		<Private>False</Private>
+	  </ProjectReference>
+	  <ProjectReference Include="..\..\..\OpenSim\Framework\Servers\HttpServer\OpenSim.Framework.Servers.HttpServer.csproj">
+		<Name>OpenSim.Framework.Servers.HttpServer</Name>
+		<Project>{159EC5C2-0000-0000-0000-000000000000}</Project>
 		<Package>{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</Package>
 		<Private>False</Private>
 	  </ProjectReference>
@@ -159,7 +179,28 @@
 	  </ProjectReference>
 	</ItemGroup>
 	<ItemGroup>
-	  <Compile Include="Params.cs">
+	  <Compile Include="RaguAssetService.cs">
+		<SubType>Code</SubType>
+	  </Compile>
+	  <Compile Include="RaguModule.cs">
+		<SubType>Code</SubType>
+	  </Compile>
+	  <Compile Include="RaguParams.cs">
+		<SubType>Code</SubType>
+	  </Compile>
+	  <Compile Include="RaguRegion.cs">
+		<SubType>Code</SubType>
+	  </Compile>
+	  <Compile Include="RaguStats.cs">
+		<SubType>Code</SubType>
+	  </Compile>
+	  <Compile Include="RegionSpaceServer.cs">
+		<SubType>Code</SubType>
+	  </Compile>
+	  <Compile Include="SpaceServerCC.cs">
+		<SubType>Code</SubType>
+	  </Compile>
+	  <Compile Include="Properties\AssemblyInfo.cs">
 		<SubType>Code</SubType>
 	  </Compile>
   </ItemGroup>
