@@ -30,22 +30,41 @@ namespace org.herbal3d.Ragu {
 
         private readonly CancellationTokenSource _canceller;
         private readonly RaguContext _context;
+        private HTransport.BasilConnection _clientConnection;
         private HTransport.BasilClient _client;
 
+        // Initial SpaceServerCC invocation with no transport setup.
+        // Create a receiving connection and create SpaceServer when Basil connections come in.
         public SpaceServerCC(RaguContext pContext, CancellationTokenSource pCanceller) {
             _context = pContext;
             _canceller = pCanceller;
 
             HTransport.HerbalTransport transport =
                             new HTransport.HerbalTransport(this, _context.parms, _context.log);
+            transport.OnBasilConnect += Event_NewBasilConnection;
+            transport.OnDisconnect += Event_DisconnectBasilConnection;
             transport.Start(_canceller);
         }
 
-        // Handle to the client.
-        // This call says things are initialized and ready to go.
-        public void SetClientConnection(HTransport.BasilClient pClient) {
-            _context.log.DebugFormat("{0} Client handler set", _logHeader);
-            _client = pClient;
+        // Creation of an instance for a specific client.
+        public SpaceServerCC(RaguContext pContext, CancellationTokenSource pCanceller,
+                            HTransport.BasilConnection pBasilConnection) {
+            _context = pContext;
+            _canceller = pCanceller;
+            _clientConnection = pBasilConnection;
+
+            // This assignment directs the space server message calls to this ISpaceServer instance.
+            _clientConnection.SpaceServiceProcessor.SpaceServerMsgHandler = this;
+        }
+
+        // Process a new Basil connection
+        private void Event_NewBasilConnection(HTransport.BasilConnection pBasilConnection) {
+            SpaceServerCC ccHandler = new SpaceServerCC(_context, _canceller, pBasilConnection);
+            _client = new HTransport.BasilClient(pBasilConnection);
+            
+        }
+
+        private void Event_DisconnectBasilConnection(HTransport.TransportConnection pTransport) {
         }
 
         public SpaceServer.OpenSessionResp OpenSession(SpaceServer.OpenSessionReq pReq) {
