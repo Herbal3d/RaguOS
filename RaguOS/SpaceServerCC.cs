@@ -18,6 +18,7 @@ using System.Threading.Tasks;
 
 using SpaceServer = org.herbal3d.basil.protocol.SpaceServer;
 using HTransport = org.herbal3d.transport;
+using org.herbal3d.cs.CommonEntitiesUtil;
 
 using Google.Protobuf;
 
@@ -25,49 +26,47 @@ using OMV = OpenMetaverse;
 
 namespace org.herbal3d.Ragu {
 
-    public class SpaceServerCC : HTransport.ISpaceServer {
-        private readonly static string _logHeader = "[SpaceServerCC]";
-
-        private readonly CancellationTokenSource _canceller;
-        private readonly RaguContext _context;
-        private HTransport.BasilConnection _clientConnection;
-        private HTransport.BasilClient _client;
+    public class SpaceServerCC : SpaceServerLayer {
 
         // Initial SpaceServerCC invocation with no transport setup.
         // Create a receiving connection and create SpaceServer when Basil connections come in.
-        public SpaceServerCC(RaguContext pContext, CancellationTokenSource pCanceller) {
-            _context = pContext;
-            _canceller = pCanceller;
-
-            HTransport.HerbalTransport transport =
-                            new HTransport.HerbalTransport(this, _context.parms, _context.log);
-            transport.OnBasilConnect += Event_NewBasilConnection;
-            transport.OnDisconnect += Event_DisconnectBasilConnection;
-            transport.Start(_canceller);
+        public SpaceServerCC(RaguContext pContext, CancellationTokenSource pCanceller)
+                        : base(pContext, pCanceller, "SpaceServerCC") {
         }
 
         // Creation of an instance for a specific client.
         public SpaceServerCC(RaguContext pContext, CancellationTokenSource pCanceller,
-                            HTransport.BasilConnection pBasilConnection) {
-            _context = pContext;
-            _canceller = pCanceller;
-            _clientConnection = pBasilConnection;
+                                HTransport.BasilConnection pBasilConnection) 
+                        : base(pContext, pCanceller, "SpaceServerCC", pBasilConnection) {
 
             // This assignment directs the space server message calls to this ISpaceServer instance.
             _clientConnection.SpaceServiceProcessor.SpaceServerMsgHandler = this;
         }
 
         // Process a new Basil connection
-        private void Event_NewBasilConnection(HTransport.BasilConnection pBasilConnection) {
+        protected override void Event_NewBasilConnection(HTransport.BasilConnection pBasilConnection) {
             SpaceServerCC ccHandler = new SpaceServerCC(_context, _canceller, pBasilConnection);
             _client = new HTransport.BasilClient(pBasilConnection);
-            
         }
 
-        private void Event_DisconnectBasilConnection(HTransport.TransportConnection pTransport) {
+        protected override void Event_DisconnectBasilConnection(HTransport.TransportConnection pTransport) {
+            _canceller.Cancel();
+            if (_client != null) {
+                _client = null;
+            }
+            if (_clientConnection != null) {
+                _clientConnection.SpaceServiceProcessor.SpaceServerMsgHandler = null;
+                _clientConnection = null;
+            }
+            if (_transport != null) {
+                _transport.OnBasilConnect -= Event_NewBasilConnection;
+                _transport.OnDisconnect -= Event_DisconnectBasilConnection;
+                _transport = null;
+            }
         }
 
-        public SpaceServer.OpenSessionResp OpenSession(SpaceServer.OpenSessionReq pReq) {
+        // Request from Basil to open a SpaceServer session
+        public override SpaceServer.OpenSessionResp OpenSession(SpaceServer.OpenSessionReq pReq) {
             _context.log.DebugFormat("{0} OpenSession.", _logHeader);
             if (pReq.Features != null) {
             }
@@ -86,11 +85,13 @@ namespace org.herbal3d.Ragu {
             return ret;
         }
 
-        public SpaceServer.CloseSessionResp CloseSession(SpaceServer.CloseSessionReq pReq) {
+        // Request from Basil to close the SpaceServer session
+        public override SpaceServer.CloseSessionResp CloseSession(SpaceServer.CloseSessionReq pReq) {
             throw new NotImplementedException();
         }
 
-        public SpaceServer.CameraViewResp CameraView(SpaceServer.CameraViewReq pReq) {
+        // Request from Basil to move the camera.
+        public override SpaceServer.CameraViewResp CameraView(SpaceServer.CameraViewReq pReq) {
             throw new NotImplementedException();
         }
     }
