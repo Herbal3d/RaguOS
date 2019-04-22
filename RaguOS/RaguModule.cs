@@ -39,6 +39,11 @@ namespace org.herbal3d.Ragu {
         public readonly string sessionKey;
         public string assetKey;
         public DateTime assetKeyExpiration;
+        // The following are the layer servers for this region.
+        public SpaceServerCC layerCC;
+        public SpaceServerStatic layerStatic;
+        public SpaceServerDynamic layerDynamic;
+        public SpaceServerActors layerActors;
 
         public RaguContext(IConfig pSysConfig, RaguParams pParms, ILog pLog) {
             var randomNumbers = new Random();

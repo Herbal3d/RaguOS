@@ -45,11 +45,17 @@ namespace org.herbal3d.Ragu {
             _canceller = pCanceller;
             _logHeader = "[" + pModule + "]";
 
-            IParameters ccParams = CreateTransportParams(_context, pModule);
-            _transport = new HTransport.HerbalTransport(this, ccParams, _context.log);
-            _transport.OnBasilConnect += Event_NewBasilConnection;
-            _transport.OnDisconnect += Event_DisconnectBasilConnection;
-            _transport.Start(_canceller);
+            try {
+                _context.log.DebugFormat("{0} Initializing transport", _logHeader);
+                IParameters ccParams = CreateTransportParams(_context, pModule);
+                _transport = new HTransport.HerbalTransport(this, ccParams, _context.log);
+                _transport.OnBasilConnect += Event_NewBasilConnection;
+                _transport.OnDisconnect += Event_DisconnectBasilConnection;
+                _transport.Start(_canceller);
+            }
+            catch (Exception e) {
+                _context.log.ErrorFormat("{0} Exception creating transport: {1}", _logHeader, e);
+            }
         }
 
         public SpaceServerLayer(RaguContext pContext, CancellationTokenSource pCanceller,
@@ -69,10 +75,10 @@ namespace org.herbal3d.Ragu {
         protected IParameters CreateTransportParams(RaguContext pContext, string pModule) {
             string mod = pModule + ".";
             return new ParameterCollection()
-                .Add("ConnectionURL", pContext.parms.P<string>(mod + "CC.ConnectionURL"))
+                .Add("ConnectionURL", pContext.parms.P<string>(mod + "ConnectionURL"))
                 .Add("IsSecure", pContext.parms.P<bool>(mod + "IsSecure"))
                 .Add("SecureConnectionURL", pContext.parms.P<string>(mod + "SecureConnectionURL"))
-                .Add("Certificate", pContext.parms.P<string>(mod + "C.Certificate"))
+                .Add("Certificate", pContext.parms.P<string>(mod + "Certificate"))
                 .Add("DisableNaglesAlgorithm", pContext.parms.P<bool>(mod + "DisableNaglesAlgorithm"));
         }
 

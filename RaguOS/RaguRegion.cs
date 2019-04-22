@@ -28,8 +28,7 @@ namespace org.herbal3d.Ragu {
         private readonly Scene _scene;
         private readonly CancellationTokenSource _canceller;
 
-        private BasilClient _client;
-        private ISpaceServer _spaceServer;
+        private ISpaceServer _spaceServerCC;
         private RaguAssetService _assetService;
 
         // Given a scene, do the LOD ("level of detail") conversion
@@ -54,16 +53,20 @@ namespace org.herbal3d.Ragu {
             }
             if (_canceller != null) {
                 _canceller.Cancel();
-                _client = null;
-                _spaceServer = null;
             }
         }
 
         // All prims have been loaded into the region.
         // Start the 'command and control' SpaceServer.
         private void Event_OnPrimsLoaded(Scene pScene) {
-            _context.log.DebugFormat("{0} Prims loader. Starting command-and-control SpaceServer", _logHeader);
-            SpaceServerCC ServerCC = new SpaceServerCC(_context, _canceller);
+            _context.log.DebugFormat("{0} Prims loaded. Starting command-and-control SpaceServer", _logHeader);
+            try {
+                _context.layerStatic = new SpaceServerStatic(_context, _canceller);
+                _context.layerCC = new SpaceServerCC(_context, _canceller);
+            }
+            catch (Exception e) {
+                _context.log.ErrorFormat("{0} Failed creation of SpaceServerCC: {1}", _logHeader, e);
+            }
         }
     }
 }

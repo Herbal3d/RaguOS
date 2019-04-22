@@ -27,21 +27,21 @@ using OMV = OpenMetaverse;
 
 namespace org.herbal3d.Ragu {
 
-    public class SpaceServerCC : SpaceServerLayer {
+    public class SpaceServerStatic : SpaceServerLayer {
 
-        // Initial SpaceServerCC invocation with no transport setup.
+        // Initial SpaceServerStatic invocation with no transport setup.
         // Create a receiving connection and create SpaceServer when Basil connections come in.
         // Note: this canceller is for the overall layer.
-        public SpaceServerCC(RaguContext pContext, CancellationTokenSource pCanceller)
-                        : base(pContext, pCanceller, "SpaceServerCC") {
+        public SpaceServerStatic(RaguContext pContext, CancellationTokenSource pCanceller)
+                        : base(pContext, pCanceller, "SpaceServerStatic") {
             _context.log.DebugFormat("{0} Constructor", _logHeader);
         }
 
         // Creation of an instance for a specific client.
         // Note: this canceller is for the individual session.
-        public SpaceServerCC(RaguContext pContext, CancellationTokenSource pCanceller,
+        public SpaceServerStatic(RaguContext pContext, CancellationTokenSource pCanceller,
                                 HTransport.BasilConnection pBasilConnection) 
-                        : base(pContext, pCanceller, "SpaceServerCC", pBasilConnection) {
+                        : base(pContext, pCanceller, "SpaceServerStatic", pBasilConnection) {
 
             _context.log.DebugFormat("{0} Instance Constructor", _logHeader);
 
@@ -53,7 +53,7 @@ namespace org.herbal3d.Ragu {
         protected override void Event_NewBasilConnection(HTransport.BasilConnection pBasilConnection) {
             _context.log.DebugFormat("{0} Event_NewBasilConnection", _logHeader);
             CancellationTokenSource sessionCanceller = new CancellationTokenSource();
-            SpaceServerCC ccHandler = new SpaceServerCC(_context, sessionCanceller, pBasilConnection);
+            SpaceServerStatic ccHandler = new SpaceServerStatic(_context, sessionCanceller, pBasilConnection);
             _client = new HTransport.BasilClient(pBasilConnection);
         }
 
@@ -137,13 +137,13 @@ namespace org.herbal3d.Ragu {
         private async Task HandleBasilConnection() {
             BasilType.AccessAuthorization auth = null;
             Dictionary<string, string> props = new Dictionary<string, string>() {
-                { "Service", "SpaceServerClient" },
+                { "Service", "SpaceServer" },
                 { "TransportURL", "URL" },
             };
             await _client.MakeConnectionAsync(auth, props);
 
             props = new Dictionary<string, string>() {
-                { "Service", "SpaceServerClient" },
+                { "Service", "SpaceServer" },
                 { "TransportURL", "URL" },
             };
             await _client.MakeConnectionAsync(auth, props);

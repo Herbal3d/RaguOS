@@ -20,7 +20,7 @@ using Nini.Config;
 
 namespace org.herbal3d.Ragu {
     public class RaguParams : IParameters {
-        private static readonly string _logHeader = "[LODEN PARAMS]";
+        private static readonly string _logHeader = "[RAGU PARAMS]";
         private readonly RaguContext _context;
 
         public RaguParams(RaguContext pContext) {
@@ -62,6 +62,28 @@ namespace org.herbal3d.Ragu {
             new ParameterDefn<string>("SpaceServerCC.ConnectionURL", "URL to use to create inbound connection",
                 "ws://0.0.0.0:11440"),
             new ParameterDefn<bool>("SpaceServerCC.DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
+                true),
+
+            new ParameterDefn<bool>("SpaceServerStatic.IsSecure", "Base directory for Loden asset storage",
+                false),
+            new ParameterDefn<string>("SpaceServerStatic.SecureConnectionURL", "URL to use to create inbound connection",
+                "wss://0.0.0.0:11441"),
+            new ParameterDefn<string>("SpaceServerStatic.Certificate", "Certificate to accept for secure inbound connection",
+                ""),
+            new ParameterDefn<string>("SpaceServerStatic.ConnectionURL", "URL to use to create inbound connection",
+                "ws://0.0.0.0:11441"),
+            new ParameterDefn<bool>("SpaceServerStatic.DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
+                true),
+
+            new ParameterDefn<bool>("SpaceServerAvatar.IsSecure", "Base directory for Loden asset storage",
+                false),
+            new ParameterDefn<string>("SpaceServerAvatar.SecureConnectionURL", "URL to use to create inbound connection",
+                "wss://0.0.0.0:11442"),
+            new ParameterDefn<string>("SpaceServerAvatar.Certificate", "Certificate to accept for secure inbound connection",
+                ""),
+            new ParameterDefn<string>("SpaceServerAvatar.ConnectionURL", "URL to use to create inbound connection",
+                "ws://0.0.0.0:11442"),
+            new ParameterDefn<bool>("SpaceServerAvatar.DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
                 true),
 
             new ParameterDefn<string>("OutputDir", "Base directory for Loden asset storage",

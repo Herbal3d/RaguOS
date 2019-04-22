@@ -33,17 +33,19 @@ namespace org.herbal3d.Ragu {
 
         private readonly string _logHeader = "[RaguAssetService]";
 
-        // There is only one instance of the asset service.
         // TODO: Someday make this kludge into a separate service.
+
+        // There is only one instance of the asset service.
+        private static RaguAssetService _instance;
         public static RaguAssetService Instance {
             get {
-                if (Instance == null) {
+                if (_instance == null) {
                     throw new Exception("RaguAssetService: reference to Instance before initialized");
                 }
-                return Instance;
+                return _instance;
             }
             protected set {
-                Instance = value;
+                _instance = value;
             }
         }
         public string HandlerPath;
