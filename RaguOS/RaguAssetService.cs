@@ -58,12 +58,12 @@ namespace org.herbal3d.Ragu {
             _context = pContext;
             HandlerPath = "/Ragu/Assets";
 
-            string hostAddress = Util.GetLocalHost().ToString();
+            string hostAddress = RaguRegion.HostnameForExternalAccess;
             if (MainServer.Instance.UseSSL) {
-                AssetServiceURL = Util.GetURI("https", hostAddress, (int)MainServer.Instance.Port, HandlerPath).ToString();
+                AssetServiceURL = new UriBuilder("https", hostAddress, (int)MainServer.Instance.Port, HandlerPath).Uri.ToString();
             }
             else {
-                AssetServiceURL = Util.GetURI("http", hostAddress, (int)MainServer.Instance.Port, HandlerPath).ToString();
+                AssetServiceURL = new UriBuilder("http", hostAddress, (int)MainServer.Instance.Port, HandlerPath).Uri.ToString();
             }
 
             // If there is not already an asset server, start one.
@@ -95,7 +95,7 @@ namespace org.herbal3d.Ragu {
     public class RaguGETStreamHandler : BaseStreamHandler {
         private readonly string _logHeader = "[RaguGetStreamHandler]";
 
-        private RaguContext _context;
+        private readonly RaguContext _context;
         private BAssetStorage _assetStorage;
 
         private Dictionary<string, string> MimeCodes = new Dictionary<string, string>() {

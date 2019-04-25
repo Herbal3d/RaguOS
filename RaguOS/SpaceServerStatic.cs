@@ -27,38 +27,40 @@ using OMV = OpenMetaverse;
 
 namespace org.herbal3d.Ragu {
 
-    public class SpaceServerStatic : SpaceServerLayer {
+    public class SpaceServerStaticLayer : SpaceServerLayer {
 
         // Initial SpaceServerStatic invocation with no transport setup.
         // Create a receiving connection and create SpaceServer when Basil connections come in.
         // Note: this canceller is for the overall layer.
-        public SpaceServerStatic(RaguContext pContext, CancellationTokenSource pCanceller)
+        public SpaceServerStaticLayer(RaguContext pContext, CancellationTokenSource pCanceller)
                         : base(pContext, pCanceller, "SpaceServerStatic") {
-            _context.log.DebugFormat("{0} Constructor", _logHeader);
         }
 
+        // Return an instance of me
+        protected override SpaceServerLayer InstanceFactory(RaguContext pContext,
+                        CancellationTokenSource pCanceller, HTransport.BasilConnection pConnection) {
+            return new SpaceServerStatic(pContext, pCanceller, pConnection);
+        }
+    }
+
+    public class SpaceServerStatic : SpaceServerLayer {
         // Creation of an instance for a specific client.
         // Note: this canceller is for the individual session.
         public SpaceServerStatic(RaguContext pContext, CancellationTokenSource pCanceller,
-                                HTransport.BasilConnection pBasilConnection) 
+                                        HTransport.BasilConnection pBasilConnection) 
                         : base(pContext, pCanceller, "SpaceServerStatic", pBasilConnection) {
 
             _context.log.DebugFormat("{0} Instance Constructor", _logHeader);
 
             // This assignment directs the space server message calls to this ISpaceServer instance.
             _clientConnection.SpaceServiceProcessor.SpaceServerMsgHandler = this;
-        }
 
-        // Process a new Basil connection
-        protected override void Event_NewBasilConnection(HTransport.BasilConnection pBasilConnection) {
-            _context.log.DebugFormat("{0} Event_NewBasilConnection", _logHeader);
-            CancellationTokenSource sessionCanceller = new CancellationTokenSource();
-            SpaceServerStatic ccHandler = new SpaceServerStatic(_context, sessionCanceller, pBasilConnection);
+            // The thing to call to make requests to the Basil server
             _client = new HTransport.BasilClient(pBasilConnection);
         }
 
-        protected override void Event_DisconnectBasilConnection(HTransport.TransportConnection pTransport) {
-            _context.log.DebugFormat("{0} Event_DisconnectBasilConnection", _logHeader);
+        // This one client has disconnected
+        public override void Shutdown() {
             _canceller.Cancel();
             if (_client != null) {
                 _client = null;
@@ -66,11 +68,6 @@ namespace org.herbal3d.Ragu {
             if (_clientConnection != null) {
                 _clientConnection.SpaceServiceProcessor.SpaceServerMsgHandler = null;
                 _clientConnection = null;
-            }
-            if (_transport != null) {
-                _transport.OnBasilConnect -= Event_NewBasilConnection;
-                _transport.OnDisconnect -= Event_DisconnectBasilConnection;
-                _transport = null;
             }
         }
 
@@ -80,42 +77,25 @@ namespace org.herbal3d.Ragu {
 
             var ret = new SpaceServer.OpenSessionResp();
 
-            if (pReq.Features != null) {
-                _context.log.DebugFormat("{0} OpenSession Features:", _logHeader);
-                foreach (var kvp in pReq.Features) {
-                    _context.log.DebugFormat("{0}     {1}: {2}", _logHeader, kvp.Key, kvp.Value);
-                };
-                string testConnectionValue;
-                if (pReq.Features.TryGetValue("TestConnection", out testConnectionValue)) {
-                    try {
-                        if (bool.Parse(testConnectionValue)) {
-                            // For some reason, a test connection is being made
-                            ret.Exception = new BasilType.BasilException() {
-                                Reason = "Cannot make test connection to SpaceServer"
-                            };
-                            return ret;
-                        }
-                    }
-                    catch (Exception e) {
-                        _context.log.ErrorFormat("{0} exception parsing value of TestConnection ({1}) : {2}",
-                                    _logHeader, testConnectionValue, e);
-                        ret.Exception = new BasilType.BasilException() {
-                            Reason = "Unparsable value of Feature parameter TestConnection: " + testConnectionValue
-                        };
-                        return ret;
-                    }
-                }
+            // DEBUG DEBUG
+            _context.log.DebugFormat("{0} OpenSession Features:", _logHeader);
+            foreach (var kvp in pReq.Features) {
+                _context.log.DebugFormat("{0}     {1}: {2}", _logHeader, kvp.Key, kvp.Value);
+            };
+
+            // Check if this is a test connection. We cannot handle those.
+            // Respond with an error message.
+            if (CheckIfTestConnection(pReq, ref ret)) {
+                return ret;
             }
 
-            // Set the processor for the new client go.
-            // This sends the connections for the layers to Basil.
-            Task.Run( HandleBasilConnection, _canceller.Token );
+            // TODO: Do whatever this layer should do
 
             Dictionary<string, string> props = new Dictionary<string, string>() {
                 { "SessionKey", _context.sessionKey },
                 // For the moment, fake an asset access key
                 { "AssetKey", _context.assetKey },
-                { "AssetKeyExpiration", DateTime.UtcNow.AddHours(2).ToString("O") },
+                { "AssetKeyExpiration", _context.assetKeyExpiration.ToString("O") },
                 { "AssetBase", RaguAssetService.Instance.AssetServiceURL }
             };
             ret.Properties.Add(props);
@@ -130,23 +110,6 @@ namespace org.herbal3d.Ragu {
         // Request from Basil to move the camera.
         public override SpaceServer.CameraViewResp CameraView(SpaceServer.CameraViewReq pReq) {
             throw new NotImplementedException();
-        }
-
-        // Received an OpenSession from a Basil client.
-        // Connect it to the other layers.
-        private async Task HandleBasilConnection() {
-            BasilType.AccessAuthorization auth = null;
-            Dictionary<string, string> props = new Dictionary<string, string>() {
-                { "Service", "SpaceServer" },
-                { "TransportURL", "URL" },
-            };
-            await _client.MakeConnectionAsync(auth, props);
-
-            props = new Dictionary<string, string>() {
-                { "Service", "SpaceServer" },
-                { "TransportURL", "URL" },
-            };
-            await _client.MakeConnectionAsync(auth, props);
         }
     }
 }

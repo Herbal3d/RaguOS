@@ -40,10 +40,12 @@ namespace org.herbal3d.Ragu {
         public string assetKey;
         public DateTime assetKeyExpiration;
         // The following are the layer servers for this region.
-        public SpaceServerCC layerCC;
-        public SpaceServerStatic layerStatic;
-        public SpaceServerDynamic layerDynamic;
-        public SpaceServerActors layerActors;
+        // TODO: create a better structure for holding and tracking the layers.
+        //      These are referenced by SpaceServerCC to send to the Basil server.
+        public SpaceServerCCLayer layerCC;
+        public SpaceServerStaticLayer layerStatic;
+        public SpaceServerDynamicLayer layerDynamic;
+        public SpaceServerActorsLayer layerActors;
 
         public RaguContext(IConfig pSysConfig, RaguParams pParms, ILog pLog) {
             var randomNumbers = new Random();
@@ -81,6 +83,7 @@ namespace org.herbal3d.Ragu {
             _context = new RaguContext(sysConfig, null, _log);
             _context.parms  = new RaguParams(_context);
             if (sysConfig != null) {
+                // Merge INI file configuration with module parameter class
                 _context.parms.SetParameterConfigurationValues(sysConfig, _context);
             }
             if (_context.parms.P<bool>("Enabled")) {

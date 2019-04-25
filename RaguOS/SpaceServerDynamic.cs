@@ -19,31 +19,36 @@ using System.Threading.Tasks;
 using SpaceServer = org.herbal3d.basil.protocol.SpaceServer;
 using HTransport = org.herbal3d.transport;
 using BasilType = org.herbal3d.basil.protocol.BasilType;
+using org.herbal3d.cs.CommonEntitiesUtil;
+
+using Google.Protobuf;
+
+using OMV = OpenMetaverse;
 
 namespace org.herbal3d.Ragu {
 
-    public class SpaceServerCCLayer : SpaceServerLayer {
+    public class SpaceServerDynamicLayer : SpaceServerLayer {
 
-        // Initial SpaceServerCC invocation with no transport setup.
+        // Initial SpaceServerDynamic invocation with no transport setup.
         // Create a receiving connection and create SpaceServer when Basil connections come in.
         // Note: this canceller is for the overall layer.
-        public SpaceServerCCLayer(RaguContext pContext, CancellationTokenSource pCanceller)
-                        : base(pContext, pCanceller, "SpaceServerCC") {
+        public SpaceServerDynamicLayer(RaguContext pContext, CancellationTokenSource pCanceller)
+                        : base(pContext, pCanceller, "SpaceServerDynamic") {
         }
 
         // Return an instance of me
         protected override SpaceServerLayer InstanceFactory(RaguContext pContext,
                         CancellationTokenSource pCanceller, HTransport.BasilConnection pConnection) {
-            return new SpaceServerCC(pContext, pCanceller, pConnection);
+            return new SpaceServerDynamic(pContext, pCanceller, pConnection);
         }
     }
 
-    public class SpaceServerCC : SpaceServerLayer {
+    public class SpaceServerDynamic : SpaceServerLayer {
         // Creation of an instance for a specific client.
         // Note: this canceller is for the individual session.
-        public SpaceServerCC(RaguContext pContext, CancellationTokenSource pCanceller,
+        public SpaceServerDynamic(RaguContext pContext, CancellationTokenSource pCanceller,
                                         HTransport.BasilConnection pBasilConnection) 
-                        : base(pContext, pCanceller, "SpaceServerCC", pBasilConnection) {
+                        : base(pContext, pCanceller, "SpaceServerDynamic", pBasilConnection) {
 
             _context.log.DebugFormat("{0} Instance Constructor", _logHeader);
 
@@ -84,9 +89,7 @@ namespace org.herbal3d.Ragu {
                 return ret;
             }
 
-            // Set the processor for the new client go.
-            // This sends the connections for the layers to Basil.
-            Task.Run( HandleBasilConnection, _canceller.Token );
+            // TODO: Do whatever this layer should do
 
             Dictionary<string, string> props = new Dictionary<string, string>() {
                 { "SessionKey", _context.sessionKey },
@@ -107,44 +110,6 @@ namespace org.herbal3d.Ragu {
         // Request from Basil to move the camera.
         public override SpaceServer.CameraViewResp CameraView(SpaceServer.CameraViewReq pReq) {
             throw new NotImplementedException();
-        }
-
-        // Received an OpenSession from a Basil client.
-        // Connect it to the other layers.
-        private async Task HandleBasilConnection() {
-            try {
-                _context.log.DebugFormat("{0} HandleBasilConnection", _logHeader);
-                BasilType.AccessAuthorization auth = null;
-                if (_context.layerStatic != null) {
-                    Dictionary<string, string> props = new Dictionary<string, string>() {
-                        { "Service", "SpaceServerClient" },
-                        { "TransportURL", _context.layerStatic.RemoteConnectionURL },
-                        { "ServiceHint", "static" },
-                    };
-                    await _client.MakeConnectionAsync(auth, props);
-                }
-
-                if (_context.layerDynamic != null) {
-                    Dictionary<string, string> props = new Dictionary<string, string>() {
-                        { "Service", "SpaceServerClient" },
-                        { "TransportURL", _context.layerDynamic.RemoteConnectionURL },
-                        { "ServiceHint", "dynamic" },
-                    };
-                    await _client.MakeConnectionAsync(auth, props);
-                }
-
-                if (_context.layerActors != null) {
-                    Dictionary<string, string> props = new Dictionary<string, string>() {
-                        { "Service", "SpaceServerClient" },
-                        { "TransportURL", _context.layerActors.RemoteConnectionURL },
-                        { "ServiceHint", "actors" },
-                    };
-                    await _client.MakeConnectionAsync(auth, props);
-                }
-            }
-            catch (Exception e) {
-                _context.log.ErrorFormat("{0} HandleBasilConnection. Exception connecting Basil to layers: {1}", _logHeader, e);
-            }
         }
     }
 }

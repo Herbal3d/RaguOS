@@ -53,6 +53,9 @@ namespace org.herbal3d.Ragu {
             new ParameterDefn<bool>("Enabled", "If false, module is not enabled to operate",
                 false ),
 
+            new ParameterDefn<string>("ExternalAccessHostname", "Hostname for external clients it access. Computed if zero length",
+                "" ),
+
             new ParameterDefn<bool>("SpaceServerCC.IsSecure", "Base directory for Loden asset storage",
                 false),
             new ParameterDefn<string>("SpaceServerCC.SecureConnectionURL", "URL to use to create inbound connection",
