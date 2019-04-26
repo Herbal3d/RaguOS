@@ -30,15 +30,13 @@ namespace org.herbal3d.Ragu {
         public static string HostnameForExternalAccess;
 
         private readonly RaguContext _context;
-        private readonly Scene _scene;
         // Cancellation token for all services started by Ragu for this region.
         private readonly CancellationTokenSource _canceller;
 
         private RaguAssetService _assetService;
 
         // Given a scene, do the LOD ("level of detail") conversion
-        public RaguRegion(Scene pScene, RaguContext pContext) {
-            _scene = pScene;
+        public RaguRegion(RaguContext pContext) {
             _context = pContext;
             _canceller = new CancellationTokenSource();
 
@@ -50,7 +48,7 @@ namespace org.herbal3d.Ragu {
 
         public void Start() {
             // Wait for the region to have all its content before scanning
-            _scene.EventManager.OnPrimsLoaded += Event_OnPrimsLoaded;
+            _context.scene.EventManager.OnPrimsLoaded += Event_OnPrimsLoaded;
 
             // Ragu's process for external access to the Loden generated content.
             // TODO: This should be an external process.

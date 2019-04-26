@@ -20,10 +20,14 @@ using SpaceServer = org.herbal3d.basil.protocol.SpaceServer;
 using HTransport = org.herbal3d.transport;
 using BasilType = org.herbal3d.basil.protocol.BasilType;
 using org.herbal3d.cs.CommonEntitiesUtil;
+using org.herbal3d.Tiles;
+
+using org.herbal3d.Loden;
 
 using Google.Protobuf;
 
 using OMV = OpenMetaverse;
+using System.Net;
 
 namespace org.herbal3d.Ragu {
 
@@ -44,6 +48,9 @@ namespace org.herbal3d.Ragu {
     }
 
     public class SpaceServerStatic : SpaceServerLayer {
+        // Handle to the LOD'ized region assets
+        LodenRegion _lodenRegion;
+
         // Creation of an instance for a specific client.
         // Note: this canceller is for the individual session.
         public SpaceServerStatic(RaguContext pContext, CancellationTokenSource pCanceller,
@@ -57,6 +64,9 @@ namespace org.herbal3d.Ragu {
 
             // The thing to call to make requests to the Basil server
             _client = new HTransport.BasilClient(pBasilConnection);
+
+            // Our handle to the LOD'ized region assets
+            _lodenRegion = _context.scene.RequestModuleInterface<LodenRegion>();
         }
 
         // This one client has disconnected
@@ -89,7 +99,9 @@ namespace org.herbal3d.Ragu {
                 return ret;
             }
 
-            // TODO: Do whatever this layer should do
+            // Start sending stuff to our new Basil friend.
+            Task.Run( HandleBasilConnection, _canceller.Token );
+
 
             Dictionary<string, string> props = new Dictionary<string, string>() {
                 { "SessionKey", _context.sessionKey },
@@ -110,6 +122,68 @@ namespace org.herbal3d.Ragu {
         // Request from Basil to move the camera.
         public override SpaceServer.CameraViewResp CameraView(SpaceServer.CameraViewReq pReq) {
             throw new NotImplementedException();
+        }
+
+        // Received an OpenSession from a Basil client.
+        // Send the fellow some content.
+        private async Task HandleBasilConnection() {
+            try {
+                _context.log.DebugFormat("{0} HandleBasilConnection", _logHeader);
+
+                // Get region tile definition
+                string regionSpecURL = RaguAssetService.Instance.AssetServiceURL + "/" + _lodenRegion.RegionTopLevelSpecURL;
+                regionSpecURL = regionSpecURL.Replace("/./", "/");
+
+                TileSet regionSpec;
+                try {
+                    using (WebClient wClient = new WebClient()) {
+                        string specString = wClient.DownloadString(regionSpecURL);
+                        regionSpec = TileSet.FromString(specString);
+                    }
+                }
+                catch (Exception e) {
+                    _context.log.ErrorFormat("{0} HandleBasilConnection: Failure reading region spec '{1}': {2}",
+                                    _logHeader, regionSpecURL, e);
+                    // There is nothing more we can do
+                    return;
+                }
+                // DEBUG DEBUG
+                if (regionSpec == null) {
+                    _context.log.ErrorFormat("{0} HandleBasilConnection: Could not read regionSpec", _logHeader);
+                }
+                else {
+                    _context.log.DebugFormat("{0} HandleBasilConnection: RegionSpec.url=", _logHeader, regionSpec.root.content.uri);
+                }
+
+                BasilType.AccessAuthorization auth = null;
+                BasilType.AaBoundingBox aabb = null;
+                var regionAsset = new BasilType.AssetInformation() {
+                    DisplayInfo = new BasilType.DisplayableInfo() {
+                        DisplayableType = "meshset",
+                    }
+                };
+                string regionAssetURL = RaguAssetService.Instance.AssetServiceURL + "/" + regionSpec.root.content.uri;
+                regionAssetURL = regionAssetURL.Replace("/./", "/");
+                regionAsset.DisplayInfo.Asset.Add("url", regionAssetURL);
+                regionAsset.DisplayInfo.Asset.Add("loaderType", "GLTF");
+                var objectResp = await _client.IdentifyDisplayableObjectAsync(auth, regionAsset, aabb);
+
+                BasilType.InstancePositionInfo instancePositionInfo = new BasilType.InstancePositionInfo() {
+                    Pos = new BasilType.CoordPosition() {
+                        Pos = new BasilType.Vector3() {
+                            X = 100,
+                            Y = 101,
+                            Z = 102
+                        },
+                        PosRef = BasilType.CoordSystem.Wgs86,
+                        RotRef = BasilType.RotationSystem.Worldr
+                    }
+                };
+                await _client.CreateObjectInstanceAsync(auth, objectResp.ObjectId, instancePositionInfo);
+            }
+            catch (Exception e) {
+                _context.log.ErrorFormat("{0} HandleBasilConnection. Exception connecting Basil to layers: {1}", _logHeader, e);
+            }
         }
     }
 }

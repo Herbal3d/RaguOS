@@ -34,6 +34,7 @@ namespace org.herbal3d.Ragu {
         public readonly IConfig sysConfig;
         public RaguParams parms;    // assume it's readonly
         public readonly RaguStats stats;
+        public Scene scene;
         public readonly BLogger log;
         public readonly string contextName;  // a unique identifier for this context -- used in filenames, ...
         public readonly string sessionKey;
@@ -104,14 +105,14 @@ namespace org.herbal3d.Ragu {
         // Called once for the region we're managing.
         public void AddRegion(Scene pScene) {
             // Remember all the loaded scenes
-            _scene = pScene;
+            _context.scene = pScene;
         }
 
         // IRegionModuleBase.RemoveRegion
         public void RemoveRegion(Scene pScene) {
-            if (_scene != null) {
+            if (_context.scene != null) {
                 Close();
-                _scene = null;
+                _context.scene = null;
             }
         }
 
@@ -120,7 +121,7 @@ namespace org.herbal3d.Ragu {
         public void RegionLoaded(Scene scene) {
             if (_context.parms.P<bool>("Enabled")) {
                 _context.log.DebugFormat("{0} Region loaded. Starting region manager", _logHeader);
-                _regionProcessor = new RaguRegion(_scene, _context);
+                _regionProcessor = new RaguRegion(_context);
                 _regionProcessor.Start();
             }
         }

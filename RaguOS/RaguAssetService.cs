@@ -146,6 +146,8 @@ namespace org.herbal3d.Ragu {
                 else {
                     httpResponse.StatusCode = (int)System.Net.HttpStatusCode.NotFound;
                 }
+                // Cross-Origin Resource Sharing with simple requests
+                httpResponse.AddHeader("Access-Control-Allow-Origin", "*");
             // }
             return null;
         }
