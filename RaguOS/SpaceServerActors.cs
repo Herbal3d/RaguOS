@@ -16,6 +16,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+using OpenSim.Region.Framework.Scenes;
+
 using SpaceServer = org.herbal3d.basil.protocol.SpaceServer;
 using HTransport = org.herbal3d.transport;
 using BasilType = org.herbal3d.basil.protocol.BasilType;
@@ -89,7 +91,8 @@ namespace org.herbal3d.Ragu {
                 return ret;
             }
 
-            // TODO: Do whatever this layer should do
+            // Start sending stuff to our new Basil friend.
+            HandleBasilConnection();
 
             Dictionary<string, string> props = new Dictionary<string, string>() {
                 { "SessionKey", _context.sessionKey },
@@ -110,6 +113,200 @@ namespace org.herbal3d.Ragu {
         // Request from Basil to move the camera.
         public override SpaceServer.CameraViewResp CameraView(SpaceServer.CameraViewReq pReq) {
             throw new NotImplementedException();
+        }
+
+        private void HandleBasilConnection() {
+            AddEventSubscriptsion();
+        }
+
+        private void AddEventSubscriptsion() {
+            _context.scene.EventManager.OnNewPresence               += Event_OnNewPresence;
+            _context.scene.EventManager.OnRemovePresence            += Event_OnRemovePresence;
+            // update to client position (either this or 'significant')
+            _context.scene.EventManager.OnClientMovement            += Event_OnClientMovement;
+            // "significant" update to client position
+            _context.scene.EventManager.OnSignificantClientMovement += Event_OnSignificantClientMovement;
+            // Gets called for most position/camera/action updates. Seems to be once a second.
+            // _context.scene.EventManager.OnScenePresenceUpdated      += Event_OnScenePresenceUpdated;
+        }
+        private void RemoveEventSubscriptsion() {
+            _context.scene.EventManager.OnNewPresence               -= Event_OnNewPresence;
+            _context.scene.EventManager.OnRemovePresence            -= Event_OnRemovePresence;
+            // update to client position (either this or 'significant')
+            _context.scene.EventManager.OnClientMovement            -= Event_OnClientMovement;
+            // "significant" update to client position
+            _context.scene.EventManager.OnSignificantClientMovement -= Event_OnSignificantClientMovement;
+            // Gets called for most position/camera/action updates
+            // _context.scene.EventManager.OnScenePresenceUpdated      -= Event_OnScenePresenceUpdated;
+        }
+
+        private void Event_OnNewPresence(ScenePresence pPresence) {
+            _context.log.DebugFormat("{0} Event_OnNewPresence", _logHeader);
+            PresenceInfo pi = new PresenceInfo(pPresence, _context, _client);
+            AddPresence(pi);
+            pi.AddAppearanceInstance();
+        }
+        private void Event_OnRemovePresence(OMV.UUID pPresenceUUID) {
+            _context.log.DebugFormat("{0} Event_OnRemovePresence", _logHeader);
+            if (FindPresence(pPresenceUUID, out PresenceInfo pi)) {
+                pi.RemoveAppearanceInstance();
+                RemovePresence(pi);
+            }
+        }
+        private void Event_OnClientMovement(ScenePresence pPresence) {
+            _context.log.DebugFormat("{0} Event_OnClientMovement", _logHeader);
+            if (FindPresence(pPresence, out PresenceInfo pi)) {
+                pi.UpdatePosition();
+            }
+        }
+        private void Event_OnSignificantClientMovement(ScenePresence pPresence) {
+            _context.log.DebugFormat("{0} Event_OnSignificantClientMovement", _logHeader);
+            if (FindPresence(pPresence, out PresenceInfo pi)) {
+                pi.UpdatePosition();
+            }
+        }
+        private void Event_OnScenePresenceUpdated(ScenePresence pPresence) {
+            _context.log.DebugFormat("{0} Event_OnScenePresenceUpdated", _logHeader);
+            if (FindPresence(pPresence, out PresenceInfo pi)) {
+                pi.UpdatePosition();
+            }
+        }
+
+        private List<PresenceInfo> _presences = new List<PresenceInfo>();
+        // Find a presence based on it's ScenePresence instance
+        private bool FindPresence(ScenePresence pScenePresence, out PresenceInfo pFound) {
+            bool ret = false;
+            lock (_presences) {
+                try {
+                    PresenceInfo found = _presences.Where(p => p.presence == pScenePresence).First();
+                    pFound = found;
+                    ret = true;
+                }
+                catch {
+                    pFound = null;
+                }
+            }
+            return ret;
+        }
+        // Find a presence using it's UUID
+        private bool FindPresence(OMV.UUID pPresenceId, out PresenceInfo pFound) {
+            bool ret = false;
+            lock (_presences) {
+                try {
+                    PresenceInfo found = _presences.Where(p => p.presence.UUID == pPresenceId).First();
+                    pFound = found;
+                    ret = true;
+                }
+                catch {
+                    pFound = null;
+                }
+            }
+            return ret;
+        }
+        private void AddPresence(PresenceInfo pPI) {
+            lock (_presences) {
+                _presences.Add(pPI);
+            }
+        }
+        private void RemovePresence(PresenceInfo pPI) {
+            lock (_presences) {
+                _presences.Remove(pPI);
+            }
+        }
+
+        // Local class for a presence and the operations we do on the Basil display.
+        private class PresenceInfo {
+            private static readonly string _logHeader = "[PresenceInfo]";
+
+            public ScenePresence presence;
+            private HTransport.BasilClient _client;
+            private RaguContext _context;
+            private BasilType.ObjectIdentifier _objectId;
+            private BasilType.InstanceIdentifier _instanceId;
+
+            public PresenceInfo(ScenePresence pPresence, RaguContext pContext, HTransport.BasilClient pClient) {
+                presence = pPresence;
+                _context = pContext;
+                _client = pClient;
+            }
+            public void UpdatePosition() {
+                BasilType.AccessAuthorization auth = null;
+                _client.UpdateInstancePosition(auth, _instanceId, PackageInstancePosition() );
+                _context.log.DebugFormat("{0} UpdatePosition: p={1}, r={2}",
+                            _logHeader, presence.AbsolutePosition, presence.Rotation);
+            }
+            public void UpdateAppearance() {
+            }
+            public void AddAppearanceInstance() {
+                BasilType.AccessAuthorization auth = null;
+                BasilType.AaBoundingBox aabb = null;
+                Task.Run( async () => {
+                    BasilType.AssetInformation asset = new BasilType.AssetInformation() {
+                        DisplayInfo = new BasilType.DisplayableInfo() {
+                            DisplayableType = "meshset",
+                        }
+                    };
+                    string tempAppearanceURL = "http://files.misterblue.com/BasilTest/gltf/Duck/glTF/Duck.gltf";
+                    asset.DisplayInfo.Asset.Add("url", tempAppearanceURL);
+                    asset.DisplayInfo.Asset.Add("loaderType", "GLTF");
+
+                    var resp = await _client.IdentifyDisplayableObjectAsync(auth, asset, aabb);
+                    if (resp.Exception == null) {
+                        _objectId = resp.ObjectId;
+
+                        var resp2 = await _client.CreateObjectInstanceAsync(auth, _objectId, PackageInstancePosition());
+                        if (resp2.Exception == null) {
+                            _instanceId = resp2.InstanceId;
+                        }
+                        else {
+                            _context.log.ErrorFormat("{0} Error creating presence instance: {1}",
+                                            _logHeader, resp2.Exception.Reason);
+                            _instanceId = null;
+                        }
+                    }
+                    else {
+                        _context.log.ErrorFormat("{0} Error creating presence displayable: {1}",
+                                        _logHeader, resp.Exception.Reason);
+                        _objectId = null;
+                    }
+                });
+            }
+            public void RemoveAppearanceInstance() {
+                BasilType.AccessAuthorization auth = null;
+                Task.Run( async () => {
+                    if (_instanceId != null) {
+                        await _client.DeleteObjectInstanceAsync(auth, _instanceId);
+                        _instanceId = null;
+                    }
+                    if (_objectId != null) {
+                        await _client.ForgetDisplayableObjectAsync(auth, _objectId);
+                        _objectId = null;
+                    }
+                });
+            }
+            // Return an InstancePositionInfo with the presence's current position
+            public BasilType.InstancePositionInfo PackageInstancePosition() {
+                OMV.Vector3 thePos = presence.AbsolutePosition;
+                OMV.Quaternion theRot = presence.Rotation;
+                BasilType.InstancePositionInfo pos = new BasilType.InstancePositionInfo() {
+                    Pos = new BasilType.CoordPosition() {
+                        PosRef = BasilType.CoordSystem.Wgs86,
+                        Pos = new BasilType.Vector3() {
+                            X = thePos.X,
+                            Y = thePos.Y,
+                            Z = thePos.Z
+                        },
+                        RotRef = BasilType.RotationSystem.Worldr,
+                        Rot = new BasilType.Quaternion() {
+                            X = theRot.X,
+                            Y = theRot.Y,
+                            Z = theRot.Z,
+                            W = theRot.W
+                        }
+                    }
+                };
+                return pos;
+            }
         }
     }
 }
