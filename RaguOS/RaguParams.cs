@@ -78,15 +78,15 @@ namespace org.herbal3d.Ragu {
             new ParameterDefn<bool>("SpaceServerStatic.DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
                 true),
 
-            new ParameterDefn<bool>("SpaceServerAvatar.IsSecure", "Base directory for Loden asset storage",
+            new ParameterDefn<bool>("SpaceServerActors.IsSecure", "Base directory for Loden asset storage",
                 false),
-            new ParameterDefn<string>("SpaceServerAvatar.SecureConnectionURL", "URL to use to create inbound connection",
+            new ParameterDefn<string>("SpaceServerActors.SecureConnectionURL", "URL to use to create inbound connection",
                 "wss://0.0.0.0:11442"),
-            new ParameterDefn<string>("SpaceServerAvatar.Certificate", "Certificate to accept for secure inbound connection",
+            new ParameterDefn<string>("SpaceServerActors.Certificate", "Certificate to accept for secure inbound connection",
                 ""),
-            new ParameterDefn<string>("SpaceServerAvatar.ConnectionURL", "URL to use to create inbound connection",
+            new ParameterDefn<string>("SpaceServerActors.ConnectionURL", "URL to use to create inbound connection",
                 "ws://0.0.0.0:11442"),
-            new ParameterDefn<bool>("SpaceServerAvatar.DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
+            new ParameterDefn<bool>("SpaceServerActors.DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
                 true),
 
             new ParameterDefn<string>("OutputDir", "Base directory for Loden asset storage",
@@ -170,7 +170,7 @@ namespace org.herbal3d.Ragu {
                         // System.Console.WriteLine("SetValue: setting value on {0} to {1}", this.name, setValue);
                         // Store the parsed value
                         value = setValue;
-                        context.log.DebugFormat("{0} SetValue. {1} = {2}", _logHeader, name, setValue);
+                        // context.log.DebugFormat("{0} SetValue. {1} = {2}", _logHeader, name, setValue);
                     }
                     catch (Exception e) {
                         context.log.ErrorFormat("{0} Failed parsing parameter value '{1}': '{2}'", _logHeader, valAsString, e);
