@@ -115,6 +115,7 @@ namespace org.herbal3d.Ragu {
 
         private void HandleBasilConnection() {
             AddEventSubscriptsion();
+            AddExistingPresences();
         }
 
         private void AddEventSubscriptsion() {
@@ -137,12 +138,24 @@ namespace org.herbal3d.Ragu {
             // Gets called for most position/camera/action updates
             // _context.scene.EventManager.OnScenePresenceUpdated      -= Event_OnScenePresenceUpdated;
         }
+        private void AddExistingPresences() {
+            _context.scene.GetScenePresences().ForEach(pres => {
+                PresenceInfo pi = new PresenceInfo(pres, _context, _client);
+                AddPresence(pi);
+                pi.AddAppearanceInstance();
+            });
+        }
 
         private void Event_OnNewPresence(ScenePresence pPresence) {
             // _context.log.DebugFormat("{0} Event_OnNewPresence", _logHeader);
-            PresenceInfo pi = new PresenceInfo(pPresence, _context, _client);
-            AddPresence(pi);
-            pi.AddAppearanceInstance();
+            if (FindPresence(pPresence.UUID, out PresenceInfo aPresence)) {
+                _context.log.ErrorFormat("{0} Event_OnNewPresence: two events for the same presence", _logHeader);
+            }
+            else {
+                PresenceInfo pi = new PresenceInfo(pPresence, _context, _client);
+                AddPresence(pi);
+                pi.AddAppearanceInstance();
+            }
         }
         private void Event_OnRemovePresence(OMV.UUID pPresenceUUID) {
             // _context.log.DebugFormat("{0} Event_OnRemovePresence", _logHeader);
