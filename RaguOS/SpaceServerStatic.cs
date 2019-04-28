@@ -154,6 +154,7 @@ namespace org.herbal3d.Ragu {
                 else {
                     _context.log.DebugFormat("{0} HandleBasilConnection: RegionSpec.url=", _logHeader, regionSpec.root.content.uri);
                 }
+                // END DEBUG DEBUG
 
                 BasilType.AccessAuthorization auth = null;
                 BasilType.AaBoundingBox aabb = null;
@@ -171,9 +172,11 @@ namespace org.herbal3d.Ragu {
                 BasilType.InstancePositionInfo instancePositionInfo = new BasilType.InstancePositionInfo() {
                     Pos = new BasilType.CoordPosition() {
                         Pos = new BasilType.Vector3() {
-                            X = 100,
-                            Y = 101,
-                            Z = 102
+                            // X = 100, Y = 101, Z = 102
+                            X = 0, Y = 0, Z = 0
+                        },
+                        Rot = new BasilType.Quaternion() {
+                            X = 0, Y = 0, Z = 0, W = 1
                         },
                         PosRef = BasilType.CoordSystem.Wgs86,
                         RotRef = BasilType.RotationSystem.Worldr
