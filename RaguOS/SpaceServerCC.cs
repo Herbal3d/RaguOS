@@ -45,8 +45,6 @@ namespace org.herbal3d.Ragu {
                                         HTransport.BasilConnection pBasilConnection) 
                         : base(pContext, pCanceller, "SpaceServerCC", pBasilConnection) {
 
-            _context.log.DebugFormat("{0} Instance Constructor", _logHeader);
-
             // This assignment directs the space server message calls to this ISpaceServer instance.
             _clientConnection.SpaceServiceProcessor.SpaceServerMsgHandler = this;
 

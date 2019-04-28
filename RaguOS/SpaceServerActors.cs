@@ -52,8 +52,6 @@ namespace org.herbal3d.Ragu {
                                         HTransport.BasilConnection pBasilConnection) 
                         : base(pContext, pCanceller, "SpaceServerActors", pBasilConnection) {
 
-            _context.log.DebugFormat("{0} Instance Constructor", _logHeader);
-
             // This assignment directs the space server message calls to this ISpaceServer instance.
             _clientConnection.SpaceServiceProcessor.SpaceServerMsgHandler = this;
 
@@ -141,32 +139,32 @@ namespace org.herbal3d.Ragu {
         }
 
         private void Event_OnNewPresence(ScenePresence pPresence) {
-            _context.log.DebugFormat("{0} Event_OnNewPresence", _logHeader);
+            // _context.log.DebugFormat("{0} Event_OnNewPresence", _logHeader);
             PresenceInfo pi = new PresenceInfo(pPresence, _context, _client);
             AddPresence(pi);
             pi.AddAppearanceInstance();
         }
         private void Event_OnRemovePresence(OMV.UUID pPresenceUUID) {
-            _context.log.DebugFormat("{0} Event_OnRemovePresence", _logHeader);
+            // _context.log.DebugFormat("{0} Event_OnRemovePresence", _logHeader);
             if (FindPresence(pPresenceUUID, out PresenceInfo pi)) {
                 pi.RemoveAppearanceInstance();
                 RemovePresence(pi);
             }
         }
         private void Event_OnClientMovement(ScenePresence pPresence) {
-            _context.log.DebugFormat("{0} Event_OnClientMovement", _logHeader);
+            // _context.log.DebugFormat("{0} Event_OnClientMovement", _logHeader);
             if (FindPresence(pPresence, out PresenceInfo pi)) {
                 pi.UpdatePosition();
             }
         }
         private void Event_OnSignificantClientMovement(ScenePresence pPresence) {
-            _context.log.DebugFormat("{0} Event_OnSignificantClientMovement", _logHeader);
+            // _context.log.DebugFormat("{0} Event_OnSignificantClientMovement", _logHeader);
             if (FindPresence(pPresence, out PresenceInfo pi)) {
                 pi.UpdatePosition();
             }
         }
         private void Event_OnScenePresenceUpdated(ScenePresence pPresence) {
-            _context.log.DebugFormat("{0} Event_OnScenePresenceUpdated", _logHeader);
+            // _context.log.DebugFormat("{0} Event_OnScenePresenceUpdated", _logHeader);
             if (FindPresence(pPresence, out PresenceInfo pi)) {
                 pi.UpdatePosition();
             }
@@ -232,8 +230,8 @@ namespace org.herbal3d.Ragu {
             public void UpdatePosition() {
                 BasilType.AccessAuthorization auth = null;
                 _client.UpdateInstancePosition(auth, _instanceId, PackageInstancePosition() );
-                _context.log.DebugFormat("{0} UpdatePosition: p={1}, r={2}",
-                            _logHeader, presence.AbsolutePosition, presence.Rotation);
+                // _context.log.DebugFormat("{0} UpdatePosition: p={1}, r={2}",
+                //             _logHeader, presence.AbsolutePosition, presence.Rotation);
             }
             public void UpdateAppearance() {
             }
