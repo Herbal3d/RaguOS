@@ -38,7 +38,7 @@ namespace org.herbal3d.Ragu {
         public readonly BLogger log;
         public readonly string contextName;  // a unique identifier for this context -- used in filenames, ...
         public readonly string sessionKey;
-        public string assetKey;
+        public string assetAccessKey;
         public DateTime assetKeyExpiration;
         // The following are the layer servers for this region.
         // TODO: create a better structure for holding and tracking the layers.
@@ -57,7 +57,7 @@ namespace org.herbal3d.Ragu {
             contextName = "Context" + randomNumbers.Next().ToString();
             // TODO: make session and asset keys bearer certificates with expiration, etc
             sessionKey = randomNumbers.Next().ToString();
-            assetKey = randomNumbers.Next().ToString();
+            assetAccessKey = randomNumbers.Next().ToString();
             assetKeyExpiration = DateTime.UtcNow.AddHours(2);
         }
     }
@@ -68,7 +68,6 @@ namespace org.herbal3d.Ragu {
         private static readonly String _logHeader = "[RaguModule]";
 
         private RaguContext _context;
-        private Scene _scene;
         private RaguRegion _regionProcessor = null;
 
         // IRegionModuleBase.Name

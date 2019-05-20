@@ -94,7 +94,7 @@ namespace org.herbal3d.Ragu {
             Dictionary<string, string> props = new Dictionary<string, string>() {
                 { "SessionKey", _context.sessionKey },
                 // For the moment, fake an asset access key
-                { "AssetKey", _context.assetKey },
+                { "AssetKey", _context.assetAccessKey },
                 { "AssetKeyExpiration", _context.assetKeyExpiration.ToString("O") },
                 { "AssetBase", RaguAssetService.Instance.AssetServiceURL }
             };

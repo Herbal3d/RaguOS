@@ -93,7 +93,7 @@ namespace org.herbal3d.Ragu {
     }
 
     public class RaguGETStreamHandler : BaseStreamHandler {
-        private readonly string _logHeader = "[RaguGetStreamHandler]";
+        // private readonly string _logHeader = "[RaguGetStreamHandler]";
 
         private readonly RaguContext _context;
         private BAssetStorage _assetStorage;

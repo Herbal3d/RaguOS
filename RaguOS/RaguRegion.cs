@@ -72,6 +72,8 @@ namespace org.herbal3d.Ragu {
             _context.log.DebugFormat("{0} Prims loaded. Starting command-and-control SpaceServer", _logHeader);
             try {
                 // Create the layers of the 3d world that are referenced by the Basil server
+                // The CommandAndControl layer tells the Basil server about all the layers
+                // TODO: Make dynamic and region specific.
                 _context.layerActors = new SpaceServerActorsLayer(_context, _canceller);
                 // _context.layerDynamic = new SpaceServerDynamicLayer(_context, _canceller);
                 _context.layerStatic = new SpaceServerStaticLayer(_context, _canceller);
