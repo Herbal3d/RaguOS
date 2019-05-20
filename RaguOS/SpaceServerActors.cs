@@ -82,6 +82,7 @@ namespace org.herbal3d.Ragu {
             foreach (var kvp in pReq.Features) {
                 _context.log.DebugFormat("{0}     {1}: {2}", _logHeader, kvp.Key, kvp.Value);
             };
+            // END DEBUG DEBUG
 
             // Check if this is a test connection. We cannot handle those.
             // Respond with an error message.
@@ -92,10 +93,11 @@ namespace org.herbal3d.Ragu {
             // Start sending stuff to our new Basil friend.
             HandleBasilConnection();
 
+            // Build response message with information about session and fetching assets
             Dictionary<string, string> props = new Dictionary<string, string>() {
                 { "SessionKey", _context.sessionKey },
                 // For the moment, fake an asset access key
-                { "AssetKey", _context.assetKey },
+                { "AssetKey", _context.assetAccessKey },
                 { "AssetKeyExpiration", _context.assetKeyExpiration.ToString("O") },
                 { "AssetBase", RaguAssetService.Instance.AssetServiceURL }
             };
@@ -241,12 +243,16 @@ namespace org.herbal3d.Ragu {
                 _client = pClient;
             }
             public void UpdatePosition() {
-                BasilType.AccessAuthorization auth = null;
-                _client.UpdateInstancePosition(auth, _instanceId, PackageInstancePosition() );
-                // _context.log.DebugFormat("{0} UpdatePosition: p={1}, r={2}",
-                //             _logHeader, presence.AbsolutePosition, presence.Rotation);
+                if (_instanceId != null) {
+                    BasilType.AccessAuthorization auth = null;
+                    _client.UpdateInstancePosition(auth, _instanceId, PackageInstancePosition());
+                    // _context.log.DebugFormat("{0} UpdatePosition: p={1}, r={2}",
+                    //             _logHeader, presence.AbsolutePosition, presence.Rotation);
+                }
             }
             public void UpdateAppearance() {
+                if (_instanceId != null) {
+                }
             }
             public void AddAppearanceInstance() {
                 BasilType.AccessAuthorization auth = null;
@@ -257,6 +263,8 @@ namespace org.herbal3d.Ragu {
                             DisplayableType = "meshset",
                         }
                     };
+                    // TODO: use avatar appearance baking code to build GLTF version of avatar
+                    // For the moment, use a canned, static mesh
                     string tempAppearanceURL = "http://files.misterblue.com/BasilTest/gltf/Duck/glTF/Duck.gltf";
                     asset.DisplayInfo.Asset.Add("url", tempAppearanceURL);
                     asset.DisplayInfo.Asset.Add("loaderType", "GLTF");
@@ -296,9 +304,12 @@ namespace org.herbal3d.Ragu {
                 });
             }
             // Return an InstancePositionInfo with the presence's current position
+            private OMV.Quaternion convertCoord = OMV.Quaternion.CreateFromAxisAngle(1.0f, 0.0f, 0.0f, -(float)Math.PI / 2f);
             public BasilType.InstancePositionInfo PackageInstancePosition() {
-                OMV.Vector3 thePos = presence.AbsolutePosition;
-                OMV.Quaternion theRot = presence.Rotation;
+                // Convert coordinates from OpenSim Zup to GLTF Yup
+                OMV.Vector3 thePos = presence.AbsolutePosition * convertCoord;
+                OMV.Quaternion theRot = convertCoord * presence.Rotation;
+                // OMV.Quaternion theRot = presence.Rotation;
                 BasilType.InstancePositionInfo pos = new BasilType.InstancePositionInfo() {
                     Pos = new BasilType.CoordPosition() {
                         PosRef = BasilType.CoordSystem.Wgs86,
