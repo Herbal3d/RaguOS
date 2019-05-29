@@ -62,6 +62,8 @@ namespace org.herbal3d.Ragu {
                 "wss://0.0.0.0:11440"),
             new ParameterDefn<string>("SpaceServerCC.Certificate", "Certificate to accept for secure inbound connection",
                 ""),
+            new ParameterDefn<int>("SpaceServerCC.WebSocketPort", "URL to use to create inbound connection",
+                11440),
             new ParameterDefn<string>("SpaceServerCC.ConnectionURL", "URL to use to create inbound connection",
                 "ws://0.0.0.0:11440"),
             new ParameterDefn<bool>("SpaceServerCC.DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
@@ -121,6 +123,8 @@ namespace org.herbal3d.Ragu {
             public abstract void AssignDefault();
             // Get the value as a string
             public abstract string GetValue();
+            // Get the value as just an object
+            public abstract object GetObjectValue();
             // Set the value to this string value
             public abstract void SetValue(string valAsString);
         }
@@ -153,6 +157,9 @@ namespace org.herbal3d.Ragu {
             }
             public override Type GetValueType() {
                 return typeof(T);
+            }
+            public override object GetObjectValue() {
+                return value;
             }
             public override void SetValue(String valAsString) {
                 // Find the 'Parse' method on that type
@@ -206,6 +213,17 @@ namespace org.herbal3d.Ragu {
             }
             else {
                 _context.log.ErrorFormat("{0} Fetched unknown parameter. Param={1}", _logHeader, paramName);
+            }
+            return ret;
+        }
+        public bool HasParam(string pParamName) {
+            return TryGetParameter(pParamName, out ParameterDefnBase pbase);
+        }
+
+        public object GetObjectValue(string pParamName) {
+            object ret = null;
+            if (TryGetParameter(pParamName, out ParameterDefnBase pbase)) {
+                ret = pbase.GetObjectValue();
             }
             return ret;
         }

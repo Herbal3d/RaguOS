@@ -43,7 +43,7 @@ namespace org.herbal3d.Ragu {
         protected List<SpaceServerLayer> _clients;
 
         // Instance is a per-client SpaceServer connection
-        protected HTransport.HerbalTransport _transport;
+        protected HTransport.ServerListener _transport;
         protected HTransport.BasilConnection _clientConnection;
         protected HTransport.BasilClient _client;
 
@@ -58,10 +58,10 @@ namespace org.herbal3d.Ragu {
             _clients = new List<SpaceServerLayer>();
 
             // Create the parameter block for this type of layer
-            IParameters ccParams = CreateTransportParams(_context, pLayerName);
+            ParamBlock ccParams = CreateTransportParams(_context, pLayerName);
             try {
                 _context.log.DebugFormat("{0} Initializing transport", _logHeader);
-                _transport = new HTransport.HerbalTransport(ccParams, _context.log);
+                _transport = new HTransport.ServerListener(ccParams, _context.log);
                 _transport.OnBasilConnect += Event_NewBasilConnection;
                 _transport.OnDisconnect += Event_DisconnectBasilConnection;
                 _transport.Start(_canceller);
@@ -71,7 +71,11 @@ namespace org.herbal3d.Ragu {
             }
 
             // Build a URI for external hosts to access this layer
-            UriBuilder connectionUri = new UriBuilder(ccParams.P<string>("connectionurl")) {
+            _context.log.DebugFormat("{0} Create. Layername = {1}", _logHeader, pLayerName);
+            foreach (var kvp in ccParams.Params) {
+                _context.log.DebugFormat("     {0} -> {1}", kvp.Key, kvp.Value);
+            }
+            UriBuilder connectionUri = new UriBuilder(ccParams.P<string>("ConnectionURL")) {
                 Host = RaguRegion.HostnameForExternalAccess
             };
             RemoteConnectionURL = connectionUri.ToString();
@@ -129,14 +133,15 @@ namespace org.herbal3d.Ragu {
 
         // Create a ParameterCollection for this specific layer.
         // The name of the layer is appended to parameter names and looked up to create parameter names.
-        protected IParameters CreateTransportParams(RaguContext pContext, string pLayerName) {
+        protected ParamBlock CreateTransportParams(RaguContext pContext, string pLayerName) {
             string mod = pLayerName + ".";
-            return new ParameterCollection()
-                .Add("ConnectionURL", pContext.parms.P<string>(mod + "ConnectionURL"))
-                .Add("IsSecure", pContext.parms.P<bool>(mod + "IsSecure"))
-                .Add("SecureConnectionURL", pContext.parms.P<string>(mod + "SecureConnectionURL"))
-                .Add("Certificate", pContext.parms.P<string>(mod + "Certificate"))
-                .Add("DisableNaglesAlgorithm", pContext.parms.P<bool>(mod + "DisableNaglesAlgorithm"));
+            return new ParamBlock(new Dictionary<string, object>() {
+                    {  "ConnectionURL", pContext.parms.P<string>(mod + "ConnectionURL") },
+                    {  "IsSecure", pContext.parms.P<bool>(mod + "IsSecure") },
+                    {  "SecureConnectionURL", pContext.parms.P<string>(mod + "SecureConnectionURL") },
+                    {  "Certificate", pContext.parms.P<string>(mod + "Certificate") },
+                    {  "DisableNaglesAlgorithm", pContext.parms.P<bool>(mod + "DisableNaglesAlgorithm") }
+            });
         }
 
         // Request from Basil to open a SpaceServer session
