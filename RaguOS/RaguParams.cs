@@ -56,7 +56,7 @@ namespace org.herbal3d.Ragu {
             new ParameterDefn<string>("ExternalAccessHostname", "Hostname for external clients it access. Computed if zero length",
                 "" ),
 
-            new ParameterDefn<bool>("SpaceServerCC.IsSecure", "Base directory for Loden asset storage",
+            new ParameterDefn<bool>("SpaceServerCC.IsSecure", "Whether to accept only secure connections",
                 false),
             new ParameterDefn<string>("SpaceServerCC.SecureConnectionURL", "URL to use to create inbound connection",
                 "wss://0.0.0.0:11440"),
@@ -69,7 +69,7 @@ namespace org.herbal3d.Ragu {
             new ParameterDefn<bool>("SpaceServerCC.DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
                 true),
 
-            new ParameterDefn<bool>("SpaceServerStatic.IsSecure", "Base directory for Loden asset storage",
+            new ParameterDefn<bool>("SpaceServerStatic.IsSecure", "Whether to accept only secure connections",
                 false),
             new ParameterDefn<string>("SpaceServerStatic.SecureConnectionURL", "URL to use to create inbound connection",
                 "wss://0.0.0.0:11441"),
@@ -80,7 +80,7 @@ namespace org.herbal3d.Ragu {
             new ParameterDefn<bool>("SpaceServerStatic.DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
                 true),
 
-            new ParameterDefn<bool>("SpaceServerActors.IsSecure", "Base directory for Loden asset storage",
+            new ParameterDefn<bool>("SpaceServerActors.IsSecure", "Whether to accept only secure connections",
                 false),
             new ParameterDefn<string>("SpaceServerActors.SecureConnectionURL", "URL to use to create inbound connection",
                 "wss://0.0.0.0:11442"),
