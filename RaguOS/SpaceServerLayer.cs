@@ -134,14 +134,31 @@ namespace org.herbal3d.Ragu {
         // Create a ParameterCollection for this specific layer.
         // The name of the layer is appended to parameter names and looked up to create parameter names.
         protected ParamBlock CreateTransportParams(RaguContext pContext, string pLayerName) {
-            string mod = pLayerName + ".";
             return new ParamBlock(new Dictionary<string, object>() {
-                    {  "ConnectionURL", pContext.parms.P<string>(mod + "ConnectionURL") },
-                    {  "IsSecure", pContext.parms.P<bool>(mod + "IsSecure") },
-                    {  "SecureConnectionURL", pContext.parms.P<string>(mod + "SecureConnectionURL") },
-                    {  "Certificate", pContext.parms.P<string>(mod + "Certificate") },
-                    {  "DisableNaglesAlgorithm", pContext.parms.P<bool>(mod + "DisableNaglesAlgorithm") }
+                    {  "ConnectionURL", GetRegionParamValue<string>(pContext, pLayerName, "ConnectionURL") },
+                    {  "IsSecure", GetRegionParamValue<bool>(pContext, pLayerName, "IsSecure") },
+                    {  "SecureConnectionURL", GetRegionParamValue<string>(pContext, pLayerName, "SecureConnectionURL") },
+                    {  "Certificate", GetRegionParamValue<string>(pContext, pLayerName, "Certificate") },
+                    {  "DisableNaglesAlgorithm", GetRegionParamValue<bool>(pContext, pLayerName, "DisableNaglesAlgorithm") }
             });
+        }
+        // Get the region specific parameter value.
+        // Checks to see if the parameter has been set in the Regions.ini file. If not, use the
+        //    value set in RaguParams. This allows setting region specific values.
+        private T GetRegionParamValue<T>(RaguContext pContext, string pLayerName, string pParam) {
+            T ret = default(T);
+            string mod = pLayerName + "." + pParam;
+            // Try to get the value from the 'extra' values that are set from Regions.ini
+            string val = pContext.scene.RegionInfo.GetSetting(mod);
+            if (val == null) {
+                // There is no value in Regions.ini so use the RaguParams value
+                ret = pContext.parms.P<T>(mod);
+            }
+            else {
+                // RegionInfo.GetSettings always returns a string so convert it to the type needed.
+                ret = ParamBlock.ConvertTo<T>(val);
+            }
+            return ret;
         }
 
         // Request from Basil to open a SpaceServer session

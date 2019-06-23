@@ -36,7 +36,6 @@ namespace org.herbal3d.Ragu {
         public readonly RaguStats stats;
         public Scene scene;
         public readonly BLogger log;
-        public readonly string contextName;  // a unique identifier for this context -- used in filenames, ...
         public readonly string sessionKey;
         public string assetAccessKey;
         public DateTime assetKeyExpiration;
@@ -54,7 +53,6 @@ namespace org.herbal3d.Ragu {
             parms = pParms;
             log = new LoggerLog4Net(pLog);
             stats = new RaguStats(this);
-            contextName = "Context" + randomNumbers.Next().ToString();
             // TODO: make session and asset keys bearer certificates with expiration, etc
             sessionKey = randomNumbers.Next().ToString();
             assetAccessKey = randomNumbers.Next().ToString();
