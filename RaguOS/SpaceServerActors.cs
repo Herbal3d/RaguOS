@@ -21,7 +21,7 @@ using OpenSim.Region.Framework.Scenes;
 using SpaceServer = org.herbal3d.basil.protocol.SpaceServer;
 using HTransport = org.herbal3d.transport;
 using BasilType = org.herbal3d.basil.protocol.BasilType;
-using org.herbal3d.cs.CommonEntitiesUtil;
+using org.herbal3d.cs.CommonEntities;
 
 using Google.Protobuf;
 
@@ -116,11 +116,11 @@ namespace org.herbal3d.Ragu {
         }
 
         private void HandleBasilConnection() {
-            AddEventSubscriptsion();
+            AddEventSubscriptions();
             AddExistingPresences();
         }
 
-        private void AddEventSubscriptsion() {
+        private void AddEventSubscriptions() {
             _context.scene.EventManager.OnNewPresence               += Event_OnNewPresence;
             _context.scene.EventManager.OnRemovePresence            += Event_OnRemovePresence;
             // update to client position (either this or 'significant')
@@ -130,7 +130,7 @@ namespace org.herbal3d.Ragu {
             // Gets called for most position/camera/action updates. Seems to be once a second.
             // _context.scene.EventManager.OnScenePresenceUpdated      += Event_OnScenePresenceUpdated;
         }
-        private void RemoveEventSubscriptsion() {
+        private void RemoveEventSubscriptions() {
             _context.scene.EventManager.OnNewPresence               -= Event_OnNewPresence;
             _context.scene.EventManager.OnRemovePresence            -= Event_OnRemovePresence;
             // update to client position (either this or 'significant')
@@ -304,12 +304,10 @@ namespace org.herbal3d.Ragu {
                 });
             }
             // Return an InstancePositionInfo with the presence's current position
-            private OMV.Quaternion convertCoord = OMV.Quaternion.CreateFromAxisAngle(1.0f, 0.0f, 0.0f, -(float)Math.PI / 2f);
             public BasilType.InstancePositionInfo PackageInstancePosition() {
                 // Convert coordinates from OpenSim Zup to GLTF Yup
-                OMV.Vector3 thePos = presence.AbsolutePosition * convertCoord;
-                OMV.Quaternion theRot = convertCoord * presence.Rotation;
-                // OMV.Quaternion theRot = presence.Rotation;
+                OMV.Vector3 thePos = CoordAxis.ConvertZupToYup(presence.AbsolutePosition);
+                OMV.Quaternion theRot = CoordAxis.ConvertZupToYup(presence.Rotation);
                 BasilType.InstancePositionInfo pos = new BasilType.InstancePositionInfo() {
                     Pos = new BasilType.CoordPosition() {
                         PosRef = BasilType.CoordSystem.Wgs86,
