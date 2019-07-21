@@ -19,6 +19,7 @@ using System.Threading.Tasks;
 using SpaceServer = org.herbal3d.basil.protocol.SpaceServer;
 using HTransport = org.herbal3d.transport;
 using BasilType = org.herbal3d.basil.protocol.BasilType;
+using org.herbal3d.OSAuth;
 
 namespace org.herbal3d.Ragu {
 
@@ -75,6 +76,7 @@ namespace org.herbal3d.Ragu {
             foreach (var kvp in pReq.Features) {
                 _context.log.DebugFormat("{0}     {1}: {2}", _logHeader, kvp.Key, kvp.Value);
             };
+            // END DEBUG DEBUG
 
             // Check if this is a test connection. We cannot handle those.
             // Respond with an error message.
@@ -82,18 +84,42 @@ namespace org.herbal3d.Ragu {
                 return ret;
             }
 
-            // Set the processor for the new client go.
-            // This sends the connections for the layers to Basil.
-            Task.Run( HandleBasilConnection, _canceller.Token );
+            // Check for an authorized connection
+            bool authorized = false;
+            OSAuthModule auther;
+            try {
+                auther = _context.scene.RequestModuleInterface<OSAuthModule>();
+                    if (pReq.Auth != null) {
+                        if (pReq.Auth.AccessProperties.TryGetValue("sessionAuth", out string sessionKey)) {
+                            if (auther.Validate(sessionKey)) {
+                                authorized = true;
+                            }
+                        }
+                    }
+            }
+            catch (Exception e) {
+                authorized = false;
+                _context.log.ErrorFormat("{0} Exception checking login authentication: e={1}", _logHeader, e);
+            }
 
-            Dictionary<string, string> props = new Dictionary<string, string>() {
-                { "SessionKey", _context.sessionKey },
-                // For the moment, fake an asset access key
-                { "AssetKey", _context.assetAccessKey },
-                { "AssetKeyExpiration", _context.assetKeyExpiration.ToString("O") },
-                { "AssetBase", RaguAssetService.Instance.AssetServiceURL }
-            };
-            ret.Properties.Add(props);
+            if (authorized) {
+                // Set the processor for the new client go.
+                // This sends the connections for the layers to Basil.
+                Task.Run(HandleBasilConnection, _canceller.Token);
+
+                Dictionary<string, string> props = new Dictionary<string, string>() {
+                    { "SessionAuth", auther.SessionAuth },
+                    { "AssetBase", RaguAssetService.Instance.AssetServiceURL },
+                    { "AssetAuth", auther.AssetAuth },
+                    { "AssetAuthExpiration", auther.AssetAuthExpiration }
+                };
+                ret.Properties.Add(props);
+            }
+            else {
+                ret.Exception = new BasilType.BasilException() {
+                    Reason = "Not authorized"
+                };
+            }
             return ret;
         }
 

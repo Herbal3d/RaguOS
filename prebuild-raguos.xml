@@ -37,6 +37,7 @@
       <Reference name="Herbal3d.CommonEntities"/>
       <Reference name="Herbal3d.HerbalTransportCS"/>
       <Reference name="Herbal3d.Loden"/>
+      <Reference name="Herbal3d.OSAuth"/>
 
       <Reference name="Nini"/>
       <Reference name="log4net"/>
