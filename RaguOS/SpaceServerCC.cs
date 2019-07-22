@@ -86,12 +86,12 @@ namespace org.herbal3d.Ragu {
 
             // Check for an authorized connection
             bool authorized = false;
-            OSAuthModule auther;
+            OSAuthModule auther = null;
             try {
                 auther = _context.scene.RequestModuleInterface<OSAuthModule>();
                     if (pReq.Auth != null) {
-                        if (pReq.Auth.AccessProperties.TryGetValue("sessionAuth", out string sessionKey)) {
-                            if (auther.Validate(sessionKey)) {
+                        if (pReq.Auth.AccessProperties.TryGetValue("UserAuth", out string userAuth)) {
+                            if (auther.Validate(userAuth)) {
                                 authorized = true;
                             }
                         }
@@ -102,16 +102,39 @@ namespace org.herbal3d.Ragu {
                 _context.log.ErrorFormat("{0} Exception checking login authentication: e={1}", _logHeader, e);
             }
 
-            if (authorized) {
+            // The caller gave us a session key to use
+            pReq.Auth.AccessProperties.TryGetValue("SessionKey", out string sessionKey);
+            if (sessionKey == null) {
+                // TODO: generate a unique session key since the client didn't give us one
+                sessionKey = "iouaeo8psd8uakhvkjn.z,xhkjaseyurwe";
+            }
+
+            if (authorized && auther != null) {
+                ;
                 // Set the processor for the new client go.
                 // This sends the connections for the layers to Basil.
                 Task.Run(HandleBasilConnection, _canceller.Token);
 
+                // TODO: This service defintion should be classes and JSON formatter with
+                //     a manager to handle renewals, etc.
+                StringBuilder services = new StringBuilder();
+                services.Append("{ [");
+                services.Append(" { 'name': 'LodenAssets', 'URL': '");
+                services.Append(RaguAssetService.Instance.AssetServiceURL);
+                services.Append("', 'auth': '");
+                services.Append(auther.AssetAuth.ToString());
+                services.Append("', 'authExpiration': '");
+                services.Append(auther.AssetAuthExpiration.ToString());
+                services.Append("' } ");
+                services.Append("] }");
+
                 Dictionary<string, string> props = new Dictionary<string, string>() {
-                    { "SessionAuth", auther.SessionAuth },
-                    { "AssetBase", RaguAssetService.Instance.AssetServiceURL },
-                    { "AssetAuth", auther.AssetAuth },
-                    { "AssetAuthExpiration", auther.AssetAuthExpiration }
+                    { "SessionAuth", auther.SessionAuth.ToString() },
+                    { "SessionAuthExpiration", auther.SessionAuthExpiration.ToString() },
+                    { "SessionKey", sessionKey },
+                    { "Services", services.ToString() }
+                    // TODO: This service defintion should be classes and JSON formatter with
+                    //     a manager to handle renewals, etc.
                 };
                 ret.Properties.Add(props);
             }
@@ -138,7 +161,8 @@ namespace org.herbal3d.Ragu {
         private async Task HandleBasilConnection() {
             try {
                 _context.log.DebugFormat("{0} HandleBasilConnection", _logHeader);
-                BasilType.AccessAuthorization auth = null;
+                OSAuthModule auther = _context.scene.RequestModuleInterface<OSAuthModule>();
+                BasilType.AccessAuthorization auth = CreateBasilSessionAuth(auther.SessionAuth);
                 if (_context.layerStatic != null) {
                     Dictionary<string, string> props = new Dictionary<string, string>() {
                         { "Service", "SpaceServerClient" },
