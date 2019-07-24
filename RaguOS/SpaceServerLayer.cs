@@ -18,6 +18,7 @@ using SpaceServer = org.herbal3d.basil.protocol.SpaceServer;
 using HTransport = org.herbal3d.transport;
 using BasilType = org.herbal3d.basil.protocol.BasilType;
 using org.herbal3d.cs.CommonEntitiesUtil;
+using org.herbal3d.OSAuth;
 
 namespace org.herbal3d.Ragu {
 
@@ -32,8 +33,17 @@ namespace org.herbal3d.Ragu {
     public abstract class SpaceServerLayer : HTransport.ISpaceServer {
         protected string _logHeader = "[SpaceServerLayer]";
 
+        // A name for this layer that is unique in this region
+        public string LayerName;
+
         // The URL for external clients to connect to this layer
         public string RemoteConnectionURL;
+
+        // The authorization token to use to access this layer
+        public OSAuthToken AccessToken;
+
+        // Authorization token provided by the client when it connects
+        public string ClientAuth;
 
         // Canceller for the layer service. Other cancellers are created for each client.
         protected readonly CancellationTokenSource _canceller;
@@ -46,12 +56,16 @@ namespace org.herbal3d.Ragu {
         protected HTransport.ServerListener _transport;
         protected HTransport.BasilConnection _clientConnection;
         protected HTransport.BasilClient _client;
+        public HTransport.BasilClient Client {
+            get { return _client; }
+        }
 
         // Initial SpaceServerCC invocation with no transport setup.
         // Create a receiving connection and create SpaceServer when Basil connections come in.
         public SpaceServerLayer(RaguContext pContext, CancellationTokenSource pCanceller, string pLayerName) {
             _context = pContext;
             _canceller = pCanceller;
+            LayerName = pLayerName;
             _logHeader = "[" + pLayerName + "]";
 
             // The Basil servers we have connected to
@@ -79,6 +93,14 @@ namespace org.herbal3d.Ragu {
                 Host = RaguRegion.HostnameForExternalAccess
             };
             RemoteConnectionURL = connectionUri.ToString();
+
+            OSAuthModule auther = _context.scene.RequestModuleInterface<OSAuthModule>();
+            if (auther != null) {
+                AccessToken = auther.CreateAuthForService(LayerName);
+            }
+            else {
+                _context.log.ErrorFormat("{0} OSAuthModule not found. Cannot create authorization token", _logHeader);
+            }
         }
 
         // A per client instance of the layer.
@@ -87,9 +109,18 @@ namespace org.herbal3d.Ragu {
                         string pLayerName, HTransport.BasilConnection pConnection) {
             _context = pContext;
             _canceller = pCanceller;
+            LayerName = pLayerName + "-" + Util.RandomString(10);
             _logHeader = "[" + pLayerName + "]";
 
             _clientConnection = pConnection;
+
+            OSAuthModule auther = _context.scene.RequestModuleInterface<OSAuthModule>();
+            if (auther != null) {
+                AccessToken = auther.CreateAuthForService(LayerName);
+            }
+            else {
+                _context.log.ErrorFormat("{0} OSAuthModule not found. Cannot create authorization token", _logHeader);
+            }
         }
 
         // Process a new Basil connection
@@ -200,6 +231,53 @@ namespace org.herbal3d.Ragu {
                         ret = true;
                     }
                 }
+            }
+            return ret;
+        }
+
+
+        // Validates the 'UserAuth' field in a BasilType.AccessAuthorization structure.
+        // Checks if Ragu parameter "ShouldEnforceUserAuth" is true. If false, user is authorized.
+        // Returns 'true' if it checks out, 'false' otherwise.
+        // Also returns the authorizer module and the flag itself for later use.
+        protected bool ValidateUserAuth(BasilType.AccessAuthorization pAuth,
+                                    out OSAuthModule pAuthModule, out bool pIsAuthorized) {
+            OSAuthModule auther = null;
+            bool isAuthorized = false;
+            try {
+                auther = _context.scene.RequestModuleInterface<OSAuthModule>();
+                if (_context.parms.P<bool>("ShouldEnforceUserAuth")) {
+                    if (auther != null && pAuth != null) {
+                        if (pAuth.AccessProperties.TryGetValue("UserAuth", out string userAuth)) {
+                            if (auther.Validate(userAuth)) {
+                                isAuthorized = true;
+                            }
+                        }
+                    }
+                }
+                else {
+                    isAuthorized = true;
+                }
+            }
+            catch (Exception e) {
+                isAuthorized = false;
+                _context.log.ErrorFormat("{0} Exception checking login authentication: e={1}", _logHeader, e);
+            }
+            pAuthModule = auther;
+            pIsAuthorized = isAuthorized;
+            return (auther != null) && isAuthorized;
+        }
+
+        // Build a BasilType.AccessAuthorization structure given an authorization token.
+        // If the token is 'null' or zero length, return 'null' so auth section is not
+        //     generated in the Basil messsage.
+        protected BasilType.AccessAuthorization CreatBasilAccessAuth(string pAuthTokenString) {
+            BasilType.AccessAuthorization ret = new BasilType.AccessAuthorization();
+            if (String.IsNullOrEmpty(pAuthTokenString)) {
+                ret = null;
+            }
+            else {
+                ret.AccessProperties.Add("ClientAuth", pAuthTokenString);
             }
             return ret;
         }

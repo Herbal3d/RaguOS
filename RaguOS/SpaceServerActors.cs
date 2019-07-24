@@ -22,6 +22,7 @@ using SpaceServer = org.herbal3d.basil.protocol.SpaceServer;
 using HTransport = org.herbal3d.transport;
 using BasilType = org.herbal3d.basil.protocol.BasilType;
 using org.herbal3d.cs.CommonEntities;
+using org.herbal3d.OSAuth;
 
 using Google.Protobuf;
 
@@ -87,21 +88,44 @@ namespace org.herbal3d.Ragu {
             // Check if this is a test connection. We cannot handle those.
             // Respond with an error message.
             if (CheckIfTestConnection(pReq, ref ret)) {
+                ret.Exception = new BasilType.BasilException() {
+                    Reason = "Test session not acceptable"
+                };
                 return ret;
             }
 
-            // Start sending stuff to our new Basil friend.
-            HandleBasilConnection();
+            if (base.ValidateUserAuth(pReq.Auth, out OSAuthModule auther, out bool authorized)) {
 
-            // Build response message with information about session and fetching assets
-            Dictionary<string, string> props = new Dictionary<string, string>() {
-                { "SessionKey", _context.sessionKey },
-                // For the moment, fake an asset access key
-                { "AssetKey", _context.assetAccessKey },
-                { "AssetKeyExpiration", _context.assetKeyExpiration.ToString("O") },
-                { "AssetBase", RaguAssetService.Instance.AssetServiceURL }
-            };
-            ret.Properties.Add(props);
+                // The client should have given us some authorization for our requests to him
+                base.ClientAuth = null;
+                if (pReq.Auth != null) {
+                    pReq.Auth.AccessProperties.TryGetValue("ClientAuth", out base.ClientAuth);
+                }
+
+                // This initial connection tells the client about the asset service
+                StringBuilder services = new StringBuilder();
+                services.Append("[");
+                services.Append(auther.GetServiceAuth(RaguAssetService.ServiceName).ToJSON(new Dictionary<string, string>() {
+                    {  "Url", RaguAssetService.Instance.AssetServiceURL }
+                }) );
+                services.Append("]");
+
+                Dictionary<string, string> props = new Dictionary<string, string>() {
+                    { "SessionAuth", base.AccessToken.Token },
+                    { "SessionAuthExpiration", base.AccessToken.ExpirationString() },
+                    { "SessionKey", base.LayerName },
+                    { "Services", services.ToString() }
+                };
+                ret.Properties.Add(props);
+
+                // Start sending stuff to our new Basil friend.
+                HandleBasilConnection();
+            }
+            else {
+                ret.Exception = new BasilType.BasilException() {
+                    Reason = "Not authorized"
+                };
+            }
             return ret;
         }
 
@@ -142,7 +166,7 @@ namespace org.herbal3d.Ragu {
         }
         private void AddExistingPresences() {
             _context.scene.GetScenePresences().ForEach(pres => {
-                PresenceInfo pi = new PresenceInfo(pres, _context, _client);
+                PresenceInfo pi = new PresenceInfo(pres, this, _context);
                 AddPresence(pi);
                 pi.AddAppearanceInstance();
             });
@@ -154,7 +178,7 @@ namespace org.herbal3d.Ragu {
                 _context.log.ErrorFormat("{0} Event_OnNewPresence: two events for the same presence", _logHeader);
             }
             else {
-                PresenceInfo pi = new PresenceInfo(pPresence, _context, _client);
+                PresenceInfo pi = new PresenceInfo(pPresence, this, _context);
                 AddPresence(pi);
                 pi.AddAppearanceInstance();
             }
@@ -232,20 +256,20 @@ namespace org.herbal3d.Ragu {
             private static readonly string _logHeader = "[PresenceInfo]";
 
             public ScenePresence presence;
-            private HTransport.BasilClient _client;
             private RaguContext _context;
+            private SpaceServerActors _spaceServer;
             private BasilType.ObjectIdentifier _objectId;
             private BasilType.InstanceIdentifier _instanceId;
 
-            public PresenceInfo(ScenePresence pPresence, RaguContext pContext, HTransport.BasilClient pClient) {
+            public PresenceInfo(ScenePresence pPresence, SpaceServerActors pSpaceServer, RaguContext pContext) {
                 presence = pPresence;
                 _context = pContext;
-                _client = pClient;
+                _spaceServer = pSpaceServer;
             }
             public void UpdatePosition() {
                 if (_instanceId != null) {
                     BasilType.AccessAuthorization auth = null;
-                    _client.UpdateInstancePosition(auth, _instanceId, PackageInstancePosition());
+                    _spaceServer.Client.UpdateInstancePosition(auth, _instanceId, PackageInstancePosition());
                     // _context.log.DebugFormat("{0} UpdatePosition: p={1}, r={2}",
                     //             _logHeader, presence.AbsolutePosition, presence.Rotation);
                 }
@@ -255,7 +279,7 @@ namespace org.herbal3d.Ragu {
                 }
             }
             public void AddAppearanceInstance() {
-                BasilType.AccessAuthorization auth = null;
+                BasilType.AccessAuthorization auth = _spaceServer.CreatBasilAccessAuth(_spaceServer.ClientAuth);
                 BasilType.AaBoundingBox aabb = null;
                 Task.Run( async () => {
                     BasilType.AssetInformation asset = new BasilType.AssetInformation() {
@@ -269,11 +293,11 @@ namespace org.herbal3d.Ragu {
                     asset.DisplayInfo.Asset.Add("url", tempAppearanceURL);
                     asset.DisplayInfo.Asset.Add("loaderType", "GLTF");
 
-                    var resp = await _client.IdentifyDisplayableObjectAsync(auth, asset, aabb);
+                    var resp = await _spaceServer.Client.IdentifyDisplayableObjectAsync(auth, asset, aabb);
                     if (resp.Exception == null) {
                         _objectId = resp.ObjectId;
 
-                        var resp2 = await _client.CreateObjectInstanceAsync(auth, _objectId, PackageInstancePosition());
+                        var resp2 = await _spaceServer.Client.CreateObjectInstanceAsync(auth, _objectId, PackageInstancePosition());
                         if (resp2.Exception == null) {
                             _instanceId = resp2.InstanceId;
                         }
@@ -294,11 +318,11 @@ namespace org.herbal3d.Ragu {
                 BasilType.AccessAuthorization auth = null;
                 Task.Run( async () => {
                     if (_instanceId != null) {
-                        await _client.DeleteObjectInstanceAsync(auth, _instanceId);
+                        await _spaceServer.Client.DeleteObjectInstanceAsync(auth, _instanceId);
                         _instanceId = null;
                     }
                     if (_objectId != null) {
-                        await _client.ForgetDisplayableObjectAsync(auth, _objectId);
+                        await _spaceServer.Client.ForgetDisplayableObjectAsync(auth, _objectId);
                         _objectId = null;
                     }
                 });

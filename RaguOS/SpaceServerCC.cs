@@ -81,62 +81,53 @@ namespace org.herbal3d.Ragu {
             // Check if this is a test connection. We cannot handle those.
             // Respond with an error message.
             if (CheckIfTestConnection(pReq, ref ret)) {
+                ret.Exception = new BasilType.BasilException() {
+                    Reason = "Test session not acceptable"
+                };
                 return ret;
             }
 
             // Check for an authorized connection
-            bool authorized = false;
-            OSAuthModule auther = null;
-            try {
-                auther = _context.scene.RequestModuleInterface<OSAuthModule>();
-                    if (pReq.Auth != null) {
-                        if (pReq.Auth.AccessProperties.TryGetValue("UserAuth", out string userAuth)) {
-                            if (auther.Validate(userAuth)) {
-                                authorized = true;
-                            }
-                        }
-                    }
-            }
-            catch (Exception e) {
-                authorized = false;
-                _context.log.ErrorFormat("{0} Exception checking login authentication: e={1}", _logHeader, e);
-            }
+            if (base.ValidateUserAuth(pReq.Auth, out OSAuthModule auther, out bool authorized)) {
 
-            // The caller gave us a session key to use
-            pReq.Auth.AccessProperties.TryGetValue("SessionKey", out string sessionKey);
-            if (sessionKey == null) {
-                // TODO: generate a unique session key since the client didn't give us one
-                sessionKey = "iouaeo8psd8uakhvkjn.z,xhkjaseyurwe";
-            }
+                // The caller gave us a session key to use
+                pReq.Auth.AccessProperties.TryGetValue("SessionKey", out string sessionKey);
+                if (sessionKey == null) {
+                    // TODO: generate a unique session key since the client didn't give us one
+                    sessionKey = Guid.NewGuid().ToString();
+                }
+                // Get a new authorization token for this session
+                auther.RemoveServiceAuth(sessionKey);
+                OSAuthToken sessionAuth = auther.CreateAuthForService(sessionKey);
 
-            if (authorized && auther != null) {
-                ;
-                // Set the processor for the new client go.
-                // This sends the connections for the layers to Basil.
-                Task.Run(HandleBasilConnection, _canceller.Token);
+                // The client should have given us some authorization for our requests to him
+                base.ClientAuth = null;
+                pReq.Auth.AccessProperties.TryGetValue("ClientAuth", out base.ClientAuth);
 
-                // TODO: This service defintion should be classes and JSON formatter with
-                //     a manager to handle renewals, etc.
+                // This initial connection tells the client about the asset service
                 StringBuilder services = new StringBuilder();
-                services.Append("{ [");
-                services.Append(" { 'name': 'LodenAssets', 'URL': '");
-                services.Append(RaguAssetService.Instance.AssetServiceURL);
-                services.Append("', 'auth': '");
-                services.Append(auther.AssetAuth.ToString());
-                services.Append("', 'authExpiration': '");
-                services.Append(auther.AssetAuthExpiration.ToString());
-                services.Append("' } ");
-                services.Append("] }");
+                services.Append("[");
+                services.Append(auther.GetServiceAuth(RaguAssetService.ServiceName).ToJSON(new Dictionary<string, string>() {
+                    {  "Url", RaguAssetService.Instance.AssetServiceURL }
+                }) );
+                services.Append("]");
 
                 Dictionary<string, string> props = new Dictionary<string, string>() {
-                    { "SessionAuth", auther.SessionAuth.ToString() },
-                    { "SessionAuthExpiration", auther.SessionAuthExpiration.ToString() },
+                    { "SessionAuth", sessionAuth.Token },
+                    { "SessionAuthExpiration", sessionAuth.ExpirationString() },
                     { "SessionKey", sessionKey },
                     { "Services", services.ToString() }
-                    // TODO: This service defintion should be classes and JSON formatter with
-                    //     a manager to handle renewals, etc.
                 };
                 ret.Properties.Add(props);
+
+                // Set the processor for the new client go.
+                // This sends the connections for the layers to Basil.
+                Task.Run(async () => {
+                    // Copy parameters to cause closure on current values;
+                    OSAuthModule xauther = auther;
+                    string xsessionKey = sessionKey;
+                    await HandleBasilConnection(xauther, xsessionKey);
+                    }, _canceller.Token);
             }
             else {
                 ret.Exception = new BasilType.BasilException() {
@@ -158,16 +149,19 @@ namespace org.herbal3d.Ragu {
 
         // Received an OpenSession from a Basil client.
         // Connect it to the other layers.
-        private async Task HandleBasilConnection() {
+        private async Task HandleBasilConnection(OSAuthModule pAuther, string pSessionKey) {
             try {
                 _context.log.DebugFormat("{0} HandleBasilConnection", _logHeader);
-                OSAuthModule auther = _context.scene.RequestModuleInterface<OSAuthModule>();
-                BasilType.AccessAuthorization auth = CreateBasilSessionAuth(auther.SessionAuth);
+                BasilType.AccessAuthorization auth = CreatBasilAccessAuth(pAuther.GetServiceAuth(pSessionKey).Token);
                 if (_context.layerStatic != null) {
                     Dictionary<string, string> props = new Dictionary<string, string>() {
                         { "Service", "SpaceServerClient" },
                         { "TransportURL", _context.layerStatic.RemoteConnectionURL },
-                        { "ServiceHint", "static" },
+                        { "ServiceAuth",  _context.layerStatic.AccessToken.ToJSON(new Dictionary<string, string>() {
+                                        {  "Url", _context.layerStatic.RemoteConnectionURL }
+                                    })
+                        },
+                        { "ServiceHint", "static" }
                     };
                     await _client.MakeConnectionAsync(auth, props);
                 }
@@ -176,7 +170,11 @@ namespace org.herbal3d.Ragu {
                     Dictionary<string, string> props = new Dictionary<string, string>() {
                         { "Service", "SpaceServerClient" },
                         { "TransportURL", _context.layerDynamic.RemoteConnectionURL },
-                        { "ServiceHint", "dynamic" },
+                        { "ServiceAuth",  _context.layerDynamic.AccessToken.ToJSON(new Dictionary<string, string>() {
+                                        {  "Url", _context.layerDynamic.RemoteConnectionURL }
+                                    })
+                        },
+                        { "ServiceHint", "dynamic" }
                     };
                     await _client.MakeConnectionAsync(auth, props);
                 }
@@ -185,7 +183,11 @@ namespace org.herbal3d.Ragu {
                     Dictionary<string, string> props = new Dictionary<string, string>() {
                         { "Service", "SpaceServerClient" },
                         { "TransportURL", _context.layerActors.RemoteConnectionURL },
-                        { "ServiceHint", "actors" },
+                        { "ServiceAuth",  _context.layerActors.AccessToken.ToJSON(new Dictionary<string, string>() {
+                                        {  "Url", _context.layerActors.RemoteConnectionURL }
+                                    })
+                        },
+                        { "ServiceHint", "actors" }
                     };
                     await _client.MakeConnectionAsync(auth, props);
                 }

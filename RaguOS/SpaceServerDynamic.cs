@@ -20,6 +20,7 @@ using SpaceServer = org.herbal3d.basil.protocol.SpaceServer;
 using HTransport = org.herbal3d.transport;
 using BasilType = org.herbal3d.basil.protocol.BasilType;
 using org.herbal3d.cs.CommonEntitiesUtil;
+using org.herbal3d.OSAuth;
 
 using Google.Protobuf;
 
@@ -82,23 +83,49 @@ namespace org.herbal3d.Ragu {
             foreach (var kvp in pReq.Features) {
                 _context.log.DebugFormat("{0}     {1}: {2}", _logHeader, kvp.Key, kvp.Value);
             };
+            // END DEBUG DEBUG
 
             // Check if this is a test connection. We cannot handle those.
             // Respond with an error message.
             if (CheckIfTestConnection(pReq, ref ret)) {
+                ret.Exception = new BasilType.BasilException() {
+                    Reason = "Test session not acceptable"
+                };
                 return ret;
             }
 
-            // TODO: Do whatever this layer should do
+            if (base.ValidateUserAuth(pReq.Auth, out OSAuthModule auther, out bool authorized)) {
 
-            Dictionary<string, string> props = new Dictionary<string, string>() {
-                { "SessionKey", _context.sessionKey },
-                // For the moment, fake an asset access key
-                { "AssetKey", _context.assetAccessKey },
-                { "AssetKeyExpiration", _context.assetKeyExpiration.ToString("O") },
-                { "AssetBase", RaguAssetService.Instance.AssetServiceURL }
-            };
-            ret.Properties.Add(props);
+                // The client should have given us some authorization for our requests to him
+                base.ClientAuth = null;
+                if (pReq.Auth != null) {
+                    pReq.Auth.AccessProperties.TryGetValue("ClientAuth", out base.ClientAuth);
+                }
+
+                // This initial connection tells the client about the asset service
+                StringBuilder services = new StringBuilder();
+                services.Append("[");
+                services.Append(auther.GetServiceAuth(RaguAssetService.ServiceName).ToJSON(new Dictionary<string, string>() {
+                    {  "Url", RaguAssetService.Instance.AssetServiceURL }
+                }) );
+                services.Append("]");
+
+                Dictionary<string, string> props = new Dictionary<string, string>() {
+                    { "SessionAuth", base.AccessToken.Token },
+                    { "SessionAuthExpiration", base.AccessToken.ExpirationString() },
+                    { "SessionKey", base.LayerName },
+                    { "Services", services.ToString() }
+                };
+                ret.Properties.Add(props);
+
+                // Start sending stuff to our new Basil friend.
+                // HandleBasilConnection();
+            }
+            else {
+                ret.Exception = new BasilType.BasilException() {
+                    Reason = "Not authorized"
+                };
+            }
             return ret;
         }
 

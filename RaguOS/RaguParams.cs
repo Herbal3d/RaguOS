@@ -55,6 +55,10 @@ namespace org.herbal3d.Ragu {
 
             new ParameterDefn<string>("ExternalAccessHostname", "Hostname for external clients it access. Computed if zero length",
                 "" ),
+            new ParameterDefn<bool>("ShouldEnforceUserAuth", "Whether to check and enforce user authentication in OpenConnection",
+                false ),
+            new ParameterDefn<bool>("ShouldEnforceAssetAccessAuthorization", "All asset requests require an 'Authentication' header",
+                false ),
 
             new ParameterDefn<bool>("SpaceServerCC.IsSecure", "Whether to accept only secure connections",
                 false),

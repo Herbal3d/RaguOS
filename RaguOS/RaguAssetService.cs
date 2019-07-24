@@ -27,6 +27,7 @@ using OpenSim.Framework.Servers;
 using OpenSim.Framework.Servers.HttpServer;
 
 using org.herbal3d.cs.CommonEntities;
+using org.herbal3d.OSAuth;
 
 namespace org.herbal3d.Ragu {
     public class RaguAssetService {
@@ -50,6 +51,10 @@ namespace org.herbal3d.Ragu {
         }
         public string HandlerPath;
         public string AssetServiceURL;
+
+        // Name used to identify this service in the authorization system
+        public static string ServiceName = "Assets";
+        private OSAuthToken _accessToken;
 
         private RaguContext _context;
         private RaguGETStreamHandler _getHandler;
@@ -82,6 +87,17 @@ namespace org.herbal3d.Ragu {
             else {
                 _context.log.DebugFormat("{0} GET handler already exists. Not creating.", _logHeader);
             }
+
+            // People need to supply a key to access us
+            OSAuthModule authModule = pContext.scene.RequestModuleInterface<OSAuthModule>();
+            if (authModule != null) {
+                _context.log.DebugFormat("{0} Created authToken for service 'Assets'", _logHeader);
+                _accessToken = authModule.CreateAuthForService(RaguAssetService.ServiceName);
+                _getHandler.AccessToken = _accessToken;
+            }
+            else {
+                _context.log.ErrorFormat("{0} No auth module available. Could not create authToken for service 'Assets'", _logHeader);
+            }
         }
 
         public void Stop() {
@@ -97,6 +113,16 @@ namespace org.herbal3d.Ragu {
 
         private readonly RaguContext _context;
         private BAssetStorage _assetStorage;
+
+        // TODO: someday add separate access tokens for different users
+        private OSAuthToken _accessToken;
+        private string _accessTokenString;
+        public OSAuthToken AccessToken {
+            set {
+                _accessToken = value;
+                _accessTokenString = _accessToken.Token;
+            }
+        }
 
         private Dictionary<string, string> MimeCodes = new Dictionary<string, string>() {
             {".jpg", "image/jpeg" },
@@ -122,9 +148,8 @@ namespace org.herbal3d.Ragu {
         {
             NameValueCollection headers = httpRequest.Headers;
             string authValue = headers.GetOne("Authorization");
-            // if (authValue != null) {
-                // _context.log.DebugFormat("{0} ProcessRequest: Authorization={1}", _logHeader, authValue);
-                // Check authorization
+            if (!_context.parms.P<bool>("ShouldEnforceAssetAccessAuthorization")
+                    || ( authValue != null && _accessToken != null && authValue == _accessTokenString )) {
 
                 // The thing to get is in the last field of the URL
                 string[] segments = httpRequest.Url.Segments;
@@ -148,7 +173,10 @@ namespace org.herbal3d.Ragu {
                 }
                 // Cross-Origin Resource Sharing with simple requests
                 httpResponse.AddHeader("Access-Control-Allow-Origin", "*");
-            // }
+            }
+            else {
+                httpResponse.StatusCode = (int)System.Net.HttpStatusCode.Unauthorized;
+            }
             return null;
         }
 
