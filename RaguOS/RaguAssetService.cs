@@ -93,6 +93,7 @@ namespace org.herbal3d.Ragu {
             if (authModule != null) {
                 _context.log.DebugFormat("{0} Created authToken for service 'Assets'", _logHeader);
                 _accessToken = authModule.CreateAuthForService(RaguAssetService.ServiceName);
+                authModule.RegisterAuthForService(RaguAssetService.ServiceName, _accessToken);
                 _getHandler.AccessToken = _accessToken;
             }
             else {

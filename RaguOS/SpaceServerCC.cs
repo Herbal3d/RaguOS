@@ -90,44 +90,16 @@ namespace org.herbal3d.Ragu {
             // Check for an authorized connection
             if (base.ValidateUserAuth(pReq.Auth, out OSAuthModule auther, out bool authorized)) {
 
-                // The caller gave us a session key to use
-                pReq.Auth.AccessProperties.TryGetValue("SessionKey", out string sessionKey);
-                if (sessionKey == null) {
-                    // TODO: generate a unique session key since the client didn't give us one
-                    sessionKey = Guid.NewGuid().ToString();
-                }
-                // Get a new authorization token for this session
-                auther.RemoveServiceAuth(sessionKey);
-                OSAuthToken sessionAuth = auther.CreateAuthForService(sessionKey);
+                // Use common processing routine for all the SpaceServer layers
+                ret = base.HandleOpenSession(pReq, auther, out string sessionKey, out string connectionKey);
 
-                // The client should have given us some authorization for our requests to him
-                base.ClientAuth = null;
-                pReq.Auth.AccessProperties.TryGetValue("ClientAuth", out base.ClientAuth);
-
-                // This initial connection tells the client about the asset service
-                StringBuilder services = new StringBuilder();
-                services.Append("[");
-                services.Append(auther.GetServiceAuth(RaguAssetService.ServiceName).ToJSON(new Dictionary<string, string>() {
-                    {  "Url", RaguAssetService.Instance.AssetServiceURL }
-                }) );
-                services.Append("]");
-
-                Dictionary<string, string> props = new Dictionary<string, string>() {
-                    { "SessionAuth", sessionAuth.Token },
-                    { "SessionAuthExpiration", sessionAuth.ExpirationString() },
-                    { "SessionKey", sessionKey },
-                    { "Services", services.ToString() }
-                };
-                ret.Properties.Add(props);
-
-                // Set the processor for the new client go.
-                // This sends the connections for the layers to Basil.
-                Task.Run(async () => {
-                    // Copy parameters to cause closure on current values;
-                    OSAuthModule xauther = auther;
-                    string xsessionKey = sessionKey;
-                    await HandleBasilConnection(xauther, xsessionKey);
+                if (ret.Exception == null) {
+                    // Set the processor for the new client go.
+                    // This sends the connections for the layers to Basil.
+                    Task.Run(async () => {
+                        await HandleBasilConnection();
                     }, _canceller.Token);
+                }
             }
             else {
                 ret.Exception = new BasilType.BasilException() {
@@ -149,10 +121,13 @@ namespace org.herbal3d.Ragu {
 
         // Received an OpenSession from a Basil client.
         // Connect it to the other layers.
-        private async Task HandleBasilConnection(OSAuthModule pAuther, string pSessionKey) {
+        private async Task HandleBasilConnection() {
             try {
                 _context.log.DebugFormat("{0} HandleBasilConnection", _logHeader);
-                BasilType.AccessAuthorization auth = CreatBasilAccessAuth(pAuther.GetServiceAuth(pSessionKey).Token);
+
+                // Authorization for this connection back to the other side
+                BasilType.AccessAuthorization auth = CreatBasilAccessAuth(ClientAuth.Token);
+
                 if (_context.layerStatic != null) {
                     Dictionary<string, string> props = new Dictionary<string, string>() {
                         { "Service", "SpaceServerClient" },

@@ -13,6 +13,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Text;
 
 using SpaceServer = org.herbal3d.basil.protocol.SpaceServer;
 using HTransport = org.herbal3d.transport;
@@ -43,7 +44,8 @@ namespace org.herbal3d.Ragu {
         public OSAuthToken AccessToken;
 
         // Authorization token provided by the client when it connects
-        public string ClientAuth;
+        // TODO: this should be a get/set into the renewable tokens in the authorization module
+        public OSAuthToken ClientAuth;
 
         // Canceller for the layer service. Other cancellers are created for each client.
         protected readonly CancellationTokenSource _canceller;
@@ -268,6 +270,85 @@ namespace org.herbal3d.Ragu {
             return (auther != null) && isAuthorized;
         }
 
+        // Do all the common processing for handling an OpenSession request.
+        // Presumes that the request has beeen validated and can be setup and initialized.
+        // Creates a new 'connection' and authorization keys for the communication.
+        // Returns the response message.
+        protected SpaceServer.OpenSessionResp HandleOpenSession(SpaceServer.OpenSessionReq pReq, OSAuthModule pAuther,
+                                    out string pSessionKey, out string pConnectionKey) {
+            SpaceServer.OpenSessionResp ret = new SpaceServer.OpenSessionResp();
+
+            // This connection gets a unique handle
+            string connectionKey = Guid.NewGuid().ToString();
+
+            // The caller gave us a session key to use
+            pReq.Auth.AccessProperties.TryGetValue("SessionKey", out string sessionKey);
+            if (sessionKey == null) {
+                // Generate a unique session key since the client didn't give us one
+                sessionKey = Guid.NewGuid().ToString();
+            }
+
+            // Get a new authorization token for this session.
+            // THis will authorize talking to me over this connection.
+            pAuther.RemoveServiceAuth(connectionKey);
+            OSAuthToken sessionAuth = pAuther.CreateAuthForService(connectionKey);
+            pAuther.RegisterAuthForService(connectionKey, sessionAuth);
+
+            // The client should have given us some authorization for our requests to her
+            OSAuthToken clientToken = null;
+            try {
+                pReq.Auth.AccessProperties.TryGetValue("ClientAuth", out string clientAuth);
+                pReq.Auth.AccessProperties.TryGetValue("ClientAuthExpiration", out string clientAuthExp);
+                if (String.IsNullOrWhiteSpace(clientAuthExp)) clientAuthExp = "2299-12-31T23:59:59Z";
+                if (clientAuth != null) {
+                    clientToken = new OSAuthToken(connectionKey) {
+                        Token = clientAuth,
+                        Expiration = DateTime.Parse(clientAuthExp)
+                    };
+                }
+            }
+            catch (Exception e) {
+                _context.log.ErrorFormat("{0} Exception parsing client auth info: {1}", _logHeader, e);
+                ret.Exception = new BasilType.BasilException() {
+                    Reason = "Client authentication info mis-formed"
+                };
+                ret.Exception.Hints.Add("Exception", e.ToString());
+                ret.Exception.Hints.Add("ClientAuthInfo", pReq.Auth.ToString());
+                clientToken = null;
+            }
+
+            if (clientToken != null) {
+                ClientAuth = clientToken;
+                pAuther.RegisterAuthForClient(connectionKey, clientToken);
+
+                // This initial connection tells the client about the asset service
+                StringBuilder services = new StringBuilder();
+                services.Append("[");
+                services.Append(pAuther.GetServiceAuth(RaguAssetService.ServiceName).ToJSON(new Dictionary<string, string>() {
+                    {  "Url", RaguAssetService.Instance.AssetServiceURL }
+                }));
+                services.Append("]");
+
+                Dictionary<string, string> props = new Dictionary<string, string>() {
+                    { "SessionAuth", sessionAuth.Token },
+                    { "SessionAuthExpiration", sessionAuth.ExpirationString() },
+                    { "SessionKey", sessionKey },
+                    { "ConnectionKey", connectionKey },
+                    { "Services", services.ToString() }
+                };
+                ret.Properties.Add(props);
+            }
+            else {
+                ret.Exception = new BasilType.BasilException() {
+                    Reason = "Client authorization info not present"
+                };
+            }
+
+            pSessionKey = sessionKey;
+            pConnectionKey = connectionKey;
+            return ret;
+        }
+
         // Build a BasilType.AccessAuthorization structure given an authorization token.
         // If the token is 'null' or zero length, return 'null' so auth section is not
         //     generated in the Basil messsage.
@@ -277,7 +358,7 @@ namespace org.herbal3d.Ragu {
                 ret = null;
             }
             else {
-                ret.AccessProperties.Add("ClientAuth", pAuthTokenString);
+                ret.AccessProperties.Add("Auth", pAuthTokenString);
             }
             return ret;
         }

@@ -96,27 +96,8 @@ namespace org.herbal3d.Ragu {
 
             if (base.ValidateUserAuth(pReq.Auth, out OSAuthModule auther, out bool authorized)) {
 
-                // The client should have given us some authorization for our requests to him
-                base.ClientAuth = null;
-                if (pReq.Auth != null) {
-                    pReq.Auth.AccessProperties.TryGetValue("ClientAuth", out base.ClientAuth);
-                }
-
-                // This initial connection tells the client about the asset service
-                StringBuilder services = new StringBuilder();
-                services.Append("[");
-                services.Append(auther.GetServiceAuth(RaguAssetService.ServiceName).ToJSON(new Dictionary<string, string>() {
-                    {  "Url", RaguAssetService.Instance.AssetServiceURL }
-                }) );
-                services.Append("]");
-
-                Dictionary<string, string> props = new Dictionary<string, string>() {
-                    { "SessionAuth", base.AccessToken.Token },
-                    { "SessionAuthExpiration", base.AccessToken.ExpirationString() },
-                    { "SessionKey", base.LayerName },
-                    { "Services", services.ToString() }
-                };
-                ret.Properties.Add(props);
+                // Use common processing routine for all the SpaceServer layers
+                ret = base.HandleOpenSession(pReq, auther, out string sessionKey, out string connectionKey);
 
                 // Start sending stuff to our new Basil friend.
                 // HandleBasilConnection();
