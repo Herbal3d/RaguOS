@@ -250,8 +250,8 @@ namespace org.herbal3d.Ragu {
                 auther = _context.scene.RequestModuleInterface<OSAuthModule>();
                 if (_context.parms.P<bool>("ShouldEnforceUserAuth")) {
                     if (auther != null && pAuth != null) {
-                        if (pAuth.AccessProperties.TryGetValue("UserAuth", out string userAuth)) {
-                            if (auther.Validate(userAuth)) {
+                        if (pAuth.AccessProperties.TryGetValue("Auth", out string userAuth)) {
+                            if (auther.Validate(userAuth, ClientAuth)) {
                                 isAuthorized = true;
                             }
                         }
