@@ -94,20 +94,26 @@ namespace org.herbal3d.Ragu {
         private void InitializeHostnameForExternalAccess() {
             RaguRegion.HostnameForExternalAccess = _context.parms.P<string>("ExternalAccessHostname");
             if (String.IsNullOrEmpty(RaguRegion.HostnameForExternalAccess)) {
-                // The hostname was not specified in the config file so figure it out.
-                // Look for the first IP address that is Ethernet, up, and not virtual or loopback.
-                RaguRegion.HostnameForExternalAccess =  NetworkInterface.GetAllNetworkInterfaces()
-                    .Where(x => x.NetworkInterfaceType == NetworkInterfaceType.Ethernet
-                            && x.OperationalStatus == OperationalStatus.Up
-                            && !x.Description.ToLower().Contains("virtual")
-                            && !x.Description.ToLower().Contains("pseudo")
-                    )
-                    .SelectMany(x => x.GetIPProperties().UnicastAddresses)
-                    .Where(x => x.Address.AddressFamily == AddressFamily.InterNetwork
-                            && !IPAddress.IsLoopback(x.Address)
-                    )
-                    .Select(x => x.Address.ToString())
-                    .First();
+                if (! String.IsNullOrEmpty(_context.scene.RegionInfo.ExternalHostName)) {
+                    // The region specifies an external hostname. Use that one.
+                    RaguRegion.HostnameForExternalAccess = _context.scene.RegionInfo.ExternalHostName;
+                }
+                else {
+                    // The hostname was not specified in the config file so figure it out.
+                    // Look for the first IP address that is Ethernet, up, and not virtual or loopback.
+                    RaguRegion.HostnameForExternalAccess = NetworkInterface.GetAllNetworkInterfaces()
+                        .Where(x => x.NetworkInterfaceType == NetworkInterfaceType.Ethernet
+                                && x.OperationalStatus == OperationalStatus.Up
+                                && !x.Description.ToLower().Contains("virtual")
+                                && !x.Description.ToLower().Contains("pseudo")
+                        )
+                        .SelectMany(x => x.GetIPProperties().UnicastAddresses)
+                        .Where(x => x.Address.AddressFamily == AddressFamily.InterNetwork
+                                && !IPAddress.IsLoopback(x.Address)
+                        )
+                        .Select(x => x.Address.ToString())
+                        .First();
+                }
             }
             _context.log.DebugFormat("{0} HostnameForExternalAccess = {1}", _logHeader, RaguRegion.HostnameForExternalAccess);
         }
