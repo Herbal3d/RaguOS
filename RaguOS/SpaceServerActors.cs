@@ -271,7 +271,7 @@ namespace org.herbal3d.Ragu {
                     };
                     // TODO: use avatar appearance baking code to build GLTF version of avatar
                     // For the moment, use a canned, static mesh
-                    string tempAppearanceURL = "http://files.misterblue.com/BasilTest/gltf/Duck/glTF/Duck.gltf";
+                    string tempAppearanceURL = "https://files.misterblue.com/BasilTest/gltf/Duck/glTF/Duck.gltf";
                     asset.DisplayInfo.Asset.Add("url", tempAppearanceURL);
                     asset.DisplayInfo.Asset.Add("loaderType", "GLTF");
 
