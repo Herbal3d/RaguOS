@@ -147,13 +147,39 @@ namespace org.herbal3d.Ragu {
 
         protected override byte[] ProcessRequest(string path, Stream request, IOSHttpRequest httpRequest, IOSHttpResponse httpResponse)
         {
-            NameValueCollection headers = httpRequest.Headers;
-            string authValue = headers.GetOne("Authorization");
-            if (!_context.parms.P<bool>("ShouldEnforceAssetAccessAuthorization")
-                    || ( authValue != null && _accessToken != null && authValue == _accessTokenString )) {
+            string[] segments = httpRequest.Url.Segments;
 
+            bool authorized = false;
+            if (!_context.parms.P<bool>("ShouldEnforceAssetAccessAuthorization")) {
+                // Check for 'Authorization' in the request header
+                NameValueCollection headers = httpRequest.Headers;
+                string authValue = headers.GetOne("Authorization");
+                if (authValue != null) {
+                    if (_accessToken != null && authValue == _accessTokenString) {
+                        authorized = true;
+                    }
+                }
+                else {
+                    // if no 'Authorization', see if an access token was embedded in the URL.
+                    // Tokens will be for the form ".../bearer-token/..." where "bearer-" is the
+                    //     flag for the token, and "token" is the actual token string.
+                    foreach (string segment in segments.Reverse()) {
+                        if (segment.StartsWith("bearer-")) {
+                            authValue = segment.Substring(7);
+                            if (authValue == _accessTokenString) {
+                                authorized = true;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+            else {
+                authorized = true;
+            }
+
+            if (authorized) {
                 // The thing to get is in the last field of the URL
-                string[] segments = httpRequest.Url.Segments;
                 string filename = segments.Last();
                 string extension = System.IO.Path.GetExtension(filename);
                 string mimeType = "application/text";
@@ -178,6 +204,7 @@ namespace org.herbal3d.Ragu {
             else {
                 httpResponse.StatusCode = (int)System.Net.HttpStatusCode.Unauthorized;
             }
+
             return null;
         }
 
