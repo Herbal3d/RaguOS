@@ -88,19 +88,19 @@ namespace org.herbal3d.Ragu {
         // There are several network interfaces on any computer.
         // Find the first interface that is actually talking to the network and not
         //     one of the Docker interfaces.
-        // First check if specified in the configuration file and, if not, find the non-virtual
-        //     ethernet interface.
-        // Discussion leading to solution: https://stackoverflow.com/questions/6803073/get-local-ip-address
+        // First check if specified in the Regions.ini file or the configuration file, if not,
+        //     find the non-virtual ethernet interface.
         private void InitializeHostnameForExternalAccess() {
-            RaguRegion.HostnameForExternalAccess = _context.parms.P<string>("ExternalAccessHostname");
-            if (String.IsNullOrEmpty(RaguRegion.HostnameForExternalAccess)) {
-                if (! String.IsNullOrEmpty(_context.scene.RegionInfo.ExternalHostName)) {
-                    // The region specifies an external hostname. Use that one.
-                    RaguRegion.HostnameForExternalAccess = _context.scene.RegionInfo.ExternalHostName;
-                }
-                else {
+            if (! String.IsNullOrEmpty(_context.scene.RegionInfo.ExternalHostName)) {
+                // The region specifies an external hostname. Use that one.
+                RaguRegion.HostnameForExternalAccess = _context.scene.RegionInfo.ExternalHostName;
+            }
+            else {
+                RaguRegion.HostnameForExternalAccess = _context.parms.P<string>("ExternalAccessHostname");
+                if (String.IsNullOrEmpty(RaguRegion.HostnameForExternalAccess)) {
                     // The hostname was not specified in the config file so figure it out.
                     // Look for the first IP address that is Ethernet, up, and not virtual or loopback.
+                    // Cribbed from https://stackoverflow.com/questions/6803073/get-local-ip-address
                     RaguRegion.HostnameForExternalAccess = NetworkInterface.GetAllNetworkInterfaces()
                         .Where(x => x.NetworkInterfaceType == NetworkInterfaceType.Ethernet
                                 && x.OperationalStatus == OperationalStatus.Up
