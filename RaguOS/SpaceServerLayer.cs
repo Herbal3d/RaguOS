@@ -321,7 +321,7 @@ namespace org.herbal3d.Ragu {
             };
             this.ClientAuth = clientToken;
 
-            RaguAssetService assetService = _context.scene.RequestModuleInterface<RaguAssetService>();
+            RaguAssetService assetService = RaguAssetService.Instance;
 
             if (clientToken != null) {
                 Dictionary<string, string> props = new Dictionary<string, string>() {

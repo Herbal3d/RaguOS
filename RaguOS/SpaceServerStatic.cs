@@ -68,7 +68,7 @@ namespace org.herbal3d.Ragu {
 
             // Our handle to the LOD'ized region assets
             _lodenRegion = _context.scene.RequestModuleInterface<LodenRegion>();
-            _assetService = _context.scene.RequestModuleInterface<RaguAssetService>();
+            _assetService = RaguAssetService.Instance;
         }
 
         // This one client has disconnected

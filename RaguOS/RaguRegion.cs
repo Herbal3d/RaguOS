@@ -33,8 +33,6 @@ namespace org.herbal3d.Ragu {
         // Cancellation token for all services started by Ragu for this region.
         private readonly CancellationTokenSource _canceller;
 
-        private RaguAssetService _assetService;
-
         // Given a scene, do the LOD ("level of detail") conversion
         public RaguRegion(RaguContext pContext) {
             _context = pContext;
@@ -52,15 +50,11 @@ namespace org.herbal3d.Ragu {
 
             // Ragu's process for external access to the Loden generated content.
             // TODO: This should be an external process.
-            _assetService = new RaguAssetService(_context);
+            RaguAssetService.CreateInstance(_context);
 
         }
 
         public void Stop() {
-            if (_assetService != null) {
-                _assetService.Stop();
-                _assetService = null;
-            }
             if (_canceller != null) {
                 _canceller.Cancel();
             }

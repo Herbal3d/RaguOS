@@ -38,6 +38,7 @@ namespace org.herbal3d.Ragu {
 
         // TODO: Someday make this into a separate service.
 
+
         public string HandlerPath;
         public string AssetServiceURL;
 
@@ -49,6 +50,20 @@ namespace org.herbal3d.Ragu {
 
         private readonly RaguContext _context;
         private RaguGETStreamHandler _getHandler;
+
+        // There is only one asset service per sinulator
+        public static RaguAssetService Instance;
+        private static Object InstanceLock = new object();
+
+        // Create the single instance.
+        // The lock is because there could be several regions starting up at the same time.
+        public static void CreateInstance(RaguContext pContext) {
+            lock (RaguAssetService.InstanceLock) {
+                if (RaguAssetService.Instance == null) {
+                    RaguAssetService.Instance = new RaguAssetService(pContext);
+                }
+            }
+        }
 
         public RaguAssetService(RaguContext pContext) {
             _context = pContext;
@@ -69,7 +84,6 @@ namespace org.herbal3d.Ragu {
             if (!handlerKeys.Contains(thisHandler)) {
                 _context.log.DebugFormat("{0} Creating GET handler for path '{1}' at '{2}",
                                     _logHeader, HandlerPath, AssetServiceURL);
-                _context.scene.RegisterModuleInterface<RaguAssetService>(this);
                 BAssetStorage storage = new BAssetStorage(_context.log, _context.parms);
                 _getHandler = new RaguGETStreamHandler(_context, HandlerPath, storage);
 
