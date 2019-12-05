@@ -86,10 +86,10 @@ namespace org.herbal3d.Ragu {
         }
 
         // There are several network interfaces on any computer.
-        // Find the first interface that is actually talking to the network and not
-        //     one of the Docker interfaces.
         // First check if specified in the Regions.ini file or the configuration file, if not,
         //     find the non-virtual ethernet interface.
+        // Find the first interface that is actually talking to the network and not
+        //     one of the Docker interfaces.
         private void InitializeHostnameForExternalAccess() {
             if (! String.IsNullOrEmpty(_context.scene.RegionInfo.ExternalHostName)) {
                 // The region specifies an external hostname. Use that one.

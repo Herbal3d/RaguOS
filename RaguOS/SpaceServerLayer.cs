@@ -40,19 +40,18 @@ namespace org.herbal3d.Ragu {
         // The URL for external clients to connect to this layer
         public string RemoteConnectionURL;
 
-        // The authorization token to use to access this layer
-        public OSAuthToken AccessToken;
-
-        // Authorization token provided by the client when it connects
-        // TODO: this should be a get/set into the renewable tokens in the authorization module
+        // When we have a session going, it has a key and auth tokens for input and output
+        public string SessionKey;
+        public OSAuthToken SessionAuth;
         public OSAuthToken ClientAuth;
+
 
         // Canceller for the layer service. Other cancellers are created for each client.
         protected readonly CancellationTokenSource _canceller;
         protected readonly RaguContext _context;
 
-        // Instance is the per-layer SpaceServer controller
-        protected List<SpaceServerLayer> _clients;
+        // Each of the connections to a SpaceServer is a 'Session'
+        protected List<SpaceServerLayer> Sessions;
 
         // Instance is a per-client SpaceServer connection
         protected HTransport.ServerListener _transport;
@@ -62,7 +61,7 @@ namespace org.herbal3d.Ragu {
             get { return _client; }
         }
 
-        // Initial SpaceServerCC invocation with no transport setup.
+        // Initial SpaceServerLayer invocation with no transport setup.
         // Create a receiving connection and create SpaceServer when Basil connections come in.
         public SpaceServerLayer(RaguContext pContext, CancellationTokenSource pCanceller, string pLayerName) {
             _context = pContext;
@@ -71,7 +70,7 @@ namespace org.herbal3d.Ragu {
             _logHeader = "[" + pLayerName + "]";
 
             // The Basil servers we have connected to
-            _clients = new List<SpaceServerLayer>();
+            Sessions = new List<SpaceServerLayer>();
 
             // Create the parameter block for this type of layer
             ParamBlock ccParams = CreateTransportParams(_context, pLayerName);
@@ -94,15 +93,11 @@ namespace org.herbal3d.Ragu {
             UriBuilder connectionUri = new UriBuilder(ccParams.P<string>("ConnectionURL")) {
                 Host = RaguRegion.HostnameForExternalAccess
             };
+
             RemoteConnectionURL = connectionUri.ToString();
 
-            OSAuthModule auther = _context.scene.RequestModuleInterface<OSAuthModule>();
-            if (auther != null) {
-                AccessToken = auther.CreateAuthForService(LayerName);
-            }
-            else {
-                _context.log.ErrorFormat("{0} OSAuthModule not found. Cannot create authorization token", _logHeader);
-            }
+            // There is an authorization for making the initial connection
+            SessionAuth = new OSAuthToken();
         }
 
         // A per client instance of the layer.
@@ -115,14 +110,6 @@ namespace org.herbal3d.Ragu {
             _logHeader = "[" + pLayerName + "]";
 
             _clientConnection = pConnection;
-
-            OSAuthModule auther = _context.scene.RequestModuleInterface<OSAuthModule>();
-            if (auther != null) {
-                AccessToken = auther.CreateAuthForService(LayerName);
-            }
-            else {
-                _context.log.ErrorFormat("{0} OSAuthModule not found. Cannot create authorization token", _logHeader);
-            }
         }
 
         // Process a new Basil connection
@@ -130,10 +117,11 @@ namespace org.herbal3d.Ragu {
             _context.log.DebugFormat("{0} Event_NewBasilConnection", _logHeader);
             // Cancellation token for this client connection
             CancellationTokenSource sessionCanceller = new CancellationTokenSource();
-            _clients.Add(InstanceFactory(_context, sessionCanceller, pBasilConnection));
+            Sessions.Add(InstanceFactory(_context, sessionCanceller, pBasilConnection));
         }
 
-        // Create an instance of the underlying class
+        // Create an instance of the underlying class.
+        // Each child class will override this method with proper logic to create the SpaceServer session
         protected virtual SpaceServerLayer InstanceFactory(RaguContext pContext, CancellationTokenSource pCanceller,
                         HTransport.BasilConnection pConnection) {
             throw new NotImplementedException();
@@ -145,8 +133,8 @@ namespace org.herbal3d.Ragu {
 
             // Find the client that is disconnected
             try {
-                SpaceServerLayer disconnectedClient = _clients.Where(c => c._clientConnection == pBasilConnection).First();
-                _clients.Remove(disconnectedClient);
+                SpaceServerLayer disconnectedClient = Sessions.Where(c => c._clientConnection == pBasilConnection).First();
+                Sessions.Remove(disconnectedClient);
                 // Pass the error to the individual client
                 disconnectedClient.Shutdown();
             }
@@ -242,8 +230,7 @@ namespace org.herbal3d.Ragu {
         // Checks if Ragu parameter "ShouldEnforceUserAuth" is true. If false, user is authorized.
         // Returns 'true' if it checks out, 'false' otherwise.
         // Also returns the authorizer module and the flag itself for later use.
-        protected bool ValidateUserAuth(BasilType.AccessAuthorization pAuth,
-                                    out OSAuthModule pAuthModule, out bool pIsAuthorized) {
+        protected bool ValidateUserAuth(BasilType.AccessAuthorization pAuth, out OSAuthModule pAuthModule) {
             OSAuthModule auther = null;
             bool isAuthorized = false;
             try {
@@ -251,8 +238,16 @@ namespace org.herbal3d.Ragu {
                 if (_context.parms.P<bool>("ShouldEnforceUserAuth")) {
                     if (auther != null && pAuth != null) {
                         if (pAuth.AccessProperties.TryGetValue("Auth", out string userAuth)) {
-                            if (auther.Validate(userAuth, ClientAuth)) {
-                                isAuthorized = true;
+                            if (this.SessionAuth != null) {
+                                // There is a session open so the auth string should be the one for accessing this session
+                                if (auther.Validate(userAuth, this.SessionAuth)) {
+                                    isAuthorized = true;
+                                }
+                            }
+                            else {
+                                // There is no session so this auth string is a global user auth
+                                // TODO: call the system authentication and verify the user login
+                                _context.log.ErrorFormat("{0} FIX ME: not checking user auth", _logHeader);
                             }
                         }
                     }
@@ -266,7 +261,6 @@ namespace org.herbal3d.Ragu {
                 _context.log.ErrorFormat("{0} Exception checking login authentication: e={1}", _logHeader, e);
             }
             pAuthModule = auther;
-            pIsAuthorized = isAuthorized;
             return (auther != null) && isAuthorized;
         }
 
@@ -274,67 +268,67 @@ namespace org.herbal3d.Ragu {
         // Presumes that the request has beeen validated and can be setup and initialized.
         // Creates a new 'connection' and authorization keys for the communication.
         // Returns the response message.
-        protected SpaceServer.OpenSessionResp HandleOpenSession(SpaceServer.OpenSessionReq pReq, OSAuthModule pAuther,
-                                    out string pSessionKey, out string pConnectionKey) {
+        protected SpaceServer.OpenSessionResp HandleOpenSession(SpaceServer.OpenSessionReq pReq, OSAuthModule pAuther) {
             SpaceServer.OpenSessionResp ret = new SpaceServer.OpenSessionResp();
 
             // This connection gets a unique handle
             string connectionKey = Guid.NewGuid().ToString();
 
-            // The caller gave us a session key to use
-            pReq.Auth.AccessProperties.TryGetValue("SessionKey", out string sessionKey);
-            if (sessionKey == null) {
-                // Generate a unique session key since the client didn't give us one
-                sessionKey = Guid.NewGuid().ToString();
-            }
-
-            // Get a new authorization token for this session.
-            // THis will authorize talking to me over this connection.
-            pAuther.RemoveServiceAuth(connectionKey);
-            OSAuthToken sessionAuth = pAuther.CreateAuthForService(connectionKey);
-            pAuther.RegisterAuthForService(connectionKey, sessionAuth);
-
-            // The client should have given us some authorization for our requests to her
             OSAuthToken clientToken = null;
-            try {
-                pReq.Auth.AccessProperties.TryGetValue("ClientAuth", out string clientAuth);
-                pReq.Auth.AccessProperties.TryGetValue("ClientAuthExpiration", out string clientAuthExp);
-                if (String.IsNullOrWhiteSpace(clientAuthExp)) clientAuthExp = "2299-12-31T23:59:59Z";
-                if (clientAuth != null) {
-                    clientToken = new OSAuthToken(connectionKey) {
-                        Token = clientAuth,
-                        Expiration = DateTime.Parse(clientAuthExp)
-                    };
-                }
-            }
-            catch (Exception e) {
-                _context.log.ErrorFormat("{0} Exception parsing client auth info: {1}", _logHeader, e);
+
+            if (pReq.Auth == null || pReq.Auth.AccessProperties == null) {
+                _context.log.ErrorFormat("{0} OpenSession request has no AccessProperties", _logHeader);
                 ret.Exception = new BasilType.BasilException() {
-                    Reason = "Client authentication info mis-formed"
+                    Reason = "OpenSession did not specify AccessProperties"
                 };
-                ret.Exception.Hints.Add("Exception", e.ToString());
                 ret.Exception.Hints.Add("ClientAuthInfo", pReq.Auth.ToString());
                 clientToken = null;
             }
+            else {
+
+                // The caller gave us a session key to use
+                pReq.Auth.AccessProperties.TryGetValue("SessionKey", out this.SessionKey);
+                if (this.SessionKey == null) {
+                    // Generate a unique session key since the client didn't give us one
+                    this.SessionKey = Guid.NewGuid().ToString();
+                }
+
+                // The client should have given us some authorization for our requests to her.
+                // Collect auth information for accessing the client and build an OSAuthToken
+                //     to be used when sending messages to the client.
+                try {
+                    pReq.Auth.AccessProperties.TryGetValue("ClientAuth", out string clientAuth);
+                    if (clientAuth != null) {
+                        clientToken = OSAuthToken.FromString(clientAuth);
+                        clientToken.Srv = "client";
+                        clientToken.Sid = this.SessionKey;
+                    }
+                }
+                catch (Exception e) {
+                    _context.log.ErrorFormat("{0} Exception parsing client auth info: {1}", _logHeader, e);
+                    ret.Exception = new BasilType.BasilException() {
+                        Reason = "Client authentication info mis-formed"
+                    };
+                    ret.Exception.Hints.Add("Exception", e.ToString());
+                    ret.Exception.Hints.Add("ClientAuthInfo", pReq.Auth.ToString());
+                    clientToken = null;
+                }
+            }
+
+            SessionAuth = new OSAuthToken() {
+                Srv = this.LayerName,
+                Sid = this.SessionKey
+            };
+            this.ClientAuth = clientToken;
+
+            RaguAssetService assetService = _context.scene.RequestModuleInterface<RaguAssetService>();
 
             if (clientToken != null) {
-                ClientAuth = clientToken;
-                pAuther.RegisterAuthForClient(connectionKey, clientToken);
-
-                // This initial connection tells the client about the asset service
-                StringBuilder services = new StringBuilder();
-                services.Append("[");
-                services.Append(pAuther.GetServiceAuth(RaguAssetService.ServiceName).ToJSON(new Dictionary<string, string>() {
-                    {  "Url", RaguAssetService.Instance.AssetServiceURL }
-                }));
-                services.Append("]");
-
                 Dictionary<string, string> props = new Dictionary<string, string>() {
-                    { "SessionAuth", sessionAuth.Token },
-                    { "SessionAuthExpiration", sessionAuth.ExpirationString() },
-                    { "SessionKey", sessionKey },
+                    { "SessionAuth", this.SessionAuth.ToString() },
+                    { "SessionKey", this.SessionKey },
                     { "ConnectionKey", connectionKey },
-                    { "Services", services.ToString() }
+                    { "Services", "[]" }
                 };
                 ret.Properties.Add(props);
             }
@@ -344,21 +338,19 @@ namespace org.herbal3d.Ragu {
                 };
             }
 
-            pSessionKey = sessionKey;
-            pConnectionKey = connectionKey;
             return ret;
         }
 
         // Build a BasilType.AccessAuthorization structure given an authorization token.
         // If the token is 'null' or zero length, return 'null' so auth section is not
         //     generated in the Basil messsage.
-        protected BasilType.AccessAuthorization CreatBasilAccessAuth(string pAuthTokenString) {
+        protected BasilType.AccessAuthorization CreateAccessAuthorization(OSAuthToken pAuthToken) {
             BasilType.AccessAuthorization ret = new BasilType.AccessAuthorization();
-            if (String.IsNullOrEmpty(pAuthTokenString)) {
+            if (pAuthToken == null) {
                 ret = null;
             }
             else {
-                ret.AccessProperties.Add("Auth", pAuthTokenString);
+                ret.AccessProperties.Add("Auth", pAuthToken.ToString());
             }
             return ret;
         }

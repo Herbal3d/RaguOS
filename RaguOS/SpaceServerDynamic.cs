@@ -94,10 +94,10 @@ namespace org.herbal3d.Ragu {
                 return ret;
             }
 
-            if (base.ValidateUserAuth(pReq.Auth, out OSAuthModule auther, out bool authorized)) {
+            if (base.ValidateUserAuth(pReq.Auth, out OSAuthModule auther)) {
 
                 // Use common processing routine for all the SpaceServer layers
-                ret = base.HandleOpenSession(pReq, auther, out string sessionKey, out string connectionKey);
+                ret = base.HandleOpenSession(pReq, auther);
 
                 // Start sending stuff to our new Basil friend.
                 // HandleBasilConnection();

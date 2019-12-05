@@ -32,7 +32,7 @@ namespace org.herbal3d.Ragu {
                         : base(pContext, pCanceller, "SpaceServerCC") {
         }
 
-        // Return an instance of me
+        // Once someone connects, create a session instance of myself
         protected override SpaceServerLayer InstanceFactory(RaguContext pContext,
                         CancellationTokenSource pCanceller, HTransport.BasilConnection pConnection) {
             return new SpaceServerCC(pContext, pCanceller, pConnection);
@@ -88,10 +88,10 @@ namespace org.herbal3d.Ragu {
             }
 
             // Check for an authorized connection
-            if (base.ValidateUserAuth(pReq.Auth, out OSAuthModule auther, out bool authorized)) {
+            if (base.ValidateUserAuth(pReq.Auth, out OSAuthModule auther)) {
 
                 // Use common processing routine for all the SpaceServer layers
-                ret = base.HandleOpenSession(pReq, auther, out string sessionKey, out string connectionKey);
+                ret = base.HandleOpenSession(pReq, auther);
 
                 if (ret.Exception == null) {
                     // Set the processor for the new client go.
@@ -126,16 +126,13 @@ namespace org.herbal3d.Ragu {
                 _context.log.DebugFormat("{0} HandleBasilConnection", _logHeader);
 
                 // Authorization for this connection back to the other side
-                BasilType.AccessAuthorization auth = CreatBasilAccessAuth(ClientAuth.Token);
+                BasilType.AccessAuthorization auth = base.CreateAccessAuthorization(base.ClientAuth);
 
                 if (_context.layerStatic != null) {
                     Dictionary<string, string> props = new Dictionary<string, string>() {
                         { "Service", "SpaceServerClient" },
                         { "TransportURL", _context.layerStatic.RemoteConnectionURL },
-                        { "ServiceAuth",  _context.layerStatic.AccessToken.ToJSON(new Dictionary<string, string>() {
-                                        {  "Url", _context.layerStatic.RemoteConnectionURL }
-                                    })
-                        },
+                        { "ServiceAuth", _context.layerStatic.SessionAuth.ToString() },
                         { "ServiceHint", "static" }
                     };
                     await _client.MakeConnectionAsync(auth, props);
@@ -145,10 +142,7 @@ namespace org.herbal3d.Ragu {
                     Dictionary<string, string> props = new Dictionary<string, string>() {
                         { "Service", "SpaceServerClient" },
                         { "TransportURL", _context.layerDynamic.RemoteConnectionURL },
-                        { "ServiceAuth",  _context.layerDynamic.AccessToken.ToJSON(new Dictionary<string, string>() {
-                                        {  "Url", _context.layerDynamic.RemoteConnectionURL }
-                                    })
-                        },
+                        { "ServiceAuth", _context.layerDynamic.SessionAuth.ToString() },
                         { "ServiceHint", "dynamic" }
                     };
                     await _client.MakeConnectionAsync(auth, props);
@@ -158,10 +152,7 @@ namespace org.herbal3d.Ragu {
                     Dictionary<string, string> props = new Dictionary<string, string>() {
                         { "Service", "SpaceServerClient" },
                         { "TransportURL", _context.layerActors.RemoteConnectionURL },
-                        { "ServiceAuth",  _context.layerActors.AccessToken.ToJSON(new Dictionary<string, string>() {
-                                        {  "Url", _context.layerActors.RemoteConnectionURL }
-                                    })
-                        },
+                        { "ServiceAuth", _context.layerActors.SessionAuth.ToString() },
                         { "ServiceHint", "actors" }
                     };
                     await _client.MakeConnectionAsync(auth, props);

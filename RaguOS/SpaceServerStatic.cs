@@ -51,14 +51,8 @@ namespace org.herbal3d.Ragu {
     public class SpaceServerStatic : SpaceServerLayer {
         // Handle to the LOD'ized region assets
         LodenRegion _lodenRegion;
-
-        // The static instances that have been created on the Basil server
-        private class StaticInfo {
-            public string assetUri;
-            public BasilType.ObjectIdentifier objectId;
-            public BasilType.InstanceIdentifier instanceId;
-        };
-        private List<StaticInfo> _staticInfos = new List<StaticInfo>();
+        // Asset server for the loden assets
+        RaguAssetService _assetService;
 
         // Creation of an instance for a specific client.
         // Note: this canceller is for the individual session.
@@ -74,6 +68,7 @@ namespace org.herbal3d.Ragu {
 
             // Our handle to the LOD'ized region assets
             _lodenRegion = _context.scene.RequestModuleInterface<LodenRegion>();
+            _assetService = _context.scene.RequestModuleInterface<RaguAssetService>();
         }
 
         // This one client has disconnected
@@ -111,10 +106,10 @@ namespace org.herbal3d.Ragu {
             }
 
             // Check for an authorized connection
-            if (base.ValidateUserAuth(pReq.Auth, out OSAuthModule auther, out bool authorized)) {
+            if (base.ValidateUserAuth(pReq.Auth, out OSAuthModule auther)) {
 
                 // Use common processing routine for all the SpaceServer layers
-                ret = base.HandleOpenSession(pReq, auther, out string sessionKey, out string connectionKey);
+                ret = base.HandleOpenSession(pReq, auther);
 
                 // Start sending stuff to our new Basil friend.
                 HandleBasilConnection();
@@ -146,12 +141,14 @@ namespace org.herbal3d.Ragu {
                     _context.log.DebugFormat("{0} HandleBasilConnection", _logHeader);
 
                     // Get region tile definition
-                    string regionSpecURL = RaguAssetService.Instance.AssetServiceURL + "/" + _lodenRegion.RegionTopLevelSpecURL;
-                    regionSpecURL = regionSpecURL.Replace("/./", "/");
+                    string regionSpecURL = _assetService.CreateAccessURL(_lodenRegion.RegionTopLevelSpecURL);
 
+                    // Get the top level description of the region
                     TileSet regionSpec;
                     try {
                         using (WebClient wClient = new WebClient()) {
+                            wClient.UseDefaultCredentials = false;
+                            wClient.Headers.Add("Authorization", _assetService.AccessToken.Token);
                             string specString = wClient.DownloadString(regionSpecURL);
                             regionSpec = TileSet.FromString(specString);
                         }
@@ -167,14 +164,8 @@ namespace org.herbal3d.Ragu {
                         return;
                     }
 
-                    BasilType.AccessAuthorization auth = CreatBasilAccessAuth(ClientAuth.Token);
+                    BasilType.AccessAuthorization auth = base.CreateAccessAuthorization(base.ClientAuth);
 
-                    BasilType.AaBoundingBox aabb = null;
-                    var regionAsset = new BasilType.AssetInformation() {
-                        DisplayInfo = new BasilType.DisplayableInfo() {
-                            DisplayableType = "meshset",
-                        }
-                    };
                     // Gather all the URIs for the region's contents
                     List<string> regionURIs = (regionSpec.root.content.uris ?? new string[0]).ToList();
                     if (!string.IsNullOrEmpty(regionSpec.root.content.uri)) {
@@ -182,12 +173,11 @@ namespace org.herbal3d.Ragu {
                     }
                     // Tell the Basil server to load all of the region's contents
                     regionURIs.ForEach(async uri => {
-                        string regionAssetURL = RaguAssetService.Instance.AssetServiceURL + "/" + uri;
-                        regionAssetURL = regionAssetURL.Replace("/./", "/");
-                        _context.log.DebugFormat("{0} HandleBasilConnection: regionAssetURL=", _logHeader, regionAssetURL);
-                        regionAsset.DisplayInfo.Asset.Add("url", regionAssetURL);
-                        regionAsset.DisplayInfo.Asset.Add("loaderType", "GLTF");
-                        var objectResp = await _client.IdentifyDisplayableObjectAsync(auth, regionAsset, aabb);
+                        BasilType.AaBoundingBox aabb = null;
+                        BasilType.AssetInformation assetInfo = _assetService.CreateAssetInformation(uri);
+
+                        _context.log.DebugFormat("{0} HandleBasilConnection: regionAssetURL=", _logHeader, assetInfo.DisplayInfo.Asset["url"]);
+                        var objectResp = await _client.IdentifyDisplayableObjectAsync(auth, assetInfo, aabb);
 
                         BasilType.InstancePositionInfo instancePositionInfo = new BasilType.InstancePositionInfo() {
                             Pos = new BasilType.CoordPosition() {
@@ -208,13 +198,6 @@ namespace org.herbal3d.Ragu {
                             }
                         };
                         var instanceResp = await _client.CreateObjectInstanceAsync(auth, objectResp.ObjectId, instancePositionInfo);
-
-                        // Remember a handle to the thing we created
-                        _staticInfos.Add(new StaticInfo() {
-                            assetUri = regionAssetURL,
-                            objectId = objectResp.ObjectId,
-                            instanceId = instanceResp.InstanceId
-                        });
                     });
                 }
                 catch (Exception e) {

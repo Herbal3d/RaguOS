@@ -94,10 +94,10 @@ namespace org.herbal3d.Ragu {
                 return ret;
             }
 
-            if (base.ValidateUserAuth(pReq.Auth, out OSAuthModule auther, out bool authorized)) {
+            if (base.ValidateUserAuth(pReq.Auth, out OSAuthModule auther)) {
 
                 // Use common processing routine for all the SpaceServer layers
-                ret = base.HandleOpenSession(pReq, auther, out string sessionKey, out string connectionKey);
+                ret = base.HandleOpenSession(pReq, auther);
 
                 // Start sending stuff to our new Basil friend.
                 HandleBasilConnection();
@@ -155,11 +155,12 @@ namespace org.herbal3d.Ragu {
 
         private void Event_OnNewPresence(ScenePresence pPresence) {
             // _context.log.DebugFormat("{0} Event_OnNewPresence", _logHeader);
-            if (FindPresence(pPresence.UUID, out PresenceInfo aPresence)) {
+            PresenceInfo pi;
+            if (FindPresence(pPresence.UUID, out pi)) {
                 _context.log.ErrorFormat("{0} Event_OnNewPresence: two events for the same presence", _logHeader);
             }
             else {
-                PresenceInfo pi = new PresenceInfo(pPresence, this, _context);
+                pi = new PresenceInfo(pPresence, this, _context);
                 AddPresence(pi);
                 pi.AddAppearanceInstance();
             }
@@ -260,7 +261,7 @@ namespace org.herbal3d.Ragu {
                 }
             }
             public void AddAppearanceInstance() {
-                BasilType.AccessAuthorization auth = _spaceServer.CreatBasilAccessAuth(_spaceServer.ClientAuth.Token);
+                BasilType.AccessAuthorization auth = _spaceServer.CreateAccessAuthorization(_spaceServer.ClientAuth);
 
                 BasilType.AaBoundingBox aabb = null;
                 Task.Run( async () => {
@@ -274,6 +275,7 @@ namespace org.herbal3d.Ragu {
                     string tempAppearanceURL = "https://files.misterblue.com/BasilTest/gltf/Duck/glTF/Duck.gltf";
                     asset.DisplayInfo.Asset.Add("url", tempAppearanceURL);
                     asset.DisplayInfo.Asset.Add("loaderType", "GLTF");
+                    // asset.DisplayInfo.Asset.Add("auth", "xxx");    // zero length auth means no authentication needed
 
                     var resp = await _spaceServer.Client.IdentifyDisplayableObjectAsync(auth, asset, aabb);
                     if (resp.Exception == null) {
