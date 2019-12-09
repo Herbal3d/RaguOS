@@ -27,6 +27,7 @@ using OpenSim.Framework.Servers;
 using OpenSim.Framework.Servers.HttpServer;
 
 using org.herbal3d.cs.CommonEntities;
+using org.herbal3d.cs.CommonEntitiesUtil;
 using org.herbal3d.OSAuth;
 
 using BasilType = org.herbal3d.basil.protocol.BasilType;
@@ -99,7 +100,7 @@ namespace org.herbal3d.Ragu {
                 _context.log.DebugFormat("{0} Created authToken for service 'Assets'", _logHeader);
                 AccessToken = new OSAuthToken() {
                     Srv = "RaguAssetService",
-                    Sid = new Guid().ToString()
+                    Sid = org.herbal3d.cs.CommonEntitiesUtil.Util.RandomString(10)
                 };
                 _getHandler.AccessToken = AccessToken;
             }

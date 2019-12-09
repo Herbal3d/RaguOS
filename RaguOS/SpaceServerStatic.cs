@@ -106,7 +106,7 @@ namespace org.herbal3d.Ragu {
             }
 
             // Check for an authorized connection
-            if (base.ValidateUserAuth(pReq.Auth, out OSAuthModule auther)) {
+            if (base.ValidateUserAuth(pReq.Auth, out OSAuthModule auther, out OSAuthToken userAuth)) {
 
                 // Use common processing routine for all the SpaceServer layers
                 ret = base.HandleOpenSession(pReq, auther);
