@@ -184,6 +184,7 @@ namespace org.herbal3d.Ragu {
             // Get identifying info from the auth
             string agentId = pUserAuth.GetProperty("AgentId");
             OMV.UUID agentUUID = OMV.UUID.Parse(agentId);
+            OMV.UUID sessionUUID = OMV.UUID.Parse(pUserAuth.GetProperty("SessionID"));
             string firstName =  pUserAuth.GetProperty("FN");
             string lastName =  pUserAuth.GetProperty("LN");
             uint circuitCode = UInt32.Parse(pUserAuth.GetProperty("CC"));
@@ -192,18 +193,31 @@ namespace org.herbal3d.Ragu {
             AgentCircuitData acd = _context.scene.AuthenticateHandler.GetAgentCircuitData(agentUUID);
 
             if (acd != null) {
-                // Create the presence and add to the scene
-                // _context.scene.AuthenticateHandler.AddNewCircuit(acd.circuitcode, acd);
-                _context.scene.NewUserConnection(acd, (uint)Constants.TeleportFlags.ViaLogin, null, out string failureReason);
+                if (acd.SessionID == sessionUUID) {
+                    IClientAPI thisPerson = new RaguAvatar(firstName, lastName,
+                                                    agentUUID,
+                                                    acd.startpos,   /* initial position */
+                                                    OMV.UUID.Zero,  /* owner */
+                                                    true,           /* senseAsAgent */
+                                                    _context.scene,
+                                                    acd.circuitcode);
+                    // Start the client by adding it to the scene and doing event subscriptions
+                    thisPerson.Start();
 
-                if (_context.scene.TryGetScenePresence(agentUUID, out ScenePresence sp)) {
-                    _context.log.DebugFormat("{0} Successful login for {1} {2} ({3})",
-                                _logHeader, firstName, lastName, agentId);
-                    ret = true;
+                    // Get the ScenePresence just to make sure we can
+                    if (_context.scene.TryGetScenePresence(agentUUID, out ScenePresence sp)) {
+                        _context.log.DebugFormat("{0} Successful login for {1} {2} ({3})",
+                                    _logHeader, firstName, lastName, agentId);
+                        ret = true;
+                    }
+                    else {
+                        _context.log.ErrorFormat("{0} Failed to create ScenePresence for {1} {2} ({3})",
+                                    _logHeader, firstName, lastName, agentId);
+                    }
                 }
                 else {
-                    _context.log.ErrorFormat("{0} Failed to create ScenePresence for {1} {2} ({3})",
-                                _logHeader, firstName, lastName, agentId);
+                    _context.log.ErrorFormat("{0} CreateOpenSimPresence: AgentCircuitData does not match SessionID. AgentID={1}",
+                            _logHeader, agentId);
                 }
             }
             else {
