@@ -28,19 +28,19 @@ using OpenSim.Region.Framework.Scenes;
 
 namespace org.herbal3d.Ragu {
 
-    public class SpaceServerCCLayer : SpaceServerLayer {
+    public class SpaceServerCCListener : SpaceServerLayer {
 
         // Initial SpaceServerCC invocation with no transport setup.
         // Create a receiving connection and create SpaceServer when Basil connections come in.
         // Note: this canceller is for the overall layer.
-        public SpaceServerCCLayer(RaguContext pContext, CancellationTokenSource pCanceller)
+        public SpaceServerCCListener(RaguContext pContext, CancellationTokenSource pCanceller)
                         : base(pContext, pCanceller, "SpaceServerCC") {
         }
 
         // Once someone connects, create a session instance of myself
         protected override SpaceServerLayer InstanceFactory(RaguContext pContext,
                         CancellationTokenSource pCanceller, HTransport.BasilConnection pConnection) {
-            return new SpaceServerCC(pContext, pCanceller, pConnection);
+            return new SpaceServerCC(pContext, pCanceller, this, pConnection);
         }
     }
 
@@ -48,8 +48,8 @@ namespace org.herbal3d.Ragu {
         // Creation of an instance for a specific client.
         // Note: this canceller is for the individual session.
         public SpaceServerCC(RaguContext pContext, CancellationTokenSource pCanceller,
-                                        HTransport.BasilConnection pBasilConnection) 
-                        : base(pContext, pCanceller, "SpaceServerCC", pBasilConnection) {
+                                        SpaceServerLayer pListener, HTransport.BasilConnection pBasilConnection) 
+                        : base(pContext, pCanceller, pListener, "SpaceServerCC", pBasilConnection) {
 
             // This assignment directs the space server message calls to this ISpaceServer instance.
             _clientConnection.SpaceServiceProcessor.SpaceServerMsgHandler = this;
@@ -68,6 +68,7 @@ namespace org.herbal3d.Ragu {
                 _clientConnection.SpaceServiceProcessor.SpaceServerMsgHandler = null;
                 _clientConnection = null;
             }
+            base.Shutdown();
         }
 
         // Request from Basil to open a SpaceServer session
@@ -93,10 +94,10 @@ namespace org.herbal3d.Ragu {
             }
 
             // Check for an authorized connection
-            if (base.ValidateUserAuth(pReq.Auth, out OSAuthModule auther, out OSAuthToken userAuth)) {
+            if (ValidateLoginAuth(pReq.Auth, out OSAuthModule auther, out OSAuthToken userAuth)) {
 
                 // Use common processing routine for all the SpaceServer layers
-                ret = base.HandleOpenSession(pReq, auther);
+                ret = base.HandleOpenSession(pReq);
 
                 if (ret.Exception == null) {
                     // Set the processor for the new client go.
@@ -141,7 +142,7 @@ namespace org.herbal3d.Ragu {
                     Dictionary<string, string> props = new Dictionary<string, string>() {
                         { "Service", "SpaceServerClient" },
                         { "TransportURL", _context.layerStatic.RemoteConnectionURL },
-                        { "ServiceAuth", _context.layerStatic.SessionAuth.Token },
+                        { "ServiceAuth", _context.layerStatic.ListenerAuth.Token },
                         { "ServiceHint", "static" }
                     };
                     await _client.MakeConnectionAsync(auth, props);
@@ -151,7 +152,7 @@ namespace org.herbal3d.Ragu {
                     Dictionary<string, string> props = new Dictionary<string, string>() {
                         { "Service", "SpaceServerClient" },
                         { "TransportURL", _context.layerDynamic.RemoteConnectionURL },
-                        { "ServiceAuth", _context.layerDynamic.SessionAuth.Token },
+                        { "ServiceAuth", _context.layerDynamic.ListenerAuth.Token },
                         { "ServiceHint", "dynamic" }
                     };
                     await _client.MakeConnectionAsync(auth, props);
@@ -161,7 +162,7 @@ namespace org.herbal3d.Ragu {
                     Dictionary<string, string> props = new Dictionary<string, string>() {
                         { "Service", "SpaceServerClient" },
                         { "TransportURL", _context.layerActors.RemoteConnectionURL },
-                        { "ServiceAuth", _context.layerActors.SessionAuth.Token },
+                        { "ServiceAuth", _context.layerActors.ListenerAuth.Token },
                         { "ServiceHint", "actors" }
                     };
                     await _client.MakeConnectionAsync(auth, props);
@@ -170,6 +171,70 @@ namespace org.herbal3d.Ragu {
             catch (Exception e) {
                 _context.log.ErrorFormat("{0} HandleBasilConnection. Exception connecting Basil to layers: {1}", _logHeader, e);
             }
+        }
+
+        private bool ValidateLoginAuth(BasilType.AccessAuthorization pAuth, out OSAuthModule pAuther, out OSAuthToken pUserAuth) {
+            OSAuthModule auther = null;
+            OSAuthToken userAuthToken = null;
+            bool isAuthorized = false;
+            try {
+                auther = _context.scene.RequestModuleInterface<OSAuthModule>();
+                if (_context.parms.P<bool>("ShouldEnforceUserAuth")) {
+                    if (auther != null && pAuth != null) {
+                        if (pAuth.AccessProperties.TryGetValue("Auth", out string userAuth)) {
+                            userAuthToken = OSAuthToken.FromString(userAuth);
+                            // _context.log.DebugFormat("{0} ValidateLoginAuth: userAuthJSON={1}",
+                            //             _logHeader, userAuthToken.TokenJSON);
+
+                            try {
+                                string agentId = userAuthToken.GetProperty("AgentId");
+                                OMV.UUID agentUUID = OMV.UUID.Parse(agentId);
+                                OMV.UUID sessionID = OMV.UUID.Parse(userAuthToken.GetProperty("SessionID"));
+                                OMV.UUID secureSessionID = OMV.UUID.Parse(userAuthToken.GetProperty("SSID"));
+                                uint circuitCode = UInt32.Parse(userAuthToken.GetProperty("CC"));
+
+                                AgentCircuitData acd = _context.scene.AuthenticateHandler.GetAgentCircuitData(agentUUID);
+                                if (acd != null) {
+                                    if (acd.circuitcode == circuitCode) {
+                                        if (acd.SessionID == sessionID) {
+                                            if (acd.SecureSessionID == secureSessionID) {
+                                                isAuthorized = true;
+                                            }
+                                            else {
+                                                _context.log.DebugFormat("{0} ValidateUserAuth: Failed secureSessionID test. AgentId={1}",
+                                                            _logHeader, agentId);
+                                            }
+                                        }
+                                        else {
+                                            _context.log.DebugFormat("{0} ValidateUserAuth: Failed sessionId test. AgentId={1}",
+                                                        _logHeader, agentId);
+                                        }
+                                    }
+                                    else {
+                                        _context.log.DebugFormat("{0} ValidateUserAuth: Failed circuitCode test. AgentId={1}",
+                                                    _logHeader, agentId);
+                                    }
+                                }
+                            }
+                            catch (Exception e) {
+                                _context.log.ErrorFormat("{0} ValidateUserAuth: exception authorizing: {1}",
+                                            _logHeader, e);
+                                isAuthorized = false;
+                            }
+                        }
+                    }
+                }
+                else {
+                    isAuthorized = true;
+                }
+            }
+            catch (Exception e) {
+                isAuthorized = false;
+                _context.log.ErrorFormat("{0} Exception checking login authentication: e={1}", _logHeader, e);
+            }
+            pAuther = auther;
+            pUserAuth = userAuthToken;
+            return (auther != null) && isAuthorized;
         }
 
         // Create  the OpenSimulator ScenePResence and the associated structures

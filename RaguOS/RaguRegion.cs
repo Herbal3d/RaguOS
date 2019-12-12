@@ -68,11 +68,11 @@ namespace org.herbal3d.Ragu {
                 // Create the layers of the 3d world that are referenced by the Basil server
                 // The CommandAndControl layer tells the Basil server about all the layers
                 // TODO: Make dynamic and region specific.
-                _context.layerActors = new SpaceServerActorsLayer(_context, _canceller);
+                _context.layerActors = new SpaceServerActorsListener(_context, _canceller);
                 // _context.layerDynamic = new SpaceServerDynamicLayer(_context, _canceller);
-                _context.layerStatic = new SpaceServerStaticLayer(_context, _canceller);
+                _context.layerStatic = new SpaceServerStaticListener(_context, _canceller);
                 // Command and control
-                _context.layerCC = new SpaceServerCCLayer(_context, _canceller);
+                _context.layerCC = new SpaceServerCCListener(_context, _canceller);
             }
             catch (Exception e) {
                 _context.log.ErrorFormat("{0} Failed creation of SpaceServerCC: {1}", _logHeader, e);

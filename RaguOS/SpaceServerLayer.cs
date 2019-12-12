@@ -32,10 +32,11 @@ namespace org.herbal3d.Ragu {
     // Common code for accepting a Basil connection and acting like a SpaceServer.
     // Children are SpaceServerCC, SpaceServerStatic, SpaceServerAvatar, ...
     // NOTE:
-    // This is created in two different ways:
-    //      Without a client connection in which case this is the instance that creates the incoming
-    //          connection and
-    //      With a client connection in which case this is a per-client instance
+    // There are two types of handlers created for each layer:
+    //     Listener: which listens for new user connections (per-region)
+    //     User: which is the per-user connection
+    // So, for instance, there is a SpaceServerStaticLayerListener and multiple SpaceServerStaticLayerUser.
+    // These are both based on 'SpaceServerLayer'.
     public abstract class SpaceServerLayer : HTransport.ISpaceServer {
         protected string _logHeader = "[SpaceServerLayer]";
 
@@ -45,11 +46,12 @@ namespace org.herbal3d.Ragu {
         // The URL for external clients to connect to this layer
         public string RemoteConnectionURL;
 
+        // The base connection listener has a 'service' auth that it sends to connecting clients
+        public OSAuthToken ListenerAuth;
         // When we have a session going, it has a key and auth tokens for input and output
         public string SessionKey;
         public OSAuthToken SessionAuth;
         public OSAuthToken ClientAuth;
-
 
         // Canceller for the layer service. Other cancellers are created for each client.
         protected readonly CancellationTokenSource _canceller;
@@ -102,26 +104,29 @@ namespace org.herbal3d.Ragu {
             RemoteConnectionURL = connectionUri.ToString();
 
             // There is an authorization for making the initial connection
-            SessionAuth = new OSAuthToken() {
-                Srv = "SessionAuth",
+            ListenerAuth = new OSAuthToken() {
+                Srv = pLayerName + "-Listener",
                 Sid = org.herbal3d.cs.CommonEntitiesUtil.Util.RandomString(10)
             };
-            _context.log.DebugFormat("{0} SpaceServerLayer: SessionAuth={1}", _logHeader, SessionAuth.TokenJSON);
+            _context.log.DebugFormat("{0} SpaceServerLayer: ListenerAuth={1}", _logHeader, ListenerAuth.TokenJSON);
         }
 
         // A per client instance of the layer.
         // NOTE: this does not subscribe to the Event_* so these will not happen in per-client instances.
         public SpaceServerLayer(RaguContext pContext, CancellationTokenSource pCanceller,
-                        string pLayerName, HTransport.BasilConnection pConnection) {
+                        SpaceServerLayer pListener, string pLayerName, HTransport.BasilConnection pConnection) {
             _context = pContext;
             _canceller = pCanceller;
             LayerName = pLayerName + "-" + org.herbal3d.cs.CommonEntitiesUtil.Util.RandomString(10);
             _logHeader = "[" + pLayerName + "]";
 
             _clientConnection = pConnection;
+
+            // Remember the auth for OpenConnection
+            ListenerAuth = pListener.ListenerAuth;
         }
 
-        // Process a new Basil connection
+        // Process a new Basil connection.
         private void Event_NewBasilConnection(HTransport.BasilConnection pBasilConnection) {
             _context.log.DebugFormat("{0} Event_NewBasilConnection", _logHeader);
             // Cancellation token for this client connection
@@ -176,7 +181,7 @@ namespace org.herbal3d.Ragu {
         // Checks to see if the parameter has been set in the Regions.ini file. If not, use the
         //    value set in RaguParams. This allows setting region specific values.
         private T GetRegionParamValue<T>(RaguContext pContext, string pLayerName, string pParam) {
-            T ret = default(T);
+            T ret = default;
             string mod = pLayerName + "." + pParam;
             // Try to get the value from the 'extra' values that are set from Regions.ini
             string val = pContext.scene.RegionInfo.GetSetting(mod);
@@ -234,97 +239,49 @@ namespace org.herbal3d.Ragu {
             return ret;
         }
 
-
-        // Validates the 'UserAuth' field in a BasilType.AccessAuthorization structure.
-        // Checks if Ragu parameter "ShouldEnforceUserAuth" is true. If false, user is authorized.
-        // Returns 'true' if it checks out, 'false' otherwise.
-        // Also returns the authorizer module and the flag itself for later use.
-        protected bool ValidateUserAuth(BasilType.AccessAuthorization pAuth,
-                                out OSAuthModule pAuthModule, out OSAuthToken pUserAuth) {
-            OSAuthModule auther = null;
-            OSAuthToken userAuthToken = null;
+        // Validate that this request can be done.
+        protected bool ValidateRequestAuth(BasilType.AccessAuthorization pAuth) {
             bool isAuthorized = false;
             try {
-                auther = _context.scene.RequestModuleInterface<OSAuthModule>();
-                if (_context.parms.P<bool>("ShouldEnforceUserAuth")) {
-                    if (auther != null && pAuth != null) {
-                        if (pAuth.AccessProperties.TryGetValue("Auth", out string userAuth)) {
-                            userAuthToken = OSAuthToken.FromString(userAuth);
-                            if (this.SessionAuth != null) {
-                                _context.log.DebugFormat("{0} ValidateUserAuth: userAuthJSON={1}, SessionAuth={2}",
-                                    _logHeader, userAuthToken.TokenJSON, SessionAuth);
-                                // There is a session open so the auth string should be the one for accessing this session
-                                if (this.SessionAuth.Token == userAuth) {
-                                    isAuthorized = true;
-                                }
-                                else {
-                                    _context.log.DebugFormat("{0} ValidateUserAuth: Failed.", _logHeader);
-                                    isAuthorized = false;
-                                }
-                            }
-                            else {
-                                // There is no session so this auth string is a global user auth
-                                // Verify that is a connection with codes that were setup at login.
-                                _context.log.DebugFormat("{0} ValidateUserAuth: userAuthJSON={1}",
-                                            _logHeader, userAuthToken.TokenJSON);
-
-                                try {
-                                    string agentId = userAuthToken.GetProperty("AgentId");
-                                    OMV.UUID agentUUID = OMV.UUID.Parse(agentId);
-                                    OMV.UUID sessionID = OMV.UUID.Parse(userAuthToken.GetProperty("SessionID"));
-                                    OMV.UUID secureSessionID = OMV.UUID.Parse(userAuthToken.GetProperty("SSID"));
-                                    uint circuitCode = UInt32.Parse(userAuthToken.GetProperty("CC"));
-
-                                    AgentCircuitData acd = _context.scene.AuthenticateHandler.GetAgentCircuitData(agentUUID);
-                                    if (acd != null) {
-                                        if (acd.circuitcode == circuitCode) {
-                                            if (acd.SessionID == sessionID) {
-                                                if (acd.SecureSessionID == secureSessionID) {
-                                                    isAuthorized = true;
-                                                }
-                                                else {
-                                                    _context.log.DebugFormat("{0} ValidateUserAuth: Failed secureSessionID test. AgentId={1}",
-                                                                _logHeader, agentId);
-                                                }
-                                            }
-                                            else {
-                                                _context.log.DebugFormat("{0} ValidateUserAuth: Failed sessionId test. AgentId={1}",
-                                                            _logHeader, agentId);
-                                            }
-                                        }
-                                        else {
-                                            _context.log.DebugFormat("{0} ValidateUserAuth: Failed circuitCode test. AgentId={1}",
-                                                        _logHeader, agentId);
-                                        }
-                                    }
-                                }
-                                catch (Exception e) {
-                                    _context.log.ErrorFormat("{0} ValidateUserAuth: exception authorizing: {1}",
-                                                _logHeader, e);
-                                    isAuthorized = false;
-                                }
-                            }
-                        }
+                if (pAuth != null && pAuth.AccessProperties != null) {
+                    if (pAuth.AccessProperties.TryGetValue("Auth", out string userAuth)) {
+                        OSAuthToken userAuthToken = OSAuthToken.FromString(userAuth);
+                        isAuthorized = SessionAuth.Matches(userAuthToken);
                     }
-                }
-                else {
-                    isAuthorized = true;
                 }
             }
             catch (Exception e) {
-                isAuthorized = false;
-                _context.log.ErrorFormat("{0} Exception checking login authentication: e={1}", _logHeader, e);
+                _context.log.ErrorFormat("{0} ValidateRequestAuth: Exception checking auth: {1}",
+                            _logHeader, e);
             }
-            pAuthModule = auther;
-            pUserAuth = userAuthToken;
-            return (auther != null) && isAuthorized;
+            return isAuthorized;
+        }
+
+        // Validate that this OpenConnection request is authorized.
+        // A regular layer was created from a Listener who gave a service auth info
+        //      for the initial connection.
+        protected bool ValidateOpenAuth(BasilType.AccessAuthorization pAuth) {
+            bool isAuthorized = false;
+            try {
+                if (pAuth != null && pAuth.AccessProperties != null) {
+                    if (pAuth.AccessProperties.TryGetValue("Auth", out string userAuth)) {
+                        OSAuthToken userAuthToken = OSAuthToken.FromString(userAuth);
+                        isAuthorized = ListenerAuth.Matches(userAuthToken);
+                    }
+                }
+            }
+            catch (Exception e) {
+                _context.log.ErrorFormat("{0} ValidateRequestAuth: Exception checking auth: {1}",
+                            _logHeader, e);
+            }
+            return isAuthorized;
         }
 
         // Do all the common processing for handling an OpenSession request.
         // Presumes that the request has beeen validated and can be setup and initialized.
         // Creates a new 'connection' and authorization keys for the communication.
         // Returns the response message.
-        protected SpaceServer.OpenSessionResp HandleOpenSession(SpaceServer.OpenSessionReq pReq, OSAuthModule pAuther) {
+        protected SpaceServer.OpenSessionResp HandleOpenSession(SpaceServer.OpenSessionReq pReq) {
             SpaceServer.OpenSessionResp ret = new SpaceServer.OpenSessionResp();
 
             // This connection gets a unique handle
@@ -379,8 +336,6 @@ namespace org.herbal3d.Ragu {
             };
             // The client told use the token to use to talk to it
             this.ClientAuth = clientToken;
-
-            RaguAssetService assetService = RaguAssetService.Instance;
 
             if (clientToken != null) {
                 Dictionary<string, string> props = new Dictionary<string, string>() {

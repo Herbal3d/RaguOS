@@ -28,19 +28,19 @@ using OMV = OpenMetaverse;
 
 namespace org.herbal3d.Ragu {
 
-    public class SpaceServerDynamicLayer : SpaceServerLayer {
+    public class SpaceServerDynamicListener : SpaceServerLayer {
 
         // Initial SpaceServerDynamic invocation with no transport setup.
         // Create a receiving connection and create SpaceServer when Basil connections come in.
         // Note: this canceller is for the overall layer.
-        public SpaceServerDynamicLayer(RaguContext pContext, CancellationTokenSource pCanceller)
+        public SpaceServerDynamicListener(RaguContext pContext, CancellationTokenSource pCanceller)
                         : base(pContext, pCanceller, "SpaceServerDynamic") {
         }
 
         // Return an instance of me
         protected override SpaceServerLayer InstanceFactory(RaguContext pContext,
                         CancellationTokenSource pCanceller, HTransport.BasilConnection pConnection) {
-            return new SpaceServerDynamic(pContext, pCanceller, pConnection);
+            return new SpaceServerDynamic(pContext, pCanceller, this, pConnection);
         }
     }
 
@@ -48,8 +48,8 @@ namespace org.herbal3d.Ragu {
         // Creation of an instance for a specific client.
         // Note: this canceller is for the individual session.
         public SpaceServerDynamic(RaguContext pContext, CancellationTokenSource pCanceller,
-                                        HTransport.BasilConnection pBasilConnection) 
-                        : base(pContext, pCanceller, "SpaceServerDynamic", pBasilConnection) {
+                                        SpaceServerLayer pListener, HTransport.BasilConnection pBasilConnection) 
+                        : base(pContext, pCanceller, pListener, "SpaceServerDynamic", pBasilConnection) {
 
             _context.log.DebugFormat("{0} Instance Constructor", _logHeader);
 
@@ -70,6 +70,7 @@ namespace org.herbal3d.Ragu {
                 _clientConnection.SpaceServiceProcessor.SpaceServerMsgHandler = null;
                 _clientConnection = null;
             }
+            base.Shutdown();
         }
 
         // Request from Basil to open a SpaceServer session
@@ -79,10 +80,12 @@ namespace org.herbal3d.Ragu {
             var ret = new SpaceServer.OpenSessionResp();
 
             // DEBUG DEBUG
-            _context.log.DebugFormat("{0} OpenSession Features:", _logHeader);
-            foreach (var kvp in pReq.Features) {
-                _context.log.DebugFormat("{0}     {1}: {2}", _logHeader, kvp.Key, kvp.Value);
-            };
+            if (pReq.Features != null && pReq.Features.Count > 0) {
+                _context.log.DebugFormat("{0} OpenSession Features:", _logHeader);
+                foreach (var kvp in pReq.Features) {
+                    _context.log.DebugFormat("{0}     {1}: {2}", _logHeader, kvp.Key, kvp.Value);
+                };
+            }
             // END DEBUG DEBUG
 
             // Check if this is a test connection. We cannot handle those.
@@ -94,10 +97,10 @@ namespace org.herbal3d.Ragu {
                 return ret;
             }
 
-            if (base.ValidateUserAuth(pReq.Auth, out OSAuthModule auther, out OSAuthToken userAuth)) {
+            if (base.ValidateOpenAuth(pReq.Auth)) {
 
                 // Use common processing routine for all the SpaceServer layers
-                ret = base.HandleOpenSession(pReq, auther);
+                ret = base.HandleOpenSession(pReq);
 
                 // Start sending stuff to our new Basil friend.
                 // HandleBasilConnection();

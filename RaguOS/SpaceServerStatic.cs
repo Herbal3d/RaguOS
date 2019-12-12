@@ -32,39 +32,37 @@ using System.Net;
 
 namespace org.herbal3d.Ragu {
 
-    public class SpaceServerStaticLayer : SpaceServerLayer {
-
-        // Initial SpaceServerStatic invocation with no transport setup.
-        // Create a receiving connection and create SpaceServer when Basil connections come in.
-        // Note: this canceller is for the overall layer.
-        public SpaceServerStaticLayer(RaguContext pContext, CancellationTokenSource pCanceller)
+    // Listen for new user connections to this region's static layer
+    public class SpaceServerStaticListener : SpaceServerLayer {
+        public SpaceServerStaticListener(RaguContext pContext, CancellationTokenSource pCanceller)
                         : base(pContext, pCanceller, "SpaceServerStatic") {
         }
 
-        // Return an instance of me
+        // Return an instance of a per-user communicator of my instance type
         protected override SpaceServerLayer InstanceFactory(RaguContext pContext,
                         CancellationTokenSource pCanceller, HTransport.BasilConnection pConnection) {
-            return new SpaceServerStatic(pContext, pCanceller, pConnection);
+            return new SpaceServerStatic(pContext, pCanceller, this, pConnection);
         }
+
     }
 
+    // A per-user connection to this layer
     public class SpaceServerStatic : SpaceServerLayer {
-        // Handle to the LOD'ized region assets
-        LodenRegion _lodenRegion;
-        // Asset server for the loden assets
-        RaguAssetService _assetService;
 
-        // Creation of an instance for a specific client.
-        // Note: this canceller is for the individual session.
+        // Handle to the LOD'ized region assets
+        readonly LodenRegion _lodenRegion;
+        // Asset server for the loden assets
+        readonly RaguAssetService _assetService;
+
         public SpaceServerStatic(RaguContext pContext, CancellationTokenSource pCanceller,
-                                        HTransport.BasilConnection pBasilConnection) 
-                        : base(pContext, pCanceller, "SpaceServerStatic", pBasilConnection) {
+                            SpaceServerLayer pListener, HTransport.BasilConnection pConnection) 
+                            : base(pContext, pCanceller, pListener, "SpaceServerStatic", pConnection) {
 
             // This assignment directs the space server message calls to this ISpaceServer instance.
             _clientConnection.SpaceServiceProcessor.SpaceServerMsgHandler = this;
 
             // The thing to call to make requests to the Basil server
-            _client = new HTransport.BasilClient(pBasilConnection);
+            _client = new HTransport.BasilClient(pConnection);
 
             // Our handle to the LOD'ized region assets
             _lodenRegion = _context.scene.RequestModuleInterface<LodenRegion>();
@@ -81,19 +79,22 @@ namespace org.herbal3d.Ragu {
                 _clientConnection.SpaceServiceProcessor.SpaceServerMsgHandler = null;
                 _clientConnection = null;
             }
+            base.Shutdown();
         }
 
         // Request from Basil to open a SpaceServer session
         public override SpaceServer.OpenSessionResp OpenSession(SpaceServer.OpenSessionReq pReq) {
-            _context.log.DebugFormat("{0} OpenSession.", _logHeader);
+            // _context.log.DebugFormat("{0} OpenSession.", _logHeader);
 
             var ret = new SpaceServer.OpenSessionResp();
 
             // DEBUG DEBUG
-            _context.log.DebugFormat("{0} OpenSession Features:", _logHeader);
-            foreach (var kvp in pReq.Features) {
-                _context.log.DebugFormat("{0}     {1}: {2}", _logHeader, kvp.Key, kvp.Value);
-            };
+            if (pReq.Features != null && pReq.Features.Count > 0) {
+                _context.log.DebugFormat("{0} OpenSession Features:", _logHeader);
+                foreach (var kvp in pReq.Features) {
+                    _context.log.DebugFormat("{0}     {1}: {2}", _logHeader, kvp.Key, kvp.Value);
+                };
+            }
             // END DEBUG DEBUG
 
             // Check if this is a test connection. We cannot handle those.
@@ -105,11 +106,13 @@ namespace org.herbal3d.Ragu {
                 return ret;
             }
 
+            var resp = base.HandleOpenSession(pReq);
+
             // Check for an authorized connection
-            if (base.ValidateUserAuth(pReq.Auth, out OSAuthModule auther, out OSAuthToken userAuth)) {
+            if (base.ValidateOpenAuth(pReq.Auth)) {
 
                 // Use common processing routine for all the SpaceServer layers
-                ret = base.HandleOpenSession(pReq, auther);
+                ret = base.HandleOpenSession(pReq);
 
                 // Start sending stuff to our new Basil friend.
                 HandleBasilConnection();
@@ -138,7 +141,7 @@ namespace org.herbal3d.Ragu {
         private Task HandleBasilConnection() {
             return Task.Run(() => {
                 try {
-                    _context.log.DebugFormat("{0} HandleBasilConnection", _logHeader);
+                    // _context.log.DebugFormat("{0} HandleBasilConnection", _logHeader);
 
                     // Get region tile definition
                     string regionSpecURL = _assetService.CreateAccessURL(_lodenRegion.RegionTopLevelSpecURL);
@@ -176,7 +179,6 @@ namespace org.herbal3d.Ragu {
                         BasilType.AaBoundingBox aabb = null;
                         BasilType.AssetInformation assetInfo = _assetService.CreateAssetInformation(uri);
 
-                        _context.log.DebugFormat("{0} HandleBasilConnection: regionAssetURL=", _logHeader, assetInfo.DisplayInfo.Asset["url"]);
                         var objectResp = await _client.IdentifyDisplayableObjectAsync(auth, assetInfo, aabb);
 
                         BasilType.InstancePositionInfo instancePositionInfo = new BasilType.InstancePositionInfo() {

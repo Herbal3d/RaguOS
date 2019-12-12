@@ -42,10 +42,10 @@ namespace org.herbal3d.Ragu {
         // The following are the layer servers for this region.
         // TODO: create a better structure for holding and tracking the layers.
         //      These are referenced by SpaceServerCC to send to the Basil server.
-        public SpaceServerCCLayer layerCC;
-        public SpaceServerStaticLayer layerStatic;
-        public SpaceServerDynamicLayer layerDynamic;
-        public SpaceServerActorsLayer layerActors;
+        public SpaceServerCCListener layerCC;
+        public SpaceServerStaticListener layerStatic;
+        public SpaceServerDynamicListener layerDynamic;
+        public SpaceServerActorsListener layerActors;
 
         public RaguContext(IConfig pSysConfig, RaguParams pParms, ILog pLog) {
             var randomNumbers = new Random();
