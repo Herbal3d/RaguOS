@@ -63,6 +63,8 @@ namespace org.herbal3d.Ragu {
         // This one client has disconnected
         public override void Shutdown() {
             _canceller.Cancel();
+            DeleteAllPresences();
+            RemoveEventSubscriptions();
             if (_client != null) {
                 _client = null;
             }
@@ -235,6 +237,17 @@ namespace org.herbal3d.Ragu {
                 _presences.Remove(pPI);
             }
         }
+        // The connection is going down or something. Remove all presences from the scene.
+        private void DeleteAllPresences() {
+            lock (_presences) {
+                while (_presences.Count > 0) {
+                    PresenceInfo pres = _presences.First();
+                    _presences.Remove(pres);
+                    pres.RemoveAppearanceInstance();
+                }
+            }
+        }
+
 
         // Local class for a presence and the operations we do on the Basil display.
         private class PresenceInfo {
@@ -253,7 +266,7 @@ namespace org.herbal3d.Ragu {
             }
             public void UpdatePosition() {
                 if (_instanceId != null) {
-                    BasilType.AccessAuthorization auth = null;
+                    BasilType.AccessAuthorization auth = _spaceServer.CreateAccessAuthorization(_spaceServer.ClientAuth);
                     _spaceServer.Client.UpdateInstancePosition(auth, _instanceId, PackageInstancePosition());
                     // _context.log.DebugFormat("{0} UpdatePosition: p={1}, r={2}",
                     //             _logHeader, presence.AbsolutePosition, presence.Rotation);
@@ -265,7 +278,6 @@ namespace org.herbal3d.Ragu {
             }
             public void AddAppearanceInstance() {
                 BasilType.AccessAuthorization auth = _spaceServer.CreateAccessAuthorization(_spaceServer.ClientAuth);
-
                 BasilType.AaBoundingBox aabb = null;
                 Task.Run( async () => {
                     BasilType.AssetInformation asset = new BasilType.AssetInformation() {
@@ -302,7 +314,7 @@ namespace org.herbal3d.Ragu {
                 });
             }
             public void RemoveAppearanceInstance() {
-                BasilType.AccessAuthorization auth = null;
+                BasilType.AccessAuthorization auth = _spaceServer.CreateAccessAuthorization(_spaceServer.ClientAuth);
                 Task.Run( async () => {
                     if (_instanceId != null) {
                         await _spaceServer.Client.DeleteObjectInstanceAsync(auth, _instanceId);
