@@ -167,7 +167,7 @@ namespace org.herbal3d.Ragu {
             }
             public override void SetValue(String valAsString) {
                 // Find the 'Parse' method on that type
-                System.Reflection.MethodInfo parser = null;
+                System.Reflection.MethodInfo parser;
                 try {
                     parser = GetValueType().GetMethod("Parse", new Type[] { typeof(String) });
                 }
@@ -206,7 +206,7 @@ namespace org.herbal3d.Ragu {
         // Note that it outputs a console message if not found. Not found means that the caller
         //     used the wrong string name.
         public T P<T>(string paramName) {
-            T ret = default(T);
+            T ret = default;
             if (TryGetParameter(paramName, out ParameterDefnBase pbase)) {
                 if (pbase is ParameterDefn<T> pdef) {
                     ret = pdef.Value();
@@ -221,7 +221,7 @@ namespace org.herbal3d.Ragu {
             return ret;
         }
         public bool HasParam(string pParamName) {
-            return TryGetParameter(pParamName, out ParameterDefnBase pbase);
+            return TryGetParameter(pParamName, out _);
         }
 
         public object GetObjectValue(string pParamName) {

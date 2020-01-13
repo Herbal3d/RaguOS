@@ -54,7 +54,7 @@ namespace org.herbal3d.Ragu {
 
         // There is only one asset service per sinulator
         public static RaguAssetService Instance;
-        private static Object InstanceLock = new object();
+        private static readonly Object InstanceLock = new object();
 
         // Create the single instance.
         // The lock is because there could be several regions starting up at the same time.

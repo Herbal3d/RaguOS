@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019 Robert Adams
+// Copyright (c) 2019 Robert Adams
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -136,11 +136,12 @@ namespace org.herbal3d.Ragu {
             if (!objectTouchable)
                 return false;
             // Set up the surface args as if the touch is from a client that does not support this
-            SurfaceTouchEventArgs surfaceArgs = new SurfaceTouchEventArgs();
-            surfaceArgs.FaceIndex = -1; // TOUCH_INVALID_FACE
-            surfaceArgs.Binormal =  Vector3.Zero; // TOUCH_INVALID_VECTOR
-            surfaceArgs.Normal =  Vector3.Zero; // TOUCH_INVALID_VECTOR
-            surfaceArgs.STCoord = new Vector3(-1.0f, -1.0f, 0.0f); // TOUCH_INVALID_TEXCOORD
+            SurfaceTouchEventArgs surfaceArgs = new SurfaceTouchEventArgs {
+                FaceIndex = -1, // TOUCH_INVALID_FACE
+                Binormal = Vector3.Zero, // TOUCH_INVALID_VECTOR
+                Normal = Vector3.Zero, // TOUCH_INVALID_VECTOR
+                STCoord = new Vector3(-1.0f, -1.0f, 0.0f) // TOUCH_INVALID_TEXCOORD
+            };
             surfaceArgs.UVCoord = surfaceArgs.STCoord; // TOUCH_INVALID_TEXCOORD
             List<SurfaceTouchEventArgs> touchArgs = new List<SurfaceTouchEventArgs>();
             touchArgs.Add(surfaceArgs);
@@ -227,15 +228,16 @@ namespace org.herbal3d.Ragu {
                     return;
                 }
             }
-            OSChatMessage chatFromClient = new OSChatMessage();
-            chatFromClient.Channel = channel;
-            chatFromClient.From = Name;
-            chatFromClient.Message = message;
-            chatFromClient.Position = StartPos;
-            chatFromClient.Scene = m_scene;
-            chatFromClient.Sender = this;
-            chatFromClient.SenderUUID = AgentId;
-            chatFromClient.Type = chatType;
+            OSChatMessage chatFromClient = new OSChatMessage {
+                Channel = channel,
+                From = Name,
+                Message = message,
+                Position = StartPos,
+                Scene = m_scene,
+                Sender = this,
+                SenderUUID = AgentId,
+                Type = chatType
+            };
 
             OnChatFromClient(this, chatFromClient);
         }
