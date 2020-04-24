@@ -15,6 +15,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -30,7 +31,7 @@ using org.herbal3d.cs.CommonEntities;
 using org.herbal3d.cs.CommonEntitiesUtil;
 using org.herbal3d.OSAuth;
 
-using BasilType = org.herbal3d.basil.protocol.BasilType;
+using BT = org.herbal3d.basil.protocol.BasilType;
 
 namespace org.herbal3d.Ragu {
     public class RaguAssetService {
@@ -38,7 +39,6 @@ namespace org.herbal3d.Ragu {
         private readonly string _logHeader = "[RaguAssetService]";
 
         // TODO: Someday make this into a separate service.
-
 
         public string HandlerPath;
         public string AssetServiceURL;
@@ -53,15 +53,23 @@ namespace org.herbal3d.Ragu {
         private RaguGETStreamHandler _getHandler;
 
         // There is only one asset service per sinulator
-        public static RaguAssetService Instance;
+        private static RaguAssetService _instance;
+        public static RaguAssetService Instance {
+            get {
+                if (_instance != null) {
+                    return _instance;
+                }
+                throw new Exception("Attempt to use RaguAssetService.Instance before initialized");
+            }
+        }
         private static readonly Object InstanceLock = new object();
 
         // Create the single instance.
         // The lock is because there could be several regions starting up at the same time.
         public static void CreateInstance(RaguContext pContext) {
             lock (RaguAssetService.InstanceLock) {
-                if (RaguAssetService.Instance == null) {
-                    RaguAssetService.Instance = new RaguAssetService(pContext);
+                if (RaguAssetService._instance == null) {
+                    RaguAssetService._instance = new RaguAssetService(pContext);
                 }
             }
         }
@@ -70,7 +78,7 @@ namespace org.herbal3d.Ragu {
             _context = pContext;
             HandlerPath = "/Ragu/Assets";
 
-            string hostAddress = RaguRegion.HostnameForExternalAccess;
+            string hostAddress = _context.HostnameForExternalAccess;
             if (MainServer.Instance.UseSSL) {
                 AssetServiceURL = new UriBuilder("https", hostAddress, (int)MainServer.Instance.Port, HandlerPath).Uri.ToString();
             }
@@ -95,18 +103,12 @@ namespace org.herbal3d.Ragu {
             }
 
             // People need to supply a key to access us
-            OSAuthModule authModule = pContext.scene.RequestModuleInterface<OSAuthModule>();
-            if (authModule != null) {
-                _context.log.DebugFormat("{0} Created authToken for service 'Assets'", _logHeader);
-                AccessToken = new OSAuthToken() {
-                    Srv = "RaguAssetService",
-                    Sid = org.herbal3d.cs.CommonEntitiesUtil.Util.RandomString(10)
-                };
-                _getHandler.AccessToken = AccessToken;
-            }
-            else {
-                _context.log.ErrorFormat("{0} No auth module available. Could not create authToken for service 'Assets'", _logHeader);
-            }
+            _context.log.DebugFormat("{0} Created authToken for service 'Assets'", _logHeader);
+            AccessToken = new OSAuthToken() {
+                Srv = "RaguAssetService",
+                Sid = org.herbal3d.cs.CommonEntitiesUtil.Util.RandomString(10)
+            };
+            _getHandler.AccessToken = AccessToken;
         }
 
         public void Stop() {
@@ -116,29 +118,11 @@ namespace org.herbal3d.Ragu {
             }
         }
 
-        // Given an asset identifying string, create an BasilType.AssetInformation
-        //    structure that would allow external access to the asset.
-        public BasilType.AssetInformation CreateAssetInformation(string pUri) {
-            var assetInfo = new BasilType.AssetInformation() {
-                DisplayInfo = new BasilType.DisplayableInfo()
-            };
-
-            // For the moment, assume everything is a meshset
-            assetInfo.DisplayInfo.DisplayableType = "meshset";
-
-            string regionAssetURL = CreateAccessURL(pUri);
-
-            assetInfo.DisplayInfo.Asset.Add("url", regionAssetURL);
-            assetInfo.DisplayInfo.Asset.Add("loaderType", "GLTF");
-            assetInfo.DisplayInfo.Asset.Add("auth", _getHandler.AccessToken.Token);
-
-            return assetInfo;
-        }
-
         // Create an URL for accessing the passed uri
         public string CreateAccessURL(string uri) {
-            string assetURL = AssetServiceURL + "/" + uri;
+            string assetURL = AssetServiceURL + "/bearer-" + AccessToken.Token + "/" + uri;
             assetURL = assetURL.Replace("/./", "/");
+            assetURL = assetURL.Replace("/../", "/");
             return assetURL;
         }
     }
@@ -146,7 +130,7 @@ namespace org.herbal3d.Ragu {
     public class RaguGETStreamHandler : BaseStreamHandler {
         private readonly string _logHeader = "[RaguGetStreamHandler]";
 
-        private readonly RaguContext _context;
+        private readonly org.herbal3d.Ragu.RaguContext _context;
         private readonly BAssetStorage _assetStorage;
 
         public OSAuthToken AccessToken;

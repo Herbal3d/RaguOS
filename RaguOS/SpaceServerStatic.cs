@@ -12,200 +12,137 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-using SpaceServer = org.herbal3d.basil.protocol.SpaceServer;
-using HTransport = org.herbal3d.transport;
-using BasilType = org.herbal3d.basil.protocol.BasilType;
+using BT = org.herbal3d.basil.protocol.BasilType;
+using HT = org.herbal3d.transport;
+
 using org.herbal3d.cs.CommonEntitiesUtil;
 using org.herbal3d.Tiles;
 
 using org.herbal3d.Loden;
 using org.herbal3d.OSAuth;
 
-using Google.Protobuf;
-
 using OMV = OpenMetaverse;
-using System.Net;
 
 namespace org.herbal3d.Ragu {
 
-    // Listen for new user connections to this region's static layer
-    public class SpaceServerStaticListener : SpaceServerLayer {
-        public SpaceServerStaticListener(RaguContext pContext, CancellationTokenSource pCanceller)
-                        : base(pContext, pCanceller, "SpaceServerStatic") {
+    public class SpaceServerStatic : HT.SpaceServerBase {
+
+        private static readonly string _logHeader = "[SpaceServerStatic]";
+        private readonly RaguContext _rContext;
+
+        public SpaceServerStatic(RaguContext pContext,
+                                    CancellationTokenSource pCanceller,
+                                    HT.BasilConnection pConnection,
+                                    OSAuthToken pOpenSessionAuth) 
+                        : base(pCanceller, pConnection, "Static") {
+            _rContext = pContext;
+            SessionAuth = pOpenSessionAuth;
         }
 
-        // Return an instance of a per-user communicator of my instance type
-        protected override SpaceServerLayer InstanceFactory(RaguContext pContext,
-                        CancellationTokenSource pCanceller, HTransport.BasilConnection pConnection) {
-            return new SpaceServerStatic(pContext, pCanceller, this, pConnection);
+        protected override void DoShutdownWork() {
+            return;
         }
 
-    }
-
-    // A per-user connection to this layer
-    public class SpaceServerStatic : SpaceServerLayer {
-
-        // Handle to the LOD'ized region assets
-        readonly LodenRegion _lodenRegion;
-        // Asset server for the loden assets
-        readonly RaguAssetService _assetService;
-
-        public SpaceServerStatic(RaguContext pContext, CancellationTokenSource pCanceller,
-                            SpaceServerLayer pListener, HTransport.BasilConnection pConnection) 
-                            : base(pContext, pCanceller, pListener, "SpaceServerStatic", pConnection) {
-
-            // This assignment directs the space server message calls to this ISpaceServer instance.
-            _clientConnection.SpaceServiceProcessor.SpaceServerMsgHandler = this;
-
-            // The thing to call to make requests to the Basil server
-            _client = new HTransport.BasilClient(pConnection);
-
-            // Our handle to the LOD'ized region assets
-            _lodenRegion = _context.scene.RequestModuleInterface<LodenRegion>();
-            _assetService = RaguAssetService.Instance;
+        /// <summary>
+        ///  The client does an OpenSession with 'login' information. Authorize the
+        ///  logged in user.
+        /// </summary>
+        /// <param name="pUserToken">UserAuth token sent from the client making the OpenSession
+        ///     which authenticates the access.</param>
+        /// <returns>"true" if the user is authorized</returns>
+        protected override bool VerifyClientAuthentication(OSAuthToken pUserToken) {
+            return pUserToken.Matches(SessionAuth);
         }
 
-        // This one client has disconnected
-        public override void Shutdown() {
-            _canceller.Cancel();
-            if (_client != null) {
-                _client = null;
-            }
-            if (_clientConnection != null) {
-                _clientConnection.SpaceServiceProcessor.SpaceServerMsgHandler = null;
-                _clientConnection = null;
-            }
-            base.Shutdown();
+        protected override void DoOpenSessionWork(HT.BasilConnection pConnection, HT.BasilComm pClient, BT.Props pParms) {
+            Task.Run(() => {
+                HandleBasilConnection(pConnection, pClient, pParms);
+            });
         }
 
-        // Request from Basil to open a SpaceServer session
-        public override SpaceServer.OpenSessionResp OpenSession(SpaceServer.OpenSessionReq pReq) {
-            // _context.log.DebugFormat("{0} OpenSession.", _logHeader);
-
-            var ret = new SpaceServer.OpenSessionResp();
-
-            // DEBUG DEBUG
-            if (pReq.Features != null && pReq.Features.Count > 0) {
-                _context.log.DebugFormat("{0} OpenSession Features:", _logHeader);
-                foreach (var kvp in pReq.Features) {
-                    _context.log.DebugFormat("{0}     {1}: {2}", _logHeader, kvp.Key, kvp.Value);
-                };
-            }
-            // END DEBUG DEBUG
-
-            // Check if this is a test connection. We cannot handle those.
-            // Respond with an error message.
-            if (CheckIfTestConnection(pReq, ref ret)) {
-                ret.Exception = new BasilType.BasilException() {
-                    Reason = "Test session not acceptable"
-                };
-                return ret;
-            }
-
-            var resp = base.HandleOpenSession(pReq);
-
-            // Check for an authorized connection
-            if (base.ValidateOpenAuth(pReq.Auth)) {
-
-                // Use common processing routine for all the SpaceServer layers
-                ret = base.HandleOpenSession(pReq);
-
-                // Start sending stuff to our new Basil friend.
-                HandleBasilConnection();
-            }
-            else {
-                ret.Exception = new BasilType.BasilException() {
-                    Reason = "Not authorized"
-                };
-            }
-
-            return ret;
-        }
-
-        // Request from Basil to close the SpaceServer session
-        public override SpaceServer.CloseSessionResp CloseSession(SpaceServer.CloseSessionReq pReq) {
-            throw new NotImplementedException();
-        }
-
-        // Request from Basil to move the camera.
-        public override SpaceServer.CameraViewResp CameraView(SpaceServer.CameraViewReq pReq) {
-            throw new NotImplementedException();
+        // I don't have anything to do for a CloseSession
+        protected override void DoCloseSessionWork() {
+            _rContext.log.DebugFormat("{0} DoCloseSessionWork: ", _logHeader);
+            return;
         }
 
         // Received an OpenSession from a Basil client.
         // Send the fellow some content.
-        private Task HandleBasilConnection() {
-            return Task.Run(() => {
+        private void HandleBasilConnection(HT.BasilConnection pConnection, HT.BasilComm pClient, BT.Props pParms) {
+            try {
+                // _context.log.DebugFormat("{0} HandleBasilConnection", _logHeader);
+
+                // Get region tile definition
+                LodenRegion lodenRegion = _rContext.scene.RequestModuleInterface<LodenRegion>();
+                string regionSpecURL = RaguAssetService.Instance.CreateAccessURL(lodenRegion.RegionTopLevelSpecURL);
+
+                // Get the top level description of the region
+                TileSet regionSpec;
                 try {
-                    // _context.log.DebugFormat("{0} HandleBasilConnection", _logHeader);
-
-                    // Get region tile definition
-                    string regionSpecURL = _assetService.CreateAccessURL(_lodenRegion.RegionTopLevelSpecURL);
-
-                    // Get the top level description of the region
-                    TileSet regionSpec;
-                    try {
-                        using (WebClient wClient = new WebClient()) {
-                            wClient.UseDefaultCredentials = false;
-                            wClient.Headers.Add("Authorization", _assetService.AccessToken.Token);
-                            string specString = wClient.DownloadString(regionSpecURL);
-                            regionSpec = TileSet.FromString(specString);
-                        }
+                    using (WebClient wClient = new WebClient()) {
+                        wClient.UseDefaultCredentials = false;
+                        wClient.Headers.Add("Authorization", RaguAssetService.Instance.AccessToken.Token);
+                        string specString = wClient.DownloadString(regionSpecURL);
+                        regionSpec = TileSet.FromString(specString);
                     }
-                    catch (Exception e) {
-                        _context.log.ErrorFormat("{0} HandleBasilConnection: Failure reading region spec '{1}': {2}",
-                                        _logHeader, regionSpecURL, e);
-                        // There is nothing more we can do
-                        return;
-                    }
-                    if (regionSpec == null) {
-                        _context.log.ErrorFormat("{0} HandleBasilConnection: Could not read regionSpec", _logHeader);
-                        return;
-                    }
-
-                    BasilType.AccessAuthorization auth = base.CreateAccessAuthorization(base.ClientAuth);
-
-                    // Gather all the URIs for the region's contents
-                    List<string> regionURIs = (regionSpec.root.content.uris ?? new string[0]).ToList();
-                    if (!string.IsNullOrEmpty(regionSpec.root.content.uri)) {
-                        regionURIs.Add(regionSpec.root.content.uri);
-                    }
-                    // Tell the Basil server to load all of the region's contents
-                    regionURIs.ForEach(async uri => {
-                        BasilType.AaBoundingBox aabb = null;
-                        BasilType.AssetInformation assetInfo = _assetService.CreateAssetInformation(uri);
-
-                        var objectResp = await _client.IdentifyDisplayableObjectAsync(auth, assetInfo, aabb);
-
-                        BasilType.InstancePositionInfo instancePositionInfo = new BasilType.InstancePositionInfo() {
-                            Pos = new BasilType.CoordPosition() {
-                                Pos = new BasilType.Vector3() {
-                                    // X = 100, Y = 101, Z = 102
-                                    X = 0,
-                                    Y = 0,
-                                    Z = 0
-                                },
-                                Rot = new BasilType.Quaternion() {
-                                    X = 0,
-                                    Y = 0,
-                                    Z = 0,
-                                    W = 1
-                                },
-                                PosRef = BasilType.CoordSystem.Wgs86,
-                                RotRef = BasilType.RotationSystem.Worldr
-                            }
-                        };
-                        var instanceResp = await _client.CreateObjectInstanceAsync(auth, objectResp.ObjectId, instancePositionInfo);
-                    });
                 }
                 catch (Exception e) {
-                    _context.log.ErrorFormat("{0} HandleBasilConnection. Exception connecting Basil to layers: {1}", _logHeader, e);
+                    _rContext.log.ErrorFormat("{0} HandleBasilConnection: Failure reading region spec '{1}': {2}",
+                                    _logHeader, regionSpecURL, e);
+                    // There is nothing more we can do
+                    return;
                 }
-            }, _canceller.Token);
+                if (regionSpec == null) {
+                    _rContext.log.ErrorFormat("{0} HandleBasilConnection: Could not read regionSpec", _logHeader);
+                    return;
+                }
+
+                // Gather all the URIs for the region's contents
+                List<string> regionURIs = new List<string>();
+                if (regionSpec.root.content.uris != null) {
+                    regionURIs.AddRange(regionSpec.root.content.uris.Select(uri => {
+                        return RaguAssetService.Instance.CreateAccessURL(uri);
+                    }));
+                };
+                if (!string.IsNullOrEmpty(regionSpec.root.content.uri)) {
+                    regionURIs.Add(RaguAssetService.Instance.CreateAccessURL(regionSpec.root.content.uri));
+                };
+
+                // Tell the Basil server to load all of the region's contents
+                regionURIs.ForEach(async uri => {
+                    BT.Props props = new BT.Props();
+                    BT.AbilityList abilities = new BT.AbilityList {
+                        new BT.AbilityDisplayable() {
+                            DisplayableUrl = uri,
+                            DisplayableType = "meshset",
+                            LoaderType = "GLTF"
+                        }
+                    };
+                    BT.Props resp = await Client.CreateItemAsync(props, abilities);
+                    BT.ItemId displayableId = new BT.ItemId(resp["ItemId"]);
+
+                    props = new BT.Props();
+                    abilities = new BT.AbilityList {
+                        new BT.AbilityInstance() {
+                            DisplayableItemId = displayableId,
+                            Pos = new double[] { 0, 0, 0 }
+                        }
+                    };
+                    resp = await Client.CreateItemAsync(props, abilities);
+                    BT.ItemId instanceId = new BT.ItemId(resp["ItemId"]);
+
+                    _rContext.log.DebugFormat("{0} HandleBasilConnection: Created displayable {1} and instance {2}",
+                                    _logHeader, displayableId, instanceId);
+                });
+            }
+            catch (Exception e) {
+                _rContext.log.ErrorFormat("{0} HandleBasilConnection. Exception connecting Basil to layers: {1}", _logHeader, e);
+            }
         }
     }
 }

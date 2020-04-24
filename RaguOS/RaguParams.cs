@@ -59,6 +59,8 @@ namespace org.herbal3d.Ragu {
                 true ),
             new ParameterDefn<bool>("ShouldEnforceAssetAccessAuthorization", "All asset requests require an 'Authentication' header",
                 false ),
+            new ParameterDefn<bool>("ShouldAliveCheckSessions", "Whether to start AliveCheck messages for open connections",
+                false ),
 
             new ParameterDefn<bool>("SpaceServerCC.IsSecure", "Whether to accept only secure connections",
                 false),

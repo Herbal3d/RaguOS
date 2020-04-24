@@ -12,120 +12,64 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 using OpenSim.Region.Framework.Scenes;
-
-using SpaceServer = org.herbal3d.basil.protocol.SpaceServer;
-using HTransport = org.herbal3d.transport;
-using BasilType = org.herbal3d.basil.protocol.BasilType;
+using org.herbal3d.basil.protocol.BasilType;
 using org.herbal3d.cs.CommonEntities;
 using org.herbal3d.OSAuth;
 
-using Google.Protobuf;
+using BT = org.herbal3d.basil.protocol.BasilType;
+using HT = org.herbal3d.transport;
 
 using OMV = OpenMetaverse;
 
 namespace org.herbal3d.Ragu {
 
-    public class SpaceServerActorsListener : SpaceServerLayer {
+    public class SpaceServerActors : HT.SpaceServerBase {
+        private static readonly string _logHeader = "[SpaceServerActors]";
 
-        // Initial SpaceServerActors invocation with no transport setup.
-        // Create a receiving connection and create SpaceServer when Basil connections come in.
-        // Note: this canceller is for the overall layer.
-        public SpaceServerActorsListener(RaguContext pContext, CancellationTokenSource pCanceller)
-                        : base(pContext, pCanceller, "SpaceServerActors") {
-        }
+        private readonly RaguContext _context;
 
-        // Return a per-user instance of this layer worker
-        protected override SpaceServerLayer InstanceFactory(RaguContext pContext,
-                        CancellationTokenSource pCanceller, HTransport.BasilConnection pConnection) {
-            return new SpaceServerActors(pContext, pCanceller, this, pConnection);
-        }
-    }
-
-    public class SpaceServerActors : SpaceServerLayer {
-        // Creation of an instance for a specific client.
-        // Note: this canceller is for the individual session.
         public SpaceServerActors(RaguContext pContext, CancellationTokenSource pCanceller,
-                                        SpaceServerLayer pListener, HTransport.BasilConnection pBasilConnection) 
-                        : base(pContext, pCanceller, pListener, "SpaceServerActors", pBasilConnection) {
-
-            // This assignment directs the space server message calls to this ISpaceServer instance.
-            _clientConnection.SpaceServiceProcessor.SpaceServerMsgHandler = this;
-
-            // The thing to call to make requests to the Basil server
-            _client = new HTransport.BasilClient(pBasilConnection);
+                                        HT.BasilConnection pBasilConnection,
+                                        OSAuthToken pOpenSessionAuth) 
+                        : base(pCanceller, pBasilConnection, "Actors") {
+            _context = pContext;
+            SessionAuth = pOpenSessionAuth;
         }
 
-        // This one client has disconnected
-        public override void Shutdown() {
-            _canceller.Cancel();
-            DeleteAllPresences();
-            RemoveEventSubscriptions();
-            if (_client != null) {
-                _client = null;
-            }
-            if (_clientConnection != null) {
-                _clientConnection.SpaceServiceProcessor.SpaceServerMsgHandler = null;
-                _clientConnection = null;
-            }
-            base.Shutdown();
+        protected override void DoShutdownWork() {
+            return;
         }
 
-        // Request from Basil to open a SpaceServer session
-        public override SpaceServer.OpenSessionResp OpenSession(SpaceServer.OpenSessionReq pReq) {
-            _context.log.DebugFormat("{0} OpenSession.", _logHeader);
-
-            var ret = new SpaceServer.OpenSessionResp();
-
-            // DEBUG DEBUG
-            if (pReq.Features != null && pReq.Features.Count > 0) {
-                _context.log.DebugFormat("{0} OpenSession Features:", _logHeader);
-                foreach (var kvp in pReq.Features) {
-                    _context.log.DebugFormat("{0}     {1}: {2}", _logHeader, kvp.Key, kvp.Value);
-                };
-            }
-            // END DEBUG DEBUG
-
-            // Check if this is a test connection. We cannot handle those.
-            // Respond with an error message.
-            if (CheckIfTestConnection(pReq, ref ret)) {
-                ret.Exception = new BasilType.BasilException() {
-                    Reason = "Test session not acceptable"
-                };
-                return ret;
-            }
-
-            if (base.ValidateOpenAuth(pReq.Auth)) {
-
-                // Use common processing routine for all the SpaceServer layers
-                ret = base.HandleOpenSession(pReq);
-
-                // Start sending stuff to our new Basil friend.
-                HandleBasilConnection();
-            }
-            else {
-                ret.Exception = new BasilType.BasilException() {
-                    Reason = "Not authorized"
-                };
-            }
-            return ret;
+        /// <summary>
+        ///  The client does an OpenSession with 'login' information. Authorize the
+        ///  logged in user.
+        /// </summary>
+        /// <param name="pUserToken">UserAuth token sent from the client making the OpenSession
+        ///     which authenticates the access.</param>
+        /// <returns>"true" if the user is authorized</returns>
+        protected override bool VerifyClientAuthentication(OSAuthToken pUserToken) {
+            return pUserToken.Matches(SessionAuth);
         }
 
-        // Request from Basil to close the SpaceServer session
-        public override SpaceServer.CloseSessionResp CloseSession(SpaceServer.CloseSessionReq pReq) {
-            throw new NotImplementedException();
+        protected override void DoOpenSessionWork(HT.BasilConnection pConnection, HT.BasilComm pClient, BT.Props pParms) {
+            Task.Run(() => {
+                HandleBasilConnection(pConnection, pClient, pParms);
+            });
         }
 
-        // Request from Basil to move the camera.
-        public override SpaceServer.CameraViewResp CameraView(SpaceServer.CameraViewReq pReq) {
-            throw new NotImplementedException();
+        // I don't have anything to do for a CloseSession
+        protected override void DoCloseSessionWork() {
+            _context.log.DebugFormat("{0} DoCloseSessionWork: ", _logHeader);
+            return;
         }
 
-        private void HandleBasilConnection() {
+        private void HandleBasilConnection(HT.BasilConnection pConnection, HT.BasilComm pClient, Dictionary<string, string> pParms) {
             AddEventSubscriptions();
             AddExistingPresences();
         }
@@ -256,18 +200,18 @@ namespace org.herbal3d.Ragu {
             public ScenePresence presence;
             private RaguContext _context;
             private SpaceServerActors _spaceServer;
-            private BasilType.ObjectIdentifier _objectId;
-            private BasilType.InstanceIdentifier _instanceId;
+            private BT.ItemId _instanceId;
 
             public PresenceInfo(ScenePresence pPresence, SpaceServerActors pSpaceServer, RaguContext pContext) {
                 presence = pPresence;
                 _context = pContext;
                 _spaceServer = pSpaceServer;
             }
-            public void UpdatePosition() {
+            public async void UpdatePosition() {
                 if (_instanceId != null) {
-                    BasilType.AccessAuthorization auth = _spaceServer.CreateAccessAuthorization(_spaceServer.ClientAuth);
-                    _spaceServer.Client.UpdateInstancePosition(auth, _instanceId, PackageInstancePosition());
+                    BT.Props props = new BT.Props();
+                    PackageInstancePosition(ref props);
+                    await _spaceServer.Client.UpdatePropertiesAsync(_instanceId, props);
                     // _context.log.DebugFormat("{0} UpdatePosition: p={1}, r={2}",
                     //             _logHeader, presence.AbsolutePosition, presence.Rotation);
                 }
@@ -277,78 +221,53 @@ namespace org.herbal3d.Ragu {
                 }
             }
             public void AddAppearanceInstance() {
-                BasilType.AccessAuthorization auth = _spaceServer.CreateAccessAuthorization(_spaceServer.ClientAuth);
-                BasilType.AaBoundingBox aabb = null;
-                Task.Run( async () => {
-                    BasilType.AssetInformation asset = new BasilType.AssetInformation() {
-                        DisplayInfo = new BasilType.DisplayableInfo() {
-                            DisplayableType = "meshset",
-                        }
+                Task.Run(async () => {
+                    try {
+                        // TODO: use avatar appearance baking code to build GLTF version of avatar
+                        // For the moment, use a canned, static mesh
+                        string tempAppearanceURL = "https://files.misterblue.com/BasilTest/gltf/Duck/glTF/Duck.gltf";
+
+                        // Create the displayable for the actor
+                        BT.Props displayableProps = new BT.Props();
+                        BT.AbilityList displayableAbilities = new BT.AbilityList() {
+                            new BT.AbilityDisplayable() {
+                                DisplayableUrl = tempAppearanceURL,
+                                DisplayableType = "meshset",
+                                LoaderType = "GLTF"
+                            }
+                        };
+                        BT.Props displayableResp = await _spaceServer.Client.CreateItemAsync(displayableProps, displayableAbilities);
+                        _instanceId = new BT.ItemId(displayableResp["ItemId"]);
+
+                        // Add the instance to that displayable
+                        BT.AbilityInstance instanceAbility = new AbilityInstance();
+                        BT.Props instanceProps = new BT.Props();
+                        PackageInstancePosition(ref instanceProps);
+                        BT.AbilityList instanceAbilities = new AbilityList() {
+                            new BT.AbilityInstance(instanceProps)
+                        };
+                        BT.Props instanceResp = await _spaceServer.Client.AddAbilityAsync(_instanceId, instanceAbilities);
+                    }
+                    catch (Exception e) {
                     };
-                    // TODO: use avatar appearance baking code to build GLTF version of avatar
-                    // For the moment, use a canned, static mesh
-                    string tempAppearanceURL = "https://files.misterblue.com/BasilTest/gltf/Duck/glTF/Duck.gltf";
-                    asset.DisplayInfo.Asset.Add("url", tempAppearanceURL);
-                    asset.DisplayInfo.Asset.Add("loaderType", "GLTF");
-                    // asset.DisplayInfo.Asset.Add("auth", "xxx");    // zero length auth means no authentication needed
-
-                    var resp = await _spaceServer.Client.IdentifyDisplayableObjectAsync(auth, asset, aabb);
-                    if (resp.Exception == null) {
-                        _objectId = resp.ObjectId;
-
-                        var resp2 = await _spaceServer.Client.CreateObjectInstanceAsync(auth, _objectId, PackageInstancePosition());
-                        if (resp2.Exception == null) {
-                            _instanceId = resp2.InstanceId;
-                        }
-                        else {
-                            _context.log.ErrorFormat("{0} Error creating presence instance: {1}",
-                                            _logHeader, resp2.Exception.Reason);
-                            _instanceId = null;
-                        }
-                    }
-                    else {
-                        _context.log.ErrorFormat("{0} Error creating presence displayable: {1}",
-                                        _logHeader, resp.Exception.Reason);
-                        _objectId = null;
-                    }
                 });
             }
+
             public void RemoveAppearanceInstance() {
-                BasilType.AccessAuthorization auth = _spaceServer.CreateAccessAuthorization(_spaceServer.ClientAuth);
                 Task.Run( async () => {
                     if (_instanceId != null) {
-                        await _spaceServer.Client.DeleteObjectInstanceAsync(auth, _instanceId);
+                        await _spaceServer.Client.DeleteItemAsync(_instanceId);
                         _instanceId = null;
-                    }
-                    if (_objectId != null) {
-                        await _spaceServer.Client.ForgetDisplayableObjectAsync(auth, _objectId);
-                        _objectId = null;
-                    }
+                    };
                 });
             }
             // Return an InstancePositionInfo with the presence's current position
-            public BasilType.InstancePositionInfo PackageInstancePosition() {
+            public void PackageInstancePosition(ref BT.Props pProps) {
                 // Convert coordinates from OpenSim Zup to GLTF Yup
                 OMV.Vector3 thePos = CoordAxis.ConvertZupToYup(presence.AbsolutePosition);
                 OMV.Quaternion theRot = CoordAxis.ConvertZupToYup(presence.Rotation);
-                BasilType.InstancePositionInfo pos = new BasilType.InstancePositionInfo() {
-                    Pos = new BasilType.CoordPosition() {
-                        PosRef = BasilType.CoordSystem.Wgs86,
-                        Pos = new BasilType.Vector3() {
-                            X = thePos.X,
-                            Y = thePos.Y,
-                            Z = thePos.Z
-                        },
-                        RotRef = BasilType.RotationSystem.Worldr,
-                        Rot = new BasilType.Quaternion() {
-                            X = theRot.X,
-                            Y = theRot.Y,
-                            Z = theRot.Z,
-                            W = theRot.W
-                        }
-                    }
-                };
-                return pos;
+                pProps.Add("Pos", String.Format("[{0},{1},{2}]", thePos.X, thePos.Y, thePos.Z));
+                pProps.Add("Rot", String.Format("[{0},{1},{2},{3}]", theRot.X, theRot.Y, theRot.Z, theRot.W));
             }
         }
     }

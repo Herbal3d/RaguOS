@@ -13,16 +13,16 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 using Mono.Addins;
 
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
 
-using OMV = OpenMetaverse;
-
 using org.herbal3d.cs.CommonEntitiesUtil;
+
+using HT = org.herbal3d.transport;
+
+using org.herbal3d.Loden;
 
 using Nini.Config;
 using log4net;
@@ -40,12 +40,9 @@ namespace org.herbal3d.Ragu {
         public string assetAccessKey;
         public DateTime assetKeyExpiration;
         // The following are the layer servers for this region.
-        // TODO: create a better structure for holding and tracking the layers.
-        //      These are referenced by SpaceServerCC to send to the Basil server.
-        public SpaceServerCCListener layerCC;
-        public SpaceServerStaticListener layerStatic;
-        public SpaceServerDynamicListener layerDynamic;
-        public SpaceServerActorsListener layerActors;
+        public Dictionary<string, HT.SpaceServerListener> LayerListeners
+                            = new Dictionary<string, HT.SpaceServerListener>();
+        public string HostnameForExternalAccess;
 
         public RaguContext(IConfig pSysConfig, RaguParams pParms, ILog pLog) {
             var randomNumbers = new Random();
@@ -65,6 +62,7 @@ namespace org.herbal3d.Ragu {
         private static readonly ILog _log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
         private static readonly String _logHeader = "[RaguModule]";
 
+        // This context instance is per-region
         private RaguContext _context;
         private RaguRegion _regionProcessor = null;
 

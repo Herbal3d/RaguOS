@@ -16,9 +16,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-using SpaceServer = org.herbal3d.basil.protocol.SpaceServer;
-using HTransport = org.herbal3d.transport;
-using BasilType = org.herbal3d.basil.protocol.BasilType;
+using HT = org.herbal3d.transport;
+using BT = org.herbal3d.basil.protocol.BasilType;
+
 using org.herbal3d.cs.CommonEntitiesUtil;
 using org.herbal3d.OSAuth;
 
@@ -28,99 +28,47 @@ using OMV = OpenMetaverse;
 
 namespace org.herbal3d.Ragu {
 
-    public class SpaceServerDynamicListener : SpaceServerLayer {
+    public class SpaceServerDynamic : HT.SpaceServerBase {
+        private static readonly string _logHeader = "[SpaceServerDynamic]";
 
-        // Initial SpaceServerDynamic invocation with no transport setup.
-        // Create a receiving connection and create SpaceServer when Basil connections come in.
-        // Note: this canceller is for the overall layer.
-        public SpaceServerDynamicListener(RaguContext pContext, CancellationTokenSource pCanceller)
-                        : base(pContext, pCanceller, "SpaceServerDynamic") {
-        }
+        private readonly RaguContext _context;
 
-        // Return an instance of me
-        protected override SpaceServerLayer InstanceFactory(RaguContext pContext,
-                        CancellationTokenSource pCanceller, HTransport.BasilConnection pConnection) {
-            return new SpaceServerDynamic(pContext, pCanceller, this, pConnection);
-        }
-    }
-
-    public class SpaceServerDynamic : SpaceServerLayer {
-        // Creation of an instance for a specific client.
-        // Note: this canceller is for the individual session.
         public SpaceServerDynamic(RaguContext pContext, CancellationTokenSource pCanceller,
-                                        SpaceServerLayer pListener, HTransport.BasilConnection pBasilConnection) 
-                        : base(pContext, pCanceller, pListener, "SpaceServerDynamic", pBasilConnection) {
-
-            _context.log.DebugFormat("{0} Instance Constructor", _logHeader);
-
-            // This assignment directs the space server message calls to this ISpaceServer instance.
-            _clientConnection.SpaceServiceProcessor.SpaceServerMsgHandler = this;
-
-            // The thing to call to make requests to the Basil server
-            _client = new HTransport.BasilClient(pBasilConnection);
+                                        HT.BasilConnection pBasilConnection,
+                                        OSAuthToken pOpenSessionAuth) 
+                        : base(pCanceller, pBasilConnection, "Dynamic") {
+            _context = pContext;
+            SessionAuth = pOpenSessionAuth;
         }
 
-        // This one client has disconnected
-        public override void Shutdown() {
-            _canceller.Cancel();
-            if (_client != null) {
-                _client = null;
-            }
-            if (_clientConnection != null) {
-                _clientConnection.SpaceServiceProcessor.SpaceServerMsgHandler = null;
-                _clientConnection = null;
-            }
-            base.Shutdown();
+        protected override void DoShutdownWork() {
+            return;
         }
 
-        // Request from Basil to open a SpaceServer session
-        public override SpaceServer.OpenSessionResp OpenSession(SpaceServer.OpenSessionReq pReq) {
-            _context.log.DebugFormat("{0} OpenSession.", _logHeader);
-
-            var ret = new SpaceServer.OpenSessionResp();
-
-            // DEBUG DEBUG
-            if (pReq.Features != null && pReq.Features.Count > 0) {
-                _context.log.DebugFormat("{0} OpenSession Features:", _logHeader);
-                foreach (var kvp in pReq.Features) {
-                    _context.log.DebugFormat("{0}     {1}: {2}", _logHeader, kvp.Key, kvp.Value);
-                };
-            }
-            // END DEBUG DEBUG
-
-            // Check if this is a test connection. We cannot handle those.
-            // Respond with an error message.
-            if (CheckIfTestConnection(pReq, ref ret)) {
-                ret.Exception = new BasilType.BasilException() {
-                    Reason = "Test session not acceptable"
-                };
-                return ret;
-            }
-
-            if (base.ValidateOpenAuth(pReq.Auth)) {
-
-                // Use common processing routine for all the SpaceServer layers
-                ret = base.HandleOpenSession(pReq);
-
-                // Start sending stuff to our new Basil friend.
-                // HandleBasilConnection();
-            }
-            else {
-                ret.Exception = new BasilType.BasilException() {
-                    Reason = "Not authorized"
-                };
-            }
-            return ret;
+        /// <summary>
+        ///  The client does an OpenSession with 'login' information. Authorize the
+        ///  logged in user.
+        /// </summary>
+        /// <param name="pUserToken">UserAuth token sent from the client making the OpenSession
+        ///     which authenticates the access.</param>
+        /// <returns>"true" if the user is authorized</returns>
+        protected override bool VerifyClientAuthentication(OSAuthToken pUserToken) {
+            // Verify this is good login info bafore accepting login
+            return pUserToken.Matches(SessionAuth);
         }
 
-        // Request from Basil to close the SpaceServer session
-        public override SpaceServer.CloseSessionResp CloseSession(SpaceServer.CloseSessionReq pReq) {
-            throw new NotImplementedException();
+        protected override void DoOpenSessionWork(HT.BasilConnection pConnection, HT.BasilComm pClient, BT.Props pParms) {
+            _context.log.DebugFormat("{0} DoOpenSessionWork: ", _logHeader);
+            // TODO: the right thing
+            // Task.Run(() => {
+            //    HandleBasilConnection(pConnection, pClient, pParms);
+            //});
         }
 
-        // Request from Basil to move the camera.
-        public override SpaceServer.CameraViewResp CameraView(SpaceServer.CameraViewReq pReq) {
-            throw new NotImplementedException();
+        // I don't have anything to do for a CloseSession
+        protected override void DoCloseSessionWork() {
+            _context.log.DebugFormat("{0} DoCloseSessionWork: ", _logHeader);
+            return;
         }
     }
 }

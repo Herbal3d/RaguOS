@@ -20,38 +20,36 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using OpenSim.Region.Framework.Scenes;
-
+using org.herbal3d.OSAuth;
 using org.herbal3d.transport;
 
 namespace org.herbal3d.Ragu {
+    // Per-region Ragu state and logic
     public class RaguRegion {
         private static readonly String _logHeader = "[RaguRegion]";
 
-        public static string HostnameForExternalAccess;
-
-        private readonly RaguContext _context;
+        public readonly RaguContext RContext;
         // Cancellation token for all services started by Ragu for this region.
         private readonly CancellationTokenSource _canceller;
 
         // Given a scene, do the LOD ("level of detail") conversion
         public RaguRegion(RaguContext pContext) {
-            _context = pContext;
+            RContext = pContext;
             _canceller = new CancellationTokenSource();
 
             // Do an early calcuation of host name. It can be specified in the parameter
             //     file or we do a complex calculation to find a non-virtual ethernet
             //     connection.
-            InitializeHostnameForExternalAccess();
+            InitializeHostnameForExternalAccess(RContext);
         }
 
         public void Start() {
             // Wait for the region to have all its content before scanning
-            _context.scene.EventManager.OnPrimsLoaded += Event_OnPrimsLoaded;
+            RContext.scene.EventManager.OnPrimsLoaded += Event_OnPrimsLoaded;
 
             // Ragu's process for external access to the Loden generated content.
             // TODO: This should be an external process.
-            RaguAssetService.CreateInstance(_context);
-
+            RaguAssetService.CreateInstance(RContext);
         }
 
         public void Stop() {
@@ -63,19 +61,87 @@ namespace org.herbal3d.Ragu {
         // All prims have been loaded into the region.
         // Start the 'command and control' SpaceServer.
         private void Event_OnPrimsLoaded(Scene pScene) {
-            _context.log.DebugFormat("{0} Prims loaded. Starting command-and-control SpaceServer", _logHeader);
+            RContext.log.DebugFormat("{0} Prims loaded. Starting command-and-control SpaceServer", _logHeader);
             try {
                 // Create the layers of the 3d world that are referenced by the Basil server
                 // The CommandAndControl layer tells the Basil server about all the layers
                 // TODO: Make dynamic and region specific.
-                _context.layerActors = new SpaceServerActorsListener(_context, _canceller);
-                // _context.layerDynamic = new SpaceServerDynamicLayer(_context, _canceller);
-                _context.layerStatic = new SpaceServerStaticListener(_context, _canceller);
+                OSAuthToken openSessionStaticAuth = new OSAuthToken();
+                RContext.LayerListeners.Add("Static", new SpaceServerListener(
+                        new cs.CommonEntitiesUtil.ParamBlock(new Dictionary<string, object>() {
+                            {  "ConnectionURL",          RContext.parms.P<string>("SpaceServerStatic.ConnectionURL")},
+                            {  "IsSecure",               RContext.parms.P<bool>("SpaceServerStatic.IsSecure").ToString() },
+                            {  "SecureConnectionURL",    RContext.parms.P<string>("SpaceServerStatic.SecureConnectionURL") },
+                            {  "Certificate",            RContext.parms.P<string>("SpaceServerStatic.Certificate") },
+                            {  "DisableNaglesAlgorithm", RContext.parms.P<bool>("SpaceServerStatic.DisableNaglesAlgorithm").ToString() },
+                            {  "ExternalAccessHostname", RContext.HostnameForExternalAccess },
+                            // Pass the OpenSession auth to listener so it can be used by MakeConnection
+                            {  "OpenSessionAuthentication", openSessionStaticAuth.ToString() }
+                        }),
+                        _canceller, RContext.log,
+                        // This constructor is called when the listener receives a connection but before any
+                        //     messsages have been exchanged.
+                        (pCanceller, pConnection, pListenerParams) => {
+                            return new SpaceServerStatic(RContext, pCanceller, pConnection, openSessionStaticAuth);
+                        }
+                ));
+                OSAuthToken openSessionActorsAuth = new OSAuthToken();
+                RContext.LayerListeners.Add("Actors", new SpaceServerListener(
+                        new cs.CommonEntitiesUtil.ParamBlock(new Dictionary<string, object>() {
+                            {  "ConnectionURL",          RContext.parms.P<string>("SpaceServerActors.ConnectionURL")},
+                            {  "IsSecure",               RContext.parms.P<bool>("SpaceServerActors.IsSecure").ToString() },
+                            {  "SecureConnectionURL",    RContext.parms.P<string>("SpaceServerActors.SecureConnectionURL") },
+                            {  "Certificate",            RContext.parms.P<string>("SpaceServerActors.Certificate") },
+                            {  "DisableNaglesAlgorithm", RContext.parms.P<bool>("SpaceServerActors.DisableNaglesAlgorithm").ToString() },
+                            {  "ExternalAccessHostname", RContext.HostnameForExternalAccess },
+                            // Pass the OpenSession auth to listener so it can be used by MakeConnection
+                            {  "OpenSessionAuthentication", openSessionActorsAuth.ToString() }
+                        }),
+                        _canceller, RContext.log,
+                        (pCanceller, pConnection, pListenerParams) => {
+                            return new SpaceServerActors(RContext, pCanceller, pConnection, openSessionActorsAuth);
+                        }
+                ));
+                /*
+                OSAuthToken openSessionDynamicAuth = new OSAuthToken();
+                RContext.LayerListeners.Add("Dynamic",  new SpaceServerListener(
+                        new cs.CommonEntitiesUtil.ParamBlock(new Dictionary<string, object>() {
+                            {  "ConnectionURL",          RContext.parms.P<string>("SpaceServerDynamic.ConnectionURL")},
+                            {  "IsSecure",               RContext.parms.P<bool>("SpaceServerDynamic.IsSecure").ToString() },
+                            {  "SecureConnectionURL",    RContext.parms.P<string>("SpaceServerDynamic.SecureConnectionURL") },
+                            {  "Certificate",            RContext.parms.P<string>("SpaceServerDynamic.Certificate") },
+                            {  "DisableNaglesAlgorithm", RContext.parms.P<bool>("SpaceServerDynamic.DisableNaglesAlgorithm").ToString() },
+                            {  "ExternalAccessHostname", RContext.HostnameForExternalAccess },
+                            // Pass the OpenSession auth to listener so it can be used by MakeConnection
+                            {  "OpenSessionAuthentication", openSessionDynamicAuth.ToString() }
+                        }),
+                        _canceller, RContext.log,
+                        (pCanceller, pConnection, pListenerParams) => {
+                            return new SpaceServerDynamic(RContext, pCanceller, pConnection, openSessionDynamicAuth);
+                        }
+                ));
+                */
                 // Command and control
-                _context.layerCC = new SpaceServerCCListener(_context, _canceller);
+                OSAuthToken openSessionCCAuth = new OSAuthToken(); // although not used for CC which uses real login
+                RContext.LayerListeners.Add("CC", new SpaceServerListener(
+                        new cs.CommonEntitiesUtil.ParamBlock(new Dictionary<string, object>() {
+                            {  "ConnectionURL",          RContext.parms.P<string>("SpaceServerCC.ConnectionURL")},
+                            {  "IsSecure",               RContext.parms.P<bool>("SpaceServerCC.IsSecure").ToString() },
+                            {  "SecureConnectionURL",    RContext.parms.P<string>("SpaceServerCC.SecureConnectionURL") },
+                            {  "Certificate",            RContext.parms.P<string>("SpaceServerCC.Certificate") },
+                            {  "DisableNaglesAlgorithm", RContext.parms.P<bool>("SpaceServerCC.DisableNaglesAlgorithm").ToString() },
+                            {  "ExternalAccessHostname", RContext.HostnameForExternalAccess },
+                            // Pass the OpenSession auth to listener so it can be used by MakeConnection
+                            {  "OpenSessionAuthentication", openSessionCCAuth.ToString() }
+                        }),
+                        _canceller, RContext.log,
+                        (pCanceller, pConnection, pListenerParams) => {
+                            return new SpaceServerCC(RContext, pCanceller, pConnection, openSessionCCAuth);
+                        }
+                ));
             }
             catch (Exception e) {
-                _context.log.ErrorFormat("{0} Failed creation of SpaceServerCC: {1}", _logHeader, e);
+                RContext.log.ErrorFormat("{0} Failed creation of SpaceServerCC: {1}", _logHeader, e);
             }
         }
 
@@ -84,18 +150,18 @@ namespace org.herbal3d.Ragu {
         //     find the non-virtual ethernet interface.
         // Find the first interface that is actually talking to the network and not
         //     one of the Docker interfaces.
-        private void InitializeHostnameForExternalAccess() {
-            if (! String.IsNullOrEmpty(_context.scene.RegionInfo.ExternalHostName)) {
+        private void InitializeHostnameForExternalAccess(RaguContext pContext) {
+            if (! String.IsNullOrEmpty(RContext.scene.RegionInfo.ExternalHostName)) {
                 // The region specifies an external hostname. Use that one.
-                RaguRegion.HostnameForExternalAccess = _context.scene.RegionInfo.ExternalHostName;
+                pContext.HostnameForExternalAccess = RContext.scene.RegionInfo.ExternalHostName;
             }
             else {
-                RaguRegion.HostnameForExternalAccess = _context.parms.P<string>("ExternalAccessHostname");
-                if (String.IsNullOrEmpty(RaguRegion.HostnameForExternalAccess)) {
+                pContext.HostnameForExternalAccess = RContext.parms.P<string>("ExternalAccessHostname");
+                if (String.IsNullOrEmpty(pContext.HostnameForExternalAccess)) {
                     // The hostname was not specified in the config file so figure it out.
                     // Look for the first IP address that is Ethernet, up, and not virtual or loopback.
                     // Cribbed from https://stackoverflow.com/questions/6803073/get-local-ip-address
-                    RaguRegion.HostnameForExternalAccess = NetworkInterface.GetAllNetworkInterfaces()
+                    pContext.HostnameForExternalAccess = NetworkInterface.GetAllNetworkInterfaces()
                         .Where(x => x.NetworkInterfaceType == NetworkInterfaceType.Ethernet
                                 && x.OperationalStatus == OperationalStatus.Up
                                 && !x.Description.ToLower().Contains("virtual")
@@ -109,7 +175,7 @@ namespace org.herbal3d.Ragu {
                         .First();
                 }
             }
-            _context.log.DebugFormat("{0} HostnameForExternalAccess = {1}", _logHeader, RaguRegion.HostnameForExternalAccess);
+            RContext.log.DebugFormat("{0} HostnameForExternalAccess = {1}", _logHeader, pContext.HostnameForExternalAccess);
         }
     }
 }
