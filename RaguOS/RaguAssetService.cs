@@ -120,7 +120,9 @@ namespace org.herbal3d.Ragu {
 
         // Create an URL for accessing the passed uri
         public string CreateAccessURL(string uri) {
-            string assetURL = AssetServiceURL + "/bearer-" + AccessToken.Token + "/" + uri;
+            // The bearer token is added by the user and is not embedded in the URL here
+            // string assetURL = AssetServiceURL + "/bearer-" + AccessToken.Token + "/" + uri;
+            string assetURL = AssetServiceURL + "/" + uri;
             assetURL = assetURL.Replace("/./", "/");
             assetURL = assetURL.Replace("/../", "/");
             return assetURL;

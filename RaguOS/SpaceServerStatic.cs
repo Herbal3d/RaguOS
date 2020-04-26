@@ -120,7 +120,9 @@ namespace org.herbal3d.Ragu {
                         new BT.AbilityDisplayable() {
                             DisplayableUrl = uri,
                             DisplayableType = "meshset",
-                            LoaderType = "GLTF"
+                            LoaderType = "GLTF",
+                            DisplayableAuth = RaguAssetService.Instance.AccessToken.Token
+
                         }
                     };
                     BT.Props resp = await Client.CreateItemAsync(props, abilities);
@@ -136,8 +138,8 @@ namespace org.herbal3d.Ragu {
                     resp = await Client.CreateItemAsync(props, abilities);
                     BT.ItemId instanceId = new BT.ItemId(resp["ItemId"]);
 
-                    _rContext.log.DebugFormat("{0} HandleBasilConnection: Created displayable {1} and instance {2}",
-                                    _logHeader, displayableId, instanceId);
+                    // _rContext.log.DebugFormat("{0} HandleBasilConnection: Created displayable {1} and instance {2}",
+                    //                 _logHeader, displayableId, instanceId);
                 });
             }
             catch (Exception e) {

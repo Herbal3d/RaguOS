@@ -238,17 +238,24 @@ namespace org.herbal3d.Ragu {
                         };
                         BT.Props displayableResp = await _spaceServer.Client.CreateItemAsync(displayableProps, displayableAbilities);
                         _instanceId = new BT.ItemId(displayableResp["ItemId"]);
+                        _context.log.DebugFormat("{0} AddAppearanceInstance: created displayable: {1}",
+                                        _logHeader, _instanceId);
 
                         // Add the instance to that displayable
-                        BT.AbilityInstance instanceAbility = new AbilityInstance();
-                        BT.Props instanceProps = new BT.Props();
+                        BT.Props instanceProps = new BT.Props() {
+                            {  "displayableItemId", _instanceId.Id }
+                        };
                         PackageInstancePosition(ref instanceProps);
+                        _context.log.DebugFormat("{0} AddAppearanceInstance: instance props={1}",
+                                    _logHeader, instanceProps.ToString());
                         BT.AbilityList instanceAbilities = new AbilityList() {
                             new BT.AbilityInstance(instanceProps)
                         };
                         BT.Props instanceResp = await _spaceServer.Client.AddAbilityAsync(_instanceId, instanceAbilities);
                     }
                     catch (Exception e) {
+                        _context.log.DebugFormat("{0} AddAppearanceInstance: exception adding appearance: {1}",
+                                        _logHeader, e);
                     };
                 });
             }
