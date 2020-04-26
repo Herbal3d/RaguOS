@@ -234,6 +234,11 @@ namespace org.herbal3d.Ragu {
             return ret;
         }
 
+        // This thing doesn't do a remove
+        public void Remove(string pParamName) {
+            throw new NotImplementedException();
+        }
+
         // Search through the parameter definitions and return the matching
         //    ParameterDefn structure.
         // Case does not matter as names are compared after converting to lower case.

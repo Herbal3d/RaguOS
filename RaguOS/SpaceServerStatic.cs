@@ -119,10 +119,10 @@ namespace org.herbal3d.Ragu {
                     BT.AbilityList abilities = new BT.AbilityList {
                         new BT.AbilityDisplayable() {
                             DisplayableUrl = uri,
+                            AssetServiceType = "RAGU",
+                            DisplayableAuth = RaguAssetService.Instance.AccessToken.Token,
                             DisplayableType = "meshset",
-                            LoaderType = "GLTF",
-                            DisplayableAuth = RaguAssetService.Instance.AccessToken.Token
-
+                            LoaderType = "GLTF"
                         }
                     };
                     BT.Props resp = await Client.CreateItemAsync(props, abilities);

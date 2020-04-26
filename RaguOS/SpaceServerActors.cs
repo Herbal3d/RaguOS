@@ -232,6 +232,7 @@ namespace org.herbal3d.Ragu {
                         BT.AbilityList displayableAbilities = new BT.AbilityList() {
                             new BT.AbilityDisplayable() {
                                 DisplayableUrl = tempAppearanceURL,
+                                AssetServiceType = "HTTP",
                                 DisplayableType = "meshset",
                                 LoaderType = "GLTF"
                             }
