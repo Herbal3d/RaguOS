@@ -130,9 +130,9 @@ namespace org.herbal3d.Ragu {
             SceneObjectPart part = m_scene.GetSceneObjectPart(target);
             if (part == null)
                 return false;
-            bool objectTouchable = hasTouchEvents(part); // Only touch an object that is scripted to respond
+            bool objectTouchable = HasTouchEvents(part); // Only touch an object that is scripted to respond
             if (!objectTouchable && !part.IsRoot)
-                objectTouchable = hasTouchEvents(part.ParentGroup.RootPart);
+                objectTouchable = HasTouchEvents(part.ParentGroup.RootPart);
             if (!objectTouchable)
                 return false;
             // Set up the surface args as if the touch is from a client that does not support this
@@ -143,20 +143,20 @@ namespace org.herbal3d.Ragu {
                 STCoord = new Vector3(-1.0f, -1.0f, 0.0f) // TOUCH_INVALID_TEXCOORD
             };
             surfaceArgs.UVCoord = surfaceArgs.STCoord; // TOUCH_INVALID_TEXCOORD
-            List<SurfaceTouchEventArgs> touchArgs = new List<SurfaceTouchEventArgs>();
-            touchArgs.Add(surfaceArgs);
+            List<SurfaceTouchEventArgs> touchArgs = new List<SurfaceTouchEventArgs>
+            {
+                surfaceArgs
+            };
             Vector3 offset = part.OffsetPosition * -1.0f;
             if (OnGrabObject == null)
                 return false;
             OnGrabObject(part.LocalId, offset, this, touchArgs);
-            if (OnGrabUpdate != null)
-                OnGrabUpdate(part.UUID, offset, part.ParentGroup.RootPart.GroupPosition, this, touchArgs);
-            if (OnDeGrabObject != null)
-                OnDeGrabObject(part.LocalId, this, touchArgs);
+            OnGrabUpdate?.Invoke(part.UUID, offset, part.ParentGroup.RootPart.GroupPosition, this, touchArgs);
+            OnDeGrabObject?.Invoke(part.LocalId, this, touchArgs);
             return true;
         }
 
-        private bool hasTouchEvents(SceneObjectPart part)
+        private bool HasTouchEvents(SceneObjectPart part)
         {
             if ((part.ScriptEvents & scriptEvents.touch) != 0 ||
                 (part.ScriptEvents & scriptEvents.touch_start) != 0 ||
@@ -807,8 +807,14 @@ namespace org.herbal3d.Ragu {
         public virtual void SendRemoveInventoryItem(UUID itemID)
         {
         }
+        public void SendRemoveInventoryItems(UUID[] items)
+        {
+        }
 
-        public virtual void SendBulkUpdateInventory(InventoryNodeBase node)
+        public virtual void SendBulkUpdateInventory(InventoryNodeBase node, UUID? transasctionID = null)
+        {
+        }
+        public void SendBulkUpdateInventory(InventoryFolderBase[] folders, InventoryItemBase[] items)
         {
         }
 
@@ -882,10 +888,7 @@ namespace org.herbal3d.Ragu {
 
         public virtual void SendRegionHandshake()
         {
-            if (OnRegionHandShakeReply != null)
-            {
-                OnRegionHandShakeReply(this);
-            }
+            OnRegionHandShakeReply?.Invoke(this);
         }
 
         public void SendAssetUploadCompleteMessage(sbyte AssetType, bool Success, UUID AssetFullID)
@@ -941,7 +944,7 @@ namespace org.herbal3d.Ragu {
         {
         }
 
-        public void SendViewerTime(int phase)
+        public void SendViewerTime(Vector3 sunDir, float sunphase)
         {
         }
 
@@ -972,6 +975,10 @@ namespace org.herbal3d.Ragu {
         public void Close()
         {
             Close(true, false);
+        }
+        public void Disconnect(string reason)
+        {
+            Disconnect(reason);
         }
 
         public void Close(bool sendStop, bool force)
@@ -1229,7 +1236,8 @@ namespace org.herbal3d.Ragu {
         public void SendAvatarPickerReply(UUID QueryID, List<UserData> users)
         {
         }
-        public void SendAvatarPicksReply(UUID targetID, Dictionary<UUID, string> picks) {
+        public void SendAvatarPicksReply(UUID targetID, Dictionary<UUID, string> picks)
+        {
         }
 
         public void SendAvatarClassifiedReply(UUID targetID, Dictionary<UUID, string> classifieds)
