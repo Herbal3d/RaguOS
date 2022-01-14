@@ -17,9 +17,9 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using org.herbal3d.OSAuth;
-
-using BT = org.herbal3d.basil.protocol.BasilType;
-using HT = org.herbal3d.transport;
+using org.herbal3d.transport;
+using org.herbal3d.b.protocol;
+using org.herbal3d.cs.CommonUtil;
 
 using OMV = OpenMetaverse;
 
@@ -28,93 +28,118 @@ using OpenSim.Region.Framework.Scenes;
 
 namespace org.herbal3d.Ragu {
 
-    public class SpaceServerCC : HT.SpaceServerBase {
+    // Processor of incoming messages when we're waiting for the OpenSession.
+    class ProcessCCOpenConnection : IncomingMessageProcessor {
+        SpaceServerCC _ssContext;
+        public ProcessCCOpenConnection(SpaceServerCC pContext) : base(pContext) {
+            _ssContext = pContext;
+        }
+        public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
+            if (pMsg.Op == (uint)BMessageOps.OpenSessionReq) {
+                _ssContext.ProcessOpenSessionReq(pMsg, pConnection, pProtocol);
+            }
+            else {
+                BMessage resp = BasilConnection.MakeResponse(pMsg);
+                resp.Exception = "Session is not open. AA";
+                pProtocol.Send(resp);
+            }
+        }
+    }
+
+    public class SpaceServerCC : SpaceServerBase {
         private static readonly string _logHeader = "[SpaceServerCC]";
 
-        private readonly RaguContext _context;
-        private OSAuthToken _userLoginAuth;
+        public static readonly string StaticLayerType = "CC";
 
         // Creation of an instance for a specific client.
+        // This instance is created when someone connects to the  transport so we're passed the
+        //     initial transport. This code needs to set up the transport stack to receive
+        //    the initial OpenSession message. If that is successful, we'll set up the
+        //    whole message processing stack and thereafter be the instance for the client.
         // Note: this canceller is for the individual session.
-        public SpaceServerCC(RaguContext pContext, CancellationTokenSource pCanceller,
-                                        HT.BasilConnection pBasilConnection,
-                                        OSAuthToken pOpenSessionAuth) 
-                        : base(pCanceller, pBasilConnection, "CC") {
-            _context = pContext;
+        public SpaceServerCC(RaguContext pContext, CancellationTokenSource pCanceller, BTransport pTransport) 
+                        : base(pContext, pCanceller, pTransport) {
+            LayerType = StaticLayerType;
+
+            // The protocol for the initial OpenSession is always JSON
+            _protocol = new BProtocolJSON(null, _transport);
+
+            // Expect BMessages and set up messsage processor to handle initial OpenSession
+            _connection = new BasilConnection(_protocol, _context.log);
+            _connection.SetOpProcessor(new ProcessCCOpenConnection(this));
         }
 
-        protected override void DoShutdownWork() {
-            return;
-        }
+        // Called when an OpenConnection is received
+        public void ProcessOpenSessionReq(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
+            string errorReason = "";
+            // Get the login information from the OpenConnection
+            if (pMsg.IProps.TryGetValue("clientAuth", out string clientAuthToken)) {
+                if (pMsg.IProps.TryGetValue("Auth", out string serviceAuth)) {
+                    // have the info to try and log the user in
+                    OSAuthToken loginInfo = OSAuthToken.FromString(serviceAuth);
+                    if (ValidateLoginAuth(loginInfo)) {
+                        // The user checks out so construct the success response
+                        OSAuthToken incomingAuth = new OSAuthToken();
+                        OSAuthToken outgoingAuth = OSAuthToken.FromString(clientAuthToken);
+                        pConnection.SetAuthorizations(incomingAuth, outgoingAuth);
 
-        /// <summary>
-        ///  The client does an OpenSession with 'login' information. Authorize the
-        ///  logged in user.
-        /// </summary>
-        /// <param name="pUserToken">UserAuth token sent from the client making the OpenSession
-        ///     which authenticates the access.</param>
-        /// <returns>"true" if the user is authorized</returns>
-        protected override bool VerifyClientAuthentication(OSAuthToken pUserToken) {
-            // Remember the login auth token because it has a bunch of user context info
-            _userLoginAuth = pUserToken;
-            // Verify this is good login info bafore accepting login
-            return ValidateLoginAuth(pUserToken);
-        }
+                        BMessage resp = BasilConnection.MakeResponse(pMsg);
+                        resp.IProps.Add("ServerVersion", "xxx");
+                        resp.IProps.Add("ServerAuth", incomingAuth.Token);
+                        pConnection.Send(resp);
 
-        protected override void DoOpenSessionWork(HT.BasilConnection pConnection, HT.BasilComm pClient, BT.Props pParms) {
-            Task.Run(async () => {
-                await HandleBasilConnection(pConnection, pClient, pParms);
-            });
-        }
+                        // Connect the user to the various other layers in the background
+                        Task.Run(() => {
+                            StartConnection(pConnection, loginInfo);
+                        });
+                    }
+                    else {
+                        errorReason = "Login credentials not valid";
+                    }
+                }
+                else {
+                    errorReason = "Login credentials not supplied (serviceAuth)";
+                }
+            }
+            else {
+                errorReason = "Connection auth not supplied (clientAuth)";
+            }
 
-        // I don't have anything to do for a CloseSession
-        protected override void DoCloseSessionWork() {
-            _context.log.DebugFormat("{0} DoCloseSessionWork: ", _logHeader);
-            return;
+            // If an error happened, return error response
+            if (errorReason.Length > 0) {
+                BMessage resp = BasilConnection.MakeResponse(pMsg);
+                resp.Exception = errorReason;
+                pConnection.Send(resp);
+            }
         }
 
         // Received an OpenSession from a Basil client.
         // Connect it to the other layers.
-        private async Task HandleBasilConnection(HT.BasilConnection pConnection,
-                        HT.BasilComm pClient, BT.Props pParms) {
+        async void StartConnection(BasilConnection pConnection, OSAuthToken pServiceAuth) {
             try {
-
                 // Create the Circuit and ScenePresence for the user
-                CreateOpenSimPresence(_userLoginAuth);
+                CreateOpenSimPresence(pServiceAuth);
 
-                _context.log.DebugFormat("{0} HandleBasilConnection", _logHeader);
+                _context.log.Debug("{0} HandleBasilConnection", _logHeader);
 
                 // Loop through all the layers there are listeners for and tell the
                 //    client to connect to the interesting ones.
-                foreach (var kvp in _context.LayerListeners) {
-                    string layerName = kvp.Key;
-                    HT.SpaceServerListener listener = kvp.Value;
-                    switch (layerName) {
-                        case "Static":
-                        case "Dynamic":
-                        case "Actors":
-                            BT.Props props = new BT.Props() {
-                                { "Service", "BasilComm" },
-                                { "TransportURL", listener.RemoteConnectionURL },
-                                { "ServiceAuth", listener.ListenerParams.P<string>("OpenSessionAuthentication") },
-                                { "ServiceHint", layerName }
-                            };
-                            await pClient.MakeConnectionAsync(props);
-                            break;
-                        default:
-                            // For any others, don't do anything (this happens for "CC")
-                            break;
-                    }
+                foreach (var kvp in _context.LayerListeners ) {
+                    WaitingInfo waiting = new WaitingInfo();
+                    this._context.waitingForMakeConnection.Add(waiting.incomingAuth.Token, waiting);
+                    SpaceServerListener layer = kvp.Value;
+                    ParamBlock pp = layer.ParamsForMakeConnection(waiting.incomingAuth);
+                    await pConnection.MakeConnection(pp);
                 }
             }
             catch (Exception e) {
-                _context.log.ErrorFormat("{0} HandleBasilConnection. Exception connecting Basil to layers: {1}", _logHeader, e);
+                _context.log.Error("{0} HandleBasilConnection. Exception connecting Basil to layers: {1}", _logHeader, e);
             }
         }
 
-        private bool ValidateLoginAuth(OSAuthToken pUserAuth) {
+        bool ValidateLoginAuth(OSAuthToken pUserAuth) {
             bool isAuthorized = false;
-            if (_context.parms.P<bool>("ShouldEnforceUserAuth")) {
+            if (_context.parms.ShouldEnforceUserAuth) {
                 try {
                     string agentId = pUserAuth.GetProperty("AgentId");
                     OMV.UUID agentUUID = OMV.UUID.Parse(agentId);
@@ -132,23 +157,23 @@ namespace org.herbal3d.Ragu {
                                     isAuthorized = true;
                                 }
                                 else {
-                                    _context.log.DebugFormat("{0} ValidateUserAuth: Failed secureSessionID test. AgentId={1}",
+                                    _context.log.Debug("{0} ValidateUserAuth: Failed secureSessionID test. AgentId={1}",
                                                 _logHeader, agentId);
                                 }
                             }
                             else {
-                                _context.log.DebugFormat("{0} ValidateUserAuth: Failed sessionId test. AgentId={1}",
+                                _context.log.Debug("{0} ValidateUserAuth: Failed sessionId test. AgentId={1}",
                                             _logHeader, agentId);
                             }
                         }
                         else {
-                            _context.log.DebugFormat("{0} ValidateUserAuth: Failed circuitCode test. AgentId={1}",
+                            _context.log.Debug("{0} ValidateUserAuth: Failed circuitCode test. AgentId={1}",
                                         _logHeader, agentId);
                         }
                     }
                 }
                 catch (Exception e) {
-                    _context.log.ErrorFormat("{0} ValidateUserAuth: exception authorizing: {1}",
+                    _context.log.Error("{0} ValidateUserAuth: exception authorizing: {1}",
                                 _logHeader, e);
                     isAuthorized = false;
                 }
@@ -193,22 +218,22 @@ namespace org.herbal3d.Ragu {
 
                     // Get the ScenePresence just to make sure we can
                     if (_context.scene.TryGetScenePresence(agentUUID, out ScenePresence sp)) {
-                        _context.log.DebugFormat("{0} Successful login for {1} {2} ({3})",
+                        _context.log.Debug("{0} Successful login for {1} {2} ({3})",
                                     _logHeader, firstName, lastName, agentId);
                         ret = true;
                     }
                     else {
-                        _context.log.ErrorFormat("{0} Failed to create ScenePresence for {1} {2} ({3})",
+                        _context.log.Error("{0} Failed to create ScenePresence for {1} {2} ({3})",
                                     _logHeader, firstName, lastName, agentId);
                     }
                 }
                 else {
-                    _context.log.ErrorFormat("{0} CreateOpenSimPresence: AgentCircuitData does not match SessionID. AgentID={1}",
+                    _context.log.Error("{0} CreateOpenSimPresence: AgentCircuitData does not match SessionID. AgentID={1}",
                             _logHeader, agentId);
                 }
             }
             else {
-                _context.log.ErrorFormat("{0} CreateOpenSimPresence: presence was not created. AgentID={1}",
+                _context.log.Error("{0} CreateOpenSimPresence: presence was not created. AgentID={1}",
                             _logHeader, agentId);
             }
 

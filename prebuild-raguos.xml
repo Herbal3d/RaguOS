@@ -33,7 +33,7 @@
       <Reference name="OpenSim.Region.CoreModules"/>
       <Reference name="OpenSim.Region.PhysicsModules.SharedBase"/>
 
-      <Reference name="Herbal3d.CommonEntitiesUtil"/>
+      <Reference name="Herbal3d.CommonUtil"/>
       <Reference name="Herbal3d.CommonEntities"/>
       <Reference name="Herbal3d.HerbalTransportCS"/>
       <Reference name="Herbal3d.Loden"/>

@@ -28,7 +28,7 @@ using OMV = OpenMetaverse;
 
 namespace org.herbal3d.Ragu {
 
-    public class SpaceServerDynamic : HT.SpaceServerBase {
+    public class SpaceServerDynamic : SpaceServerBase {
         private static readonly string _logHeader = "[SpaceServerDynamic]";
 
         private readonly RaguContext _context;

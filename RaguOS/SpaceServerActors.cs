@@ -17,33 +17,94 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+using org.herbal3d.OSAuth;
+using org.herbal3d.transport;
+using org.herbal3d.b.protocol;
+
 using OpenSim.Region.Framework.Scenes;
 using org.herbal3d.basil.protocol.BasilType;
 using org.herbal3d.cs.CommonEntities;
-using org.herbal3d.OSAuth;
-
-using BT = org.herbal3d.basil.protocol.BasilType;
-using HT = org.herbal3d.transport;
 
 using OMV = OpenMetaverse;
 
 namespace org.herbal3d.Ragu {
 
-    public class SpaceServerActors : HT.SpaceServerBase {
+    class ProcessActorxOpenConnection : IncomingMessageProcessor {
+        SpaceServerActors _ssContext;
+        public ProcessActorxOpenConnection(SpaceServerActors pContext) : base(pContext) {
+            _ssContext = pContext;
+        }
+        public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
+            if (pMsg.Op == (uint)BMessageOps.OpenSessionReq) {
+                _ssContext.ProcessOpenSessionReq(pMsg, pConnection, pProtocol);
+            }
+            else {
+                BMessage resp = BasilConnection.MakeResponse(pMsg);
+                resp.Exception = "Session is not open. AA";
+                pProtocol.Send(resp);
+            }
+        }
+    }
+    public class SpaceServerActors : SpaceServerBase {
         private static readonly string _logHeader = "[SpaceServerActors]";
+
+        public static readonly string StaticLayerType = "Actors";
 
         private readonly RaguContext _context;
 
-        public SpaceServerActors(RaguContext pContext, CancellationTokenSource pCanceller,
-                                        HT.BasilConnection pBasilConnection,
-                                        OSAuthToken pOpenSessionAuth) 
-                        : base(pCanceller, pBasilConnection, "Actors") {
-            _context = pContext;
-            SessionAuth = pOpenSessionAuth;
+        public SpaceServerActors(RaguContext pContext, CancellationTokenSource pCanceller, BTransport pTransport) 
+                        : base(pContext, pCanceller, pTransport) {
+            LayerType = StaticLayerType;
+
+            // The protocol for the initial OpenSession is always JSON
+            _protocol = new BProtocolJSON(null, _transport);
+
+            // Expect BMessages and set up messsage processor to handle initial OpenSession
+            _connection = new BasilConnection(_protocol, _context.log);
+            _connection.SetOpProcessor(new ProcessActorxOpenConnection(this));
         }
 
-        protected override void DoShutdownWork() {
-            return;
+        public void ProcessOpenSessionReq(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
+            string errorReason = "";
+            // Get the login information from the OpenConnection
+            if (pMsg.IProps.TryGetValue("clientAuth", out string clientAuthToken)) {
+                if (pMsg.IProps.TryGetValue("Auth", out string serviceAuthPackage)) {
+                    // have the info to try and log the user in
+                    OSAuthToken loginInfo = OSAuthToken.FromString(serviceAuthPackage);
+                    if (ValidateLoginAuth(loginInfo)) {
+                        // The user checks out so construct the success response
+                        OSAuthToken incomingAuth = new OSAuthToken();
+                        OSAuthToken outgoingAuth = OSAuthToken.FromString(clientAuthToken);
+                        pConnection.SetAuthorizations(incomingAuth, outgoingAuth);
+
+                        BMessage resp = BasilConnection.MakeResponse(pMsg);
+                        resp.IProps.Add("ServerVersion", "xxx");
+                        resp.IProps.Add("ServerAuth", incomingAuth.Token);
+                        pConnection.Send(resp);
+
+                        // Connect the user to the various other layers in the background
+                        Task.Run(async () => {
+                            StartConnection(pConnection, loginInfo);
+                        });
+                    }
+                    else {
+                        errorReason = "Login credentials not valid";
+                    }
+                }
+                else {
+                    errorReason = "Login credentials not supplied (serviceAuth)";
+                }
+            }
+            else {
+                errorReason = "Connection auth not supplied (clientAuth)";
+            }
+
+            // If an error happened, return error response
+            if (errorReason.Length > 0) {
+                BMessage resp = BasilConnection.MakeResponse(pMsg);
+                resp.Exception = errorReason;
+                pConnection.Send(resp);
+            }
         }
 
         /// <summary>
@@ -53,23 +114,12 @@ namespace org.herbal3d.Ragu {
         /// <param name="pUserToken">UserAuth token sent from the client making the OpenSession
         ///     which authenticates the access.</param>
         /// <returns>"true" if the user is authorized</returns>
-        protected override bool VerifyClientAuthentication(OSAuthToken pUserToken) {
-            return pUserToken.Matches(SessionAuth);
+        private  bool ValidateLoginAuth(OSAuthToken pUserToken) {
+            string tokenString = pUserToken.Token;
+            return _context.waitingForMakeConnection.ContainsKey(tokenString);
         }
 
-        protected override void DoOpenSessionWork(HT.BasilConnection pConnection, HT.BasilComm pClient, BT.Props pParms) {
-            Task.Run(() => {
-                HandleBasilConnection(pConnection, pClient, pParms);
-            });
-        }
-
-        // I don't have anything to do for a CloseSession
-        protected override void DoCloseSessionWork() {
-            _context.log.DebugFormat("{0} DoCloseSessionWork: ", _logHeader);
-            return;
-        }
-
-        private void HandleBasilConnection(HT.BasilConnection pConnection, HT.BasilComm pClient, Dictionary<string, string> pParms) {
+        async void StartConnection(BasilConnection pConnection, OSAuthToken pServiceAuth) {
             AddEventSubscriptions();
             AddExistingPresences();
         }
@@ -106,7 +156,7 @@ namespace org.herbal3d.Ragu {
             // _context.log.DebugFormat("{0} Event_OnNewPresence", _logHeader);
             PresenceInfo pi;
             if (FindPresence(pPresence.UUID, out pi)) {
-                _context.log.ErrorFormat("{0} Event_OnNewPresence: two events for the same presence", _logHeader);
+                _context.log.Error("{0} Event_OnNewPresence: two events for the same presence", _logHeader);
             }
             else {
                 pi = new PresenceInfo(pPresence, this, _context);

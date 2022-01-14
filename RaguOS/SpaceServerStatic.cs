@@ -17,63 +17,104 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-using BT = org.herbal3d.basil.protocol.BasilType;
-using HT = org.herbal3d.transport;
-
-using org.herbal3d.cs.CommonEntitiesUtil;
+using org.herbal3d.OSAuth;
+using org.herbal3d.transport;
+using org.herbal3d.b.protocol;
 using org.herbal3d.Tiles;
 
 using org.herbal3d.Loden;
-using org.herbal3d.OSAuth;
-
-using OMV = OpenMetaverse;
 
 namespace org.herbal3d.Ragu {
 
-    public class SpaceServerStatic : HT.SpaceServerBase {
+    // Processor of incoming messages when we're waiting for the OpenSession.
+    class ProcessStaticOpenConnection : IncomingMessageProcessor {
+        SpaceServerStatic _ssContext;
+        public ProcessStaticOpenConnection(SpaceServerStatic pContext) : base(pContext) {
+            _ssContext = pContext;
+        }
+        public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
+            if (pMsg.Op == (uint)BMessageOps.OpenSessionReq) {
+                _ssContext.ProcessOpenSessionReq(pMsg, pConnection, pProtocol);
+            }
+            else {
+                BMessage resp = BasilConnection.MakeResponse(pMsg);
+                resp.Exception = "Session is not open. AA";
+                pProtocol.Send(resp);
+            }
+        }
+    }
+
+    public class SpaceServerStatic : SpaceServerBase {
 
         private static readonly string _logHeader = "[SpaceServerStatic]";
-        private readonly RaguContext _rContext;
 
-        public SpaceServerStatic(RaguContext pContext,
-                                    CancellationTokenSource pCanceller,
-                                    HT.BasilConnection pConnection,
-                                    OSAuthToken pOpenSessionAuth) 
-                        : base(pCanceller, pConnection, "Static") {
+        public static readonly string StaticLayerType = "Static";
+
+        private RaguContext _rContext;
+
+        public SpaceServerStatic(RaguContext pContext, CancellationTokenSource pCanceller, BTransport pTransport) 
+                        : base(pContext, pCanceller, pTransport) {
             _rContext = pContext;
-            SessionAuth = pOpenSessionAuth;
+            LayerType = StaticLayerType;
+
+            // The protocol for the initial OpenSession is always JSON
+            _protocol = new BProtocolJSON(null, _transport);
+
+            // Expect BMessages and set up messsage processor to handle initial OpenSession
+            _connection = new BasilConnection(_protocol, _context.log);
+            _connection.SetOpProcessor(new ProcessStaticOpenConnection(this));
         }
 
-        protected override void DoShutdownWork() {
-            return;
+        public void ProcessOpenSessionReq(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
+            string errorReason = "";
+            // Get the login information from the OpenConnection
+            if (pMsg.IProps.TryGetValue("clientAuth", out string clientAuthToken)) {
+                if (pMsg.IProps.TryGetValue("serviceAuth", out string serviceAuthPackage)) {
+                    // have the info to try and log the user in
+                    OSAuthToken loginInfo = OSAuthToken.FromString(serviceAuthPackage);
+                    if (ValidateLoginAuth(loginInfo)) {
+                        // The user checks out so construct the success response
+                        OSAuthToken incomingAuth = new OSAuthToken();
+                        OSAuthToken outgoingAuth = OSAuthToken.FromString(clientAuthToken);
+                        pConnection.SetAuthorizations(incomingAuth, outgoingAuth);
+
+                        BMessage resp = BasilConnection.MakeResponse(pMsg);
+                        resp.IProps.Add("ServerVersion", "xxx");
+                        resp.IProps.Add("ServerAuth", incomingAuth.Token);
+                        pConnection.Send(resp);
+
+                        // Connect the user to the various other layers in the background
+                        Task.Run(async () => {
+                            await StartConnection(pConnection, loginInfo);
+                        });
+                    }
+                    else {
+                        errorReason = "Login credentials not valid";
+                    }
+                }
+                else {
+                    errorReason = "Login credentials not supplied (serviceAuth)";
+                }
+            }
+            else {
+                errorReason = "Connection auth not supplied (clientAuth)";
+            }
+
+            // If an error happened, return error response
+            if (errorReason.Length > 0) {
+                BMessage resp = BasilConnection.MakeResponse(pMsg);
+                resp.Exception = errorReason;
+                pConnection.Send(resp);
+            }
         }
 
-        /// <summary>
-        ///  The client does an OpenSession with 'login' information. Authorize the
-        ///  logged in user.
-        /// </summary>
-        /// <param name="pUserToken">UserAuth token sent from the client making the OpenSession
-        ///     which authenticates the access.</param>
-        /// <returns>"true" if the user is authorized</returns>
-        protected override bool VerifyClientAuthentication(OSAuthToken pUserToken) {
-            return pUserToken.Matches(SessionAuth);
-        }
-
-        protected override void DoOpenSessionWork(HT.BasilConnection pConnection, HT.BasilComm pClient, BT.Props pParms) {
-            Task.Run(() => {
-                HandleBasilConnection(pConnection, pClient, pParms);
-            });
-        }
-
-        // I don't have anything to do for a CloseSession
-        protected override void DoCloseSessionWork() {
-            _rContext.log.DebugFormat("{0} DoCloseSessionWork: ", _logHeader);
-            return;
+        private bool ValidateLoginAuth(OSAuthToken pUserAuth) {
+            return true;
         }
 
         // Received an OpenSession from a Basil client.
         // Send the fellow some content.
-        private void HandleBasilConnection(HT.BasilConnection pConnection, HT.BasilComm pClient, BT.Props pParms) {
+        private async Task StartConnection(BasilConnection pConnection, OSAuthToken pUserAuth) {
             try {
                 // _context.log.DebugFormat("{0} HandleBasilConnection", _logHeader);
 
@@ -92,13 +133,13 @@ namespace org.herbal3d.Ragu {
                     }
                 }
                 catch (Exception e) {
-                    _rContext.log.ErrorFormat("{0} HandleBasilConnection: Failure reading region spec '{1}': {2}",
+                    _rContext.log.Error("{0} HandleBasilConnection: Failure reading region spec '{1}': {2}",
                                     _logHeader, regionSpecURL, e);
                     // There is nothing more we can do
                     return;
                 }
                 if (regionSpec == null) {
-                    _rContext.log.ErrorFormat("{0} HandleBasilConnection: Could not read regionSpec", _logHeader);
+                    _rContext.log.Error("{0} HandleBasilConnection: Could not read regionSpec", _logHeader);
                     return;
                 }
 

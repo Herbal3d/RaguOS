@@ -14,18 +14,22 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Text;
 
-using org.herbal3d.cs.CommonEntitiesUtil;
+using org.herbal3d.cs.CommonUtil;
 
 using Nini.Config;
 
 namespace org.herbal3d.Ragu {
-    public class RaguParams : IParameters {
-        private static readonly string _logHeader = "[RAGU PARAMS]";
-        private readonly RaguContext _context;
+    public class RaguParams : ServiceParameters {
 
-        public RaguParams(RaguContext pContext) {
-            _context = pContext;
-            SetParameterDefaultValues(_context);
+        public RaguParams(BLogger pLogger, IConfig pConfig): base(pLogger) {
+            _logHeader = "[RAGU PARAMS]";
+            DefineParameters();
+            SetParameterDefaultValues(_logger);
+
+            // If we were passed INI configuration, overlay the default values
+            if (pConfig != null) {
+                SetParameterConfigurationValues(pConfig, _logger);
+            }
         }
 
         // =====================================================================================
@@ -41,244 +45,92 @@ namespace org.herbal3d.Ragu {
         //    -- the text name of the parameter. This is used for console input and ini file.
         //    -- a short text description of the parameter. This shows up in the console listing.
         //    -- a default value
-        //    -- a delegate for getting the value
-        //    -- a delegate for setting the value
-        //    -- an optional delegate to update the value in the world. Most often used to
-        //          push the new value to an in-world object.
         //
         // The single letter parameters for the delegates are:
         //    v = value (appropriate type)
-        private readonly ParameterDefnBase[] ParameterDefinitions =
-        {
-            new ParameterDefn<bool>("Enabled", "If false, module is not enabled to operate",
-                false ),
 
-            new ParameterDefn<string>("ExternalAccessHostname", "Hostname for external clients it access. Computed if zero length",
-                "" ),
-            new ParameterDefn<bool>("ShouldEnforceUserAuth", "Whether to check and enforce user authentication in OpenConnection",
-                true ),
-            new ParameterDefn<bool>("ShouldEnforceAssetAccessAuthorization", "All asset requests require an 'Authentication' header",
-                false ),
-            new ParameterDefn<bool>("ShouldAliveCheckSessions", "Whether to start AliveCheck messages for open connections",
-                false ),
+        // The following table is for easy, typed access to some of the parameter values
+        public bool Enabled { get { return P<bool>("Enabled"); } }
+        public string ExternalAccessHostname { get { return P<string>("ExternalAccessHostname"); } }
+        public bool ShouldEnforceUserAuth { get { return P<bool>("ShouldEnfroceUserAuth"); } }
 
-            new ParameterDefn<bool>("SpaceServerCC.IsSecure", "Whether to accept only secure connections",
-                false),
-            new ParameterDefn<string>("SpaceServerCC.SecureConnectionURL", "URL to use to create inbound connection",
-                "wss://0.0.0.0:11440"),
-            new ParameterDefn<string>("SpaceServerCC.Certificate", "Certificate to accept for secure inbound connection",
-                ""),
-            new ParameterDefn<int>("SpaceServerCC.WebSocketPort", "URL to use to create inbound connection",
-                11440),
-            new ParameterDefn<string>("SpaceServerCC.ConnectionURL", "URL to use to create inbound connection",
-                "ws://0.0.0.0:11440"),
-            new ParameterDefn<bool>("SpaceServerCC.DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
-                true),
+        public string OutputDir { get { return P<string>("OutputDir"); } }
+        public bool UseDeepFilenames { get { return P<bool>("UseDeepFilenames"); } }
 
-            new ParameterDefn<bool>("SpaceServerStatic.IsSecure", "Whether to accept only secure connections",
-                false),
-            new ParameterDefn<string>("SpaceServerStatic.SecureConnectionURL", "URL to use to create inbound connection",
-                "wss://0.0.0.0:11441"),
-            new ParameterDefn<string>("SpaceServerStatic.Certificate", "Certificate to accept for secure inbound connection",
-                ""),
-            new ParameterDefn<string>("SpaceServerStatic.ConnectionURL", "URL to use to create inbound connection",
-                "ws://0.0.0.0:11441"),
-            new ParameterDefn<bool>("SpaceServerStatic.DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
-                true),
+        public bool LogBuilding { get { return P<bool>("LogBuilding"); } }
+        public bool LogGltfBuilding { get { return P<bool>("LogGltfBuilding"); } }
 
-            new ParameterDefn<bool>("SpaceServerActors.IsSecure", "Whether to accept only secure connections",
-                false),
-            new ParameterDefn<string>("SpaceServerActors.SecureConnectionURL", "URL to use to create inbound connection",
-                "wss://0.0.0.0:11442"),
-            new ParameterDefn<string>("SpaceServerActors.Certificate", "Certificate to accept for secure inbound connection",
-                ""),
-            new ParameterDefn<string>("SpaceServerActors.ConnectionURL", "URL to use to create inbound connection",
-                "ws://0.0.0.0:11442"),
-            new ParameterDefn<bool>("SpaceServerActors.DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
-                true),
 
-            new ParameterDefn<string>("OutputDir", "Base directory for Loden asset storage",
-                "./LodenAssets" ),
-            new ParameterDefn<bool>("UseDeepFilenames", "Reference Loden assets in multi-directory deep file storage",
-                true ),
+        private void DefineParameters() {
+            ParameterDefinitions = new ParameterDefnBase[] {
+                new ParameterDefn<bool>("Enabled", "If false, module is not enabled to operate",
+                    false),
 
-            new ParameterDefn<bool>("LogBuilding", "log detail BScene/BInstance object building",
-                true ),
-            new ParameterDefn<bool>("LogGltfBuilding", "output detailed gltf construction details",
-                false ),
-        };
+                new ParameterDefn<string>("ExternalAccessHostname", "Hostname for external clients it access. Computed if zero length",
+                    ""),
+                new ParameterDefn<bool>("ShouldEnforceUserAuth", "Whether to check and enforce user authentication in OpenConnection",
+                    true),
+                new ParameterDefn<bool>("ShouldEnforceAssetAccessAuthorization", "All asset requests require an 'Authentication' header",
+                    false),
+                new ParameterDefn<bool>("ShouldAliveCheckSessions", "Whether to start AliveCheck messages for open connections",
+                    false),
+
+                new ParameterDefn<bool>("SpaceServerCC_IsSecure", "Whether to accept only secure connections",
+                    false),
+                new ParameterDefn<string>("SpaceServerCC_SecureConnectionURL", "URL to use to create inbound connection",
+                    "wss://0.0.0.0:11440"),
+                new ParameterDefn<string>("SpaceServerCC_Certificate", "Certificate to accept for secure inbound connection",
+                    ""),
+                new ParameterDefn<int>("SpaceServerCC_WebSocketPort", "URL to use to create inbound connection",
+                    11440),
+                new ParameterDefn<string>("SpaceServerCC_ConnectionURL", "URL to use to create inbound connection",
+                    "ws://0.0.0.0:11440"),
+                new ParameterDefn<bool>("SpaceServerCC_DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
+                    true),
+
+                new ParameterDefn<bool>("SpaceServerStatic_IsSecure", "Whether to accept only secure connections",
+                    false),
+                new ParameterDefn<string>("SpaceServerStatic_SecureConnectionURL", "URL to use to create inbound connection",
+                    "wss://0.0.0.0:11441"),
+                new ParameterDefn<string>("SpaceServerStatic_Certificate", "Certificate to accept for secure inbound connection",
+                    ""),
+                new ParameterDefn<string>("SpaceServerStatic_ConnectionURL", "URL to use to create inbound connection",
+                    "ws://0.0.0.0:11441"),
+                new ParameterDefn<bool>("SpaceServerStatic_DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
+                    true),
+
+                new ParameterDefn<bool>("SpaceServerActors_IsSecure", "Whether to accept only secure connections",
+                    false),
+                new ParameterDefn<string>("SpaceServerActors_SecureConnectionURL", "URL to use to create inbound connection",
+                    "wss://0.0.0.0:11442"),
+                new ParameterDefn<string>("SpaceServerActors_Certificate", "Certificate to accept for secure inbound connection",
+                    ""),
+                new ParameterDefn<string>("SpaceServerActors_ConnectionURL", "URL to use to create inbound connection",
+                    "ws://0.0.0.0:11442"),
+                new ParameterDefn<bool>("SpaceServerActors_DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
+                    true),
+
+                new ParameterDefn<string>("OutputDir", "Base directory for Loden asset storage",
+                    "./LodenAssets"),
+                new ParameterDefn<bool>("UseDeepFilenames", "Reference Loden assets in multi-directory deep file storage",
+                    true),
+
+                new ParameterDefn<bool>("LogBuilding", "log detail BScene/BInstance object building",
+                    true),
+                new ParameterDefn<bool>("LogGltfBuilding", "output detailed gltf construction details",
+                    false),
+            };
+        }
 
         // =====================================================================================
         // =====================================================================================
-
-        // Base parameter definition that gets and sets parameter values via a string
-        public abstract class ParameterDefnBase
-        {
-            public string name;         // string name of the parameter
-            public string desc;         // a short description of what the parameter means
-            public abstract Type GetValueType();
-            public string[] symbols;    // extra command line versions of parameter (short form)
-            public RaguContext context; // context for setting and getting values
-            public ParameterDefnBase(string pName, string pDesc, string[] pSymbols)
-            {
-                name = pName;
-                desc = pDesc;
-                symbols = pSymbols;
-            }
-            // Set the parameter value to the default
-            public abstract void AssignDefault();
-            // Get the value as a string
-            public abstract string GetValue();
-            // Get the value as just an object
-            public abstract object GetObjectValue();
-            // Set the value to this string value
-            public abstract void SetValue(string valAsString);
-        }
-
-        // Specific parameter definition for a parameter of a specific type.
-        public sealed class ParameterDefn<T> : ParameterDefnBase
-        {
-            private readonly T defaultValue;
-            private T value;
-
-            public ParameterDefn(string pName, string pDesc, T pDefault, params string[] pSymbols)
-                : base(pName, pDesc, pSymbols)
-            {
-                defaultValue = pDefault;
-            }
-            public T Value() {
-                return value;
-            }
-
-            public override void AssignDefault() {
-                value = defaultValue;
-            }
-            public override string GetValue()
-            {
-                string ret = String.Empty;
-                if (value != null) {
-                    ret = value.ToString();
-                }
-                return ret;
-            }
-            public override Type GetValueType() {
-                return typeof(T);
-            }
-            public override object GetObjectValue() {
-                return value;
-            }
-            public override void SetValue(String valAsString) {
-                // Find the 'Parse' method on that type
-                System.Reflection.MethodInfo parser;
-                try {
-                    parser = GetValueType().GetMethod("Parse", new Type[] { typeof(String) });
-                }
-                catch {
-                    parser = null;
-                }
-                if (parser != null) {
-                    // Parse the input string
-                    try {
-                        T setValue = (T)parser.Invoke(GetValueType(), new Object[] { valAsString });
-                        // System.Console.WriteLine("SetValue: setting value on {0} to {1}", this.name, setValue);
-                        // Store the parsed value
-                        value = setValue;
-                        // context.log.DebugFormat("{0} SetValue. {1} = {2}", _logHeader, name, setValue);
-                    }
-                    catch (Exception e) {
-                        context.log.ErrorFormat("{0} Failed parsing parameter value '{1}': '{2}'", _logHeader, valAsString, e);
-                    }
-                }
-                else {
-                    // If there is not a parser, try doing a conversion
-                    try {
-                        T setValue = (T)Convert.ChangeType(valAsString, GetValueType());
-                        value = setValue;
-                        context.log.DebugFormat("{0} SetValue. Converter. {1} = {2}", _logHeader, name, setValue);
-                    }
-                    catch (Exception e) {
-                        context.log.ErrorFormat("{0} Conversion failed for {1}: {2}", _logHeader, this.name, e);
-                    }
-                }
-            }
-        }
-
-        // Return a value for the parameter.
-        // This is used by most callers to get parameter values.
-        // Note that it outputs a console message if not found. Not found means that the caller
-        //     used the wrong string name.
-        public T P<T>(string paramName) {
-            T ret = default;
-            if (TryGetParameter(paramName, out ParameterDefnBase pbase)) {
-                if (pbase is ParameterDefn<T> pdef) {
-                    ret = pdef.Value();
-                }
-                else {
-                    _context.log.ErrorFormat("{0} Fetched parameter of wrong type. Param={1}", _logHeader, paramName);
-                }
-            }
-            else {
-                _context.log.ErrorFormat("{0} Fetched unknown parameter. Param={1}", _logHeader, paramName);
-            }
-            return ret;
-        }
-        public bool HasParam(string pParamName) {
-            return TryGetParameter(pParamName, out _);
-        }
-
-        public object GetObjectValue(string pParamName) {
-            object ret = null;
-            if (TryGetParameter(pParamName, out ParameterDefnBase pbase)) {
-                ret = pbase.GetObjectValue();
-            }
-            return ret;
-        }
-
-        // This thing doesn't do a remove
-        public void Remove(string pParamName) {
-            throw new NotImplementedException();
-        }
-
-        // Search through the parameter definitions and return the matching
-        //    ParameterDefn structure.
-        // Case does not matter as names are compared after converting to lower case.
-        // Returns 'false' if the parameter is not found.
-        public bool TryGetParameter(string paramName, out ParameterDefnBase defn)
-        {
-            bool ret = false;
-            ParameterDefnBase foundDefn = null;
-            string pName = paramName.ToLower();
-
-            foreach (ParameterDefnBase parm in ParameterDefinitions)
-            {
-                if (pName == parm.name.ToLower())
-                {
-                    foundDefn = parm;
-                    ret = true;
-                    break;
-                }
-            }
-            defn = foundDefn;
-            return ret;
-        }
-
-        // Pass through the settable parameters and set the default values
-        public void SetParameterDefaultValues(RaguContext pContext)
-        {
-            foreach (ParameterDefnBase parm in ParameterDefinitions)
-            {
-                parm.context = pContext;
-                parm.AssignDefault();
-            }
-        }
-
         // Get user set values out of the ini file.
-        public  void SetParameterConfigurationValues(IConfig cfg, RaguContext pContext)
+        public  void SetParameterConfigurationValues(IConfig cfg, BLogger pLogger)
         {
             foreach (ParameterDefnBase parm in ParameterDefinitions)
             {
-                // _context.log.DebugFormat("{0}: parm={1}, desc='{2}'", _logHeader, parm.name, parm.desc);
-                parm.context = pContext;
+                // _logger.log.DebugFormat("{0}: parm={1}, desc='{2}'", _logHeader, parm.name, parm.desc);
+                parm.logger = pLogger;
                 string configValue = cfg.GetString(parm.name, parm.GetValue());
                 if (!String.IsNullOrEmpty(configValue)) {
                     parm.SetValue(cfg.GetString(parm.name, parm.GetValue()));

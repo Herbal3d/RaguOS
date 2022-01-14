@@ -20,8 +20,6 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using OpenSim.Region.Framework.Scenes;
-using org.herbal3d.OSAuth;
-using org.herbal3d.transport;
 
 namespace org.herbal3d.Ragu {
     // Per-region Ragu state and logic
@@ -61,87 +59,86 @@ namespace org.herbal3d.Ragu {
         // All prims have been loaded into the region.
         // Start the 'command and control' SpaceServer.
         private void Event_OnPrimsLoaded(Scene pScene) {
-            RContext.log.DebugFormat("{0} Prims loaded. Starting command-and-control SpaceServer", _logHeader);
+            RContext.log.Debug("{0} Prims loaded. Starting command-and-control SpaceServer", _logHeader);
             try {
-                // Create the layers of the 3d world that are referenced by the Basil server
-                // The CommandAndControl layer tells the Basil server about all the layers
-                // TODO: Make dynamic and region specific.
-                OSAuthToken openSessionStaticAuth = new OSAuthToken();
-                RContext.LayerListeners.Add("Static", new SpaceServerListener(
-                        new cs.CommonEntitiesUtil.ParamBlock(new Dictionary<string, object>() {
-                            {  "ConnectionURL",          RContext.parms.P<string>("SpaceServerStatic.ConnectionURL")},
-                            {  "IsSecure",               RContext.parms.P<bool>("SpaceServerStatic.IsSecure").ToString() },
-                            {  "SecureConnectionURL",    RContext.parms.P<string>("SpaceServerStatic.SecureConnectionURL") },
-                            {  "Certificate",            RContext.parms.P<string>("SpaceServerStatic.Certificate") },
-                            {  "DisableNaglesAlgorithm", RContext.parms.P<bool>("SpaceServerStatic.DisableNaglesAlgorithm").ToString() },
-                            {  "ExternalAccessHostname", RContext.HostnameForExternalAccess },
-                            // Pass the OpenSession auth to listener so it can be used by MakeConnection
-                            {  "OpenSessionAuthentication", openSessionStaticAuth.ToString() }
-                        }),
-                        _canceller, RContext.log,
-                        // This constructor is called when the listener receives a connection but before any
-                        //     messsages have been exchanged.
-                        (pCanceller, pConnection, pListenerParams) => {
-                            return new SpaceServerStatic(RContext, pCanceller, pConnection, openSessionStaticAuth);
-                        }
+                // Start listening for any connection to the base port and start the Command
+                //     and Control space server for that new client
+                RContext.LayerListeners.Add(SpaceServerCC.StaticLayerType, new SpaceServerListener(
+                    new cs.CommonUtil.ParamBlock(new Dictionary<string, object>() {
+                        {  "ConnectionURL",          RContext.parms.P<string>("SpaceServer.ConnectionURL")},
+                        {  "Layer",                  SpaceServerCC.StaticLayerType},
+                        {  "IsSecure",               RContext.parms.P<bool>("SpaceServer.IsSecure").ToString() },
+                        {  "SecureConnectionURL",    RContext.parms.P<string>("SpaceServer.SecureConnectionURL") },
+                        {  "Certificate",            RContext.parms.P<string>("SpaceServer.Certificate") },
+                        {  "DisableNaglesAlgorithm", RContext.parms.P<bool>("SpaceServer.DisableNaglesAlgorithm").ToString() },
+                        {  "ExternalAccessHostname", RContext.HostnameForExternalAccess },
+                    }),
+                    _canceller,
+                    RContext.log,
+                    // This method is called when the listener receives a connection but before any
+                    //     messsages have been exchanged.
+                    (pTransport, pCanceller, pListenerParams) => {
+                        return new SpaceServerCC(RContext, pCanceller, pTransport);
+                    }
                 ));
-                OSAuthToken openSessionActorsAuth = new OSAuthToken();
-                RContext.LayerListeners.Add("Actors", new SpaceServerListener(
-                        new cs.CommonEntitiesUtil.ParamBlock(new Dictionary<string, object>() {
-                            {  "ConnectionURL",          RContext.parms.P<string>("SpaceServerActors.ConnectionURL")},
-                            {  "IsSecure",               RContext.parms.P<bool>("SpaceServerActors.IsSecure").ToString() },
-                            {  "SecureConnectionURL",    RContext.parms.P<string>("SpaceServerActors.SecureConnectionURL") },
-                            {  "Certificate",            RContext.parms.P<string>("SpaceServerActors.Certificate") },
-                            {  "DisableNaglesAlgorithm", RContext.parms.P<bool>("SpaceServerActors.DisableNaglesAlgorithm").ToString() },
-                            {  "ExternalAccessHostname", RContext.HostnameForExternalAccess },
-                            // Pass the OpenSession auth to listener so it can be used by MakeConnection
-                            {  "OpenSessionAuthentication", openSessionActorsAuth.ToString() }
-                        }),
-                        _canceller, RContext.log,
-                        (pCanceller, pConnection, pListenerParams) => {
-                            return new SpaceServerActors(RContext, pCanceller, pConnection, openSessionActorsAuth);
-                        }
+                RContext.LayerListeners.Add(SpaceServerStatic.StaticLayerType, new SpaceServerListener(
+                    new cs.CommonUtil.ParamBlock(new Dictionary<string, object>() {
+                        {  "ConnectionURL",          RContext.parms.P<string>("SpaceServerStatic.ConnectionURL")},
+                        {  "Layer",                  SpaceServerStatic.StaticLayerType},
+                        {  "IsSecure",               RContext.parms.P<bool>("SpaceServerStatic.IsSecure").ToString() },
+                        {  "SecureConnectionURL",    RContext.parms.P<string>("SpaceServerStatic.SecureConnectionURL") },
+                        {  "Certificate",            RContext.parms.P<string>("SpaceServerStatic.Certificate") },
+                        {  "DisableNaglesAlgorithm", RContext.parms.P<bool>("SpaceServerStatic.DisableNaglesAlgorithm").ToString() },
+                        {  "ExternalAccessHostname", RContext.HostnameForExternalAccess },
+                    }),
+                    _canceller,
+                    RContext.log,
+                    // This method is called when the listener receives a connection but before any
+                    //     messsages have been exchanged.
+                    (pTransport, pCanceller, pListenerParams) => {
+                        return new SpaceServerCC(RContext, pCanceller, pTransport);
+                    }
                 ));
-                /*
-                OSAuthToken openSessionDynamicAuth = new OSAuthToken();
-                RContext.LayerListeners.Add("Dynamic",  new SpaceServerListener(
-                        new cs.CommonEntitiesUtil.ParamBlock(new Dictionary<string, object>() {
-                            {  "ConnectionURL",          RContext.parms.P<string>("SpaceServerDynamic.ConnectionURL")},
-                            {  "IsSecure",               RContext.parms.P<bool>("SpaceServerDynamic.IsSecure").ToString() },
-                            {  "SecureConnectionURL",    RContext.parms.P<string>("SpaceServerDynamic.SecureConnectionURL") },
-                            {  "Certificate",            RContext.parms.P<string>("SpaceServerDynamic.Certificate") },
-                            {  "DisableNaglesAlgorithm", RContext.parms.P<bool>("SpaceServerDynamic.DisableNaglesAlgorithm").ToString() },
-                            {  "ExternalAccessHostname", RContext.HostnameForExternalAccess },
-                            // Pass the OpenSession auth to listener so it can be used by MakeConnection
-                            {  "OpenSessionAuthentication", openSessionDynamicAuth.ToString() }
-                        }),
-                        _canceller, RContext.log,
-                        (pCanceller, pConnection, pListenerParams) => {
-                            return new SpaceServerDynamic(RContext, pCanceller, pConnection, openSessionDynamicAuth);
-                        }
+                RContext.LayerListeners.Add(SpaceServerActors.StaticLayerType, new SpaceServerListener(
+                    new cs.CommonUtil.ParamBlock(new Dictionary<string, object>() {
+                        {  "ConnectionURL",          RContext.parms.P<string>("SpaceServerDynamic.ConnectionURL")},
+                        {  "Layer",                  SpaceServerActors.StaticLayerType},
+                        {  "IsSecure",               RContext.parms.P<bool>("SpaceServerDynamic.IsSecure").ToString() },
+                        {  "SecureConnectionURL",    RContext.parms.P<string>("SpaceServerDynamic.SecureConnectionURL") },
+                        {  "Certificate",            RContext.parms.P<string>("SpaceServerDynamic.Certificate") },
+                        {  "DisableNaglesAlgorithm", RContext.parms.P<bool>("SpaceServerDynamic.DisableNaglesAlgorithm").ToString() },
+                        {  "ExternalAccessHostname", RContext.HostnameForExternalAccess },
+                    }),
+                    _canceller,
+                    RContext.log,
+                    // This method is called when the listener receives a connection but before any
+                    //     messsages have been exchanged.
+                    (pTransport, pCanceller, pListenerParams) => {
+                        return new SpaceServerCC(RContext, pCanceller, pTransport);
+                    }
                 ));
-                */
-                // Command and control
-                OSAuthToken openSessionCCAuth = new OSAuthToken(); // although not used for CC which uses real login
-                RContext.LayerListeners.Add("CC", new SpaceServerListener(
-                        new cs.CommonEntitiesUtil.ParamBlock(new Dictionary<string, object>() {
-                            {  "ConnectionURL",          RContext.parms.P<string>("SpaceServerCC.ConnectionURL")},
-                            {  "IsSecure",               RContext.parms.P<bool>("SpaceServerCC.IsSecure").ToString() },
-                            {  "SecureConnectionURL",    RContext.parms.P<string>("SpaceServerCC.SecureConnectionURL") },
-                            {  "Certificate",            RContext.parms.P<string>("SpaceServerCC.Certificate") },
-                            {  "DisableNaglesAlgorithm", RContext.parms.P<bool>("SpaceServerCC.DisableNaglesAlgorithm").ToString() },
-                            {  "ExternalAccessHostname", RContext.HostnameForExternalAccess },
-                            // Pass the OpenSession auth to listener so it can be used by MakeConnection
-                            {  "OpenSessionAuthentication", openSessionCCAuth.ToString() }
-                        }),
-                        _canceller, RContext.log,
-                        (pCanceller, pConnection, pListenerParams) => {
-                            return new SpaceServerCC(RContext, pCanceller, pConnection, openSessionCCAuth);
-                        }
+                RContext.LayerListeners.Add(SpaceServerDynamic.StaticLayerType, new SpaceServerListener(
+                    new cs.CommonUtil.ParamBlock(new Dictionary<string, object>() {
+                        {  "ConnectionURL",          RContext.parms.P<string>("SpaceServerActor.ConnectionURL")},
+                        {  "Layer",                  SpaceServerDynamic.StaticLayerType},
+                        {  "IsSecure",               RContext.parms.P<bool>("SpaceServerActor.IsSecure").ToString() },
+                        {  "SecureConnectionURL",    RContext.parms.P<string>("SpaceServerActor.SecureConnectionURL") },
+                        {  "Certificate",            RContext.parms.P<string>("SpaceServerActor.Certificate") },
+                        {  "DisableNaglesAlgorithm", RContext.parms.P<bool>("SpaceServerActor.DisableNaglesAlgorithm").ToString() },
+                        {  "ExternalAccessHostname", RContext.HostnameForExternalAccess },
+                    }),
+                    _canceller,
+                    RContext.log,
+                    // This method is called when the listener receives a connection but before any
+                    //     messsages have been exchanged.
+                    (pTransport, pCanceller, pListenerParams) => {
+                        return new SpaceServerCC(RContext, pCanceller, pTransport);
+                    }
                 ));
+
             }
             catch (Exception e) {
-                RContext.log.ErrorFormat("{0} Failed creation of SpaceServerCC: {1}", _logHeader, e);
+                RContext.log.Error("{0} Failed creation of SpaceServerCC: {1}", _logHeader, e);
             }
         }
 
@@ -175,7 +172,7 @@ namespace org.herbal3d.Ragu {
                         .First();
                 }
             }
-            RContext.log.DebugFormat("{0} HostnameForExternalAccess = {1}", _logHeader, pContext.HostnameForExternalAccess);
+            RContext.log.Debug("{0} HostnameForExternalAccess = {1}", _logHeader, pContext.HostnameForExternalAccess);
         }
     }
 }
