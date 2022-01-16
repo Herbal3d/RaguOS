@@ -1,4 +1,4 @@
-    <Project frameworkVersion="v4_6" name="Herbal3d.RaguOS" path="addon-modules/RaguOS/RaguOS" type="Library">
+    <Project frameworkVersion="v4_8" name="Herbal3d.RaguOS" path="addon-modules/RaguOS/RaguOS" type="Library">
       <Configuration name="Debug">
         <Options>
           <OutputPath>../../../bin/</OutputPath>
@@ -43,7 +43,6 @@
       <Reference name="log4net"/>
 
       <Reference name="Newtonsoft.Json"/>
-      <Reference name="Google.Protobuf"/>
 
       <Files>
         <Match pattern="*.cs" recurse="true">

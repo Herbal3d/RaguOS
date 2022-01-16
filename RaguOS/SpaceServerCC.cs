@@ -84,7 +84,7 @@ namespace org.herbal3d.Ragu {
                         pConnection.SetAuthorizations(incomingAuth, outgoingAuth);
 
                         BMessage resp = BasilConnection.MakeResponse(pMsg);
-                        resp.IProps.Add("ServerVersion", "xxx");
+                        resp.IProps.Add("ServerVersion", _context.ServerVersion);
                         resp.IProps.Add("ServerAuth", incomingAuth.Token);
                         pConnection.Send(resp);
 
@@ -115,19 +115,24 @@ namespace org.herbal3d.Ragu {
 
         // Received an OpenSession from a Basil client.
         // Connect it to the other layers.
-        async void StartConnection(BasilConnection pConnection, OSAuthToken pServiceAuth) {
+        private async void StartConnection(BasilConnection pConnection, OSAuthToken pServiceAuth) {
             try {
                 // Create the Circuit and ScenePresence for the user
                 CreateOpenSimPresence(pServiceAuth);
 
                 _context.log.Debug("{0} HandleBasilConnection", _logHeader);
 
-                // Loop through all the layers there are listeners for and tell the
-                //    client to connect to the interesting ones.
-                foreach (var kvp in _context.LayerListeners ) {
+                // Invite the client to connect to the interesting layers.
+                string[] inviteLayers = { SpaceServerStatic.StaticLayerType,
+                        SpaceServerActors.StaticLayerType,
+                        SpaceServerDynamic.StaticLayerType };
+                foreach (string layerName in inviteLayers ) {
+                    // The MakeConnection sends an auth that this remembers so it can be checked
+                    //     when the OpenConnection is eventually received.
                     WaitingInfo waiting = new WaitingInfo();
                     this._context.waitingForMakeConnection.Add(waiting.incomingAuth.Token, waiting);
-                    SpaceServerListener layer = kvp.Value;
+
+                    SpaceServerListener layer = _context.LayerListeners[layerName];
                     ParamBlock pp = layer.ParamsForMakeConnection(waiting.incomingAuth);
                     await pConnection.MakeConnection(pp);
                 }

@@ -22,16 +22,15 @@ using org.herbal3d.transport;
 using org.herbal3d.b.protocol;
 
 using OpenSim.Region.Framework.Scenes;
-using org.herbal3d.basil.protocol.BasilType;
 using org.herbal3d.cs.CommonEntities;
 
 using OMV = OpenMetaverse;
 
 namespace org.herbal3d.Ragu {
 
-    class ProcessActorxOpenConnection : IncomingMessageProcessor {
+    class ProcessActorsOpenConnection : IncomingMessageProcessor {
         SpaceServerActors _ssContext;
-        public ProcessActorxOpenConnection(SpaceServerActors pContext) : base(pContext) {
+        public ProcessActorsOpenConnection(SpaceServerActors pContext) : base(pContext) {
             _ssContext = pContext;
         }
         public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
@@ -40,7 +39,23 @@ namespace org.herbal3d.Ragu {
             }
             else {
                 BMessage resp = BasilConnection.MakeResponse(pMsg);
-                resp.Exception = "Session is not open. AA";
+                resp.Exception = "Session is not open. Actors";
+                pProtocol.Send(resp);
+            }
+        }
+    }
+    class ProcessActorsIncomingMessages : IncomingMessageProcessor {
+        SpaceServerActors _ssContext;
+        public ProcessActorsIncomingMessages(SpaceServerActors pContext) : base(pContext) {
+            _ssContext = pContext;
+        }
+        public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
+            if (pMsg.Op == (uint)BMessageOps.OpenSessionReq) {
+                _ssContext.ProcessOpenSessionReq(pMsg, pConnection, pProtocol);
+            }
+            else {
+                BMessage resp = BasilConnection.MakeResponse(pMsg);
+                resp.Exception = "Session is not open. ActorsIC";
                 pProtocol.Send(resp);
             }
         }
@@ -50,10 +65,11 @@ namespace org.herbal3d.Ragu {
 
         public static readonly string StaticLayerType = "Actors";
 
-        private readonly RaguContext _context;
+        private readonly RaguContext _rContext;
 
         public SpaceServerActors(RaguContext pContext, CancellationTokenSource pCanceller, BTransport pTransport) 
                         : base(pContext, pCanceller, pTransport) {
+            _rContext = pContext;
             LayerType = StaticLayerType;
 
             // The protocol for the initial OpenSession is always JSON
@@ -61,30 +77,33 @@ namespace org.herbal3d.Ragu {
 
             // Expect BMessages and set up messsage processor to handle initial OpenSession
             _connection = new BasilConnection(_protocol, _context.log);
-            _connection.SetOpProcessor(new ProcessActorxOpenConnection(this));
+            _connection.SetOpProcessor(new ProcessActorsOpenConnection(this));
         }
 
         public void ProcessOpenSessionReq(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
             string errorReason = "";
             // Get the login information from the OpenConnection
             if (pMsg.IProps.TryGetValue("clientAuth", out string clientAuthToken)) {
-                if (pMsg.IProps.TryGetValue("Auth", out string serviceAuthPackage)) {
+                if (pMsg.IProps.TryGetValue("Auth", out string serviceAuth)) {
                     // have the info to try and log the user in
-                    OSAuthToken loginInfo = OSAuthToken.FromString(serviceAuthPackage);
-                    if (ValidateLoginAuth(loginInfo)) {
+                    OSAuthToken loginAuth = OSAuthToken.FromString(serviceAuth);
+                    if (ValidateLoginAuth(loginAuth)) {
                         // The user checks out so construct the success response
                         OSAuthToken incomingAuth = new OSAuthToken();
                         OSAuthToken outgoingAuth = OSAuthToken.FromString(clientAuthToken);
                         pConnection.SetAuthorizations(incomingAuth, outgoingAuth);
 
+                        // We also have a full command processor
+                        pConnection.SetOpProcessor(new ProcessActorsIncomingMessages(this));
+
                         BMessage resp = BasilConnection.MakeResponse(pMsg);
-                        resp.IProps.Add("ServerVersion", "xxx");
+                        resp.IProps.Add("ServerVersion", _context.ServerVersion);
                         resp.IProps.Add("ServerAuth", incomingAuth.Token);
                         pConnection.Send(resp);
 
-                        // Connect the user to the various other layers in the background
-                        Task.Run(async () => {
-                            StartConnection(pConnection, loginInfo);
+                        // Talk about the avatars
+                        Task.Run(() => {
+                            StartConnection(pConnection, loginAuth);
                         });
                     }
                     else {
@@ -107,19 +126,24 @@ namespace org.herbal3d.Ragu {
             }
         }
 
-        /// <summary>
-        ///  The client does an OpenSession with 'login' information. Authorize the
-        ///  logged in user.
-        /// </summary>
-        /// <param name="pUserToken">UserAuth token sent from the client making the OpenSession
-        ///     which authenticates the access.</param>
-        /// <returns>"true" if the user is authorized</returns>
-        private  bool ValidateLoginAuth(OSAuthToken pUserToken) {
-            string tokenString = pUserToken.Token;
-            return _context.waitingForMakeConnection.ContainsKey(tokenString);
+        private bool ValidateLoginAuth(OSAuthToken pUserAuth) {
+            bool ret = false;
+            string auth = pUserAuth.Token;
+            lock (_context.waitingForMakeConnection) {
+                if (_context.waitingForMakeConnection.TryGetValue(auth, out WaitingInfo waitingInfo)) {
+                    _context.log.Debug("{0}: login auth successful. Waited {1} seconds", _logHeader,
+                        (DateTime.Now - waitingInfo.whenCreated).TotalSeconds);
+                    _context.waitingForMakeConnection.Remove(auth);
+                    ret = true;
+                }
+                else {
+                    _context.log.Debug("{0}: login auth unsuccessful. Token: {1}", _logHeader, auth);
+                }
+            }
+            return ret;
         }
 
-        async void StartConnection(BasilConnection pConnection, OSAuthToken pServiceAuth) {
+        private void StartConnection(BasilConnection pConnection, OSAuthToken pServiceAuth) {
             AddEventSubscriptions();
             AddExistingPresences();
         }
@@ -250,7 +274,8 @@ namespace org.herbal3d.Ragu {
             public ScenePresence presence;
             private RaguContext _context;
             private SpaceServerActors _spaceServer;
-            private BT.ItemId _instanceId;
+            // private BT.ItemId _instanceId;
+            private string _instanceId;
 
             public PresenceInfo(ScenePresence pPresence, SpaceServerActors pSpaceServer, RaguContext pContext) {
                 presence = pPresence;
@@ -258,6 +283,7 @@ namespace org.herbal3d.Ragu {
                 _spaceServer = pSpaceServer;
             }
             public async void UpdatePosition() {
+                /*
                 if (_instanceId != null) {
                     BT.Props props = new BT.Props();
                     PackageInstancePosition(ref props);
@@ -265,12 +291,14 @@ namespace org.herbal3d.Ragu {
                     // _context.log.DebugFormat("{0} UpdatePosition: p={1}, r={2}",
                     //             _logHeader, presence.AbsolutePosition, presence.Rotation);
                 }
+                */
             }
             public void UpdateAppearance() {
                 if (_instanceId != null) {
                 }
             }
             public void AddAppearanceInstance() {
+            /*
                 Task.Run(async () => {
                     try {
                         // TODO: use avatar appearance baking code to build GLTF version of avatar
@@ -309,16 +337,18 @@ namespace org.herbal3d.Ragu {
                                         _logHeader, e);
                     };
                 });
+            */
             }
 
             public void RemoveAppearanceInstance() {
                 Task.Run( async () => {
                     if (_instanceId != null) {
-                        await _spaceServer.Client.DeleteItemAsync(_instanceId);
+                        // await _spaceServer.Client.DeleteItemAsync(_instanceId);
                         _instanceId = null;
                     };
                 });
             }
+            /*
             // Return an InstancePositionInfo with the presence's current position
             public void PackageInstancePosition(ref BT.Props pProps) {
                 // Convert coordinates from OpenSim Zup to GLTF Yup
@@ -327,6 +357,7 @@ namespace org.herbal3d.Ragu {
                 pProps.Add("Pos", String.Format("[{0},{1},{2}]", thePos.X, thePos.Y, thePos.Z));
                 pProps.Add("Rot", String.Format("[{0},{1},{2},{3}]", theRot.X, theRot.Y, theRot.Z, theRot.W));
             }
+            */
         }
     }
 }

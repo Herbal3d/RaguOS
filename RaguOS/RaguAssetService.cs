@@ -28,10 +28,8 @@ using OpenSim.Framework.Servers;
 using OpenSim.Framework.Servers.HttpServer;
 
 using org.herbal3d.cs.CommonEntities;
-using org.herbal3d.cs.CommonEntitiesUtil;
+using org.herbal3d.cs.CommonUtil;
 using org.herbal3d.OSAuth;
-
-using BT = org.herbal3d.basil.protocol.BasilType;
 
 namespace org.herbal3d.Ragu {
     public class RaguAssetService {
@@ -91,7 +89,7 @@ namespace org.herbal3d.Ragu {
             var handlerKeys = MainServer.Instance.GetHTTPHandlerKeys();
             string thisHandler = "GET:" + HandlerPath;
             if (!handlerKeys.Contains(thisHandler)) {
-                _context.log.DebugFormat("{0} Creating GET handler for path '{1}' at '{2}",
+                _context.log.Debug("{0} Creating GET handler for path '{1}' at '{2}",
                                     _logHeader, HandlerPath, AssetServiceURL);
                 BAssetStorage storage = new BAssetStorage(_context.log, _context.parms);
                 _getHandler = new RaguGETStreamHandler(_context, HandlerPath, storage);
@@ -99,14 +97,14 @@ namespace org.herbal3d.Ragu {
                 MainServer.Instance.AddStreamHandler(_getHandler);
             }
             else {
-                _context.log.DebugFormat("{0} GET handler already exists. Not creating.", _logHeader);
+                _context.log.Debug("{0} GET handler already exists. Not creating.", _logHeader);
             }
 
             // People need to supply a key to access us
-            _context.log.DebugFormat("{0} Created authToken for service 'Assets'", _logHeader);
+            _context.log.Debug("{0} Created authToken for service 'Assets'", _logHeader);
             AccessToken = new OSAuthToken() {
                 Srv = "RaguAssetService",
-                Sid = org.herbal3d.cs.CommonEntitiesUtil.Util.RandomString(10)
+                Sid = org.herbal3d.cs.CommonUtil.Util.RandomString(10)
             };
             _getHandler.AccessToken = AccessToken;
         }
@@ -151,6 +149,7 @@ namespace org.herbal3d.Ragu {
             {".glb", "model/gltf-binary" }
         };
 
+        // Handler for the HTTP GET request
         public RaguGETStreamHandler(RaguContext pContext, string pPath, BAssetStorage pStorage)
                         : base("GET", pPath, "RaguGET" , "Ragu asset fetcher") {
             _context = pContext;
@@ -167,9 +166,9 @@ namespace org.herbal3d.Ragu {
                 NameValueCollection headers = httpRequest.Headers;
                 string authValue = headers.GetOne("Authorization");
                 if (authValue != null) {
-                    // _context.log.DebugFormat("{0} Checking Authorization header", _logHeader);
+                    // _context.log.Debug("{0} Checking Authorization header", _logHeader);
                     if (AccessToken != null && authValue == AccessToken.Token) {
-                        // _context.log.DebugFormat("{0} Matched Authorization header. Auth={1}", _logHeader, authValue);
+                        // _context.log.Debug("{0} Matched Authorization header. Auth={1}", _logHeader, authValue);
                         authorized = true;
                     }
                     // else {
@@ -193,7 +192,7 @@ namespace org.herbal3d.Ragu {
                         }
                     }
                     if (!authorized) {
-                        _context.log.DebugFormat("{0} Failed bearer- URL field. Auth={1}, url={2}",
+                        _context.log.Debug("{0} Failed bearer- URL field. Auth={1}, url={2}",
                                     _logHeader, authValue, httpRequest.Url.ToString());
                     }
                 }

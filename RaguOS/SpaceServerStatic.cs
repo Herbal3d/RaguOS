@@ -38,7 +38,23 @@ namespace org.herbal3d.Ragu {
             }
             else {
                 BMessage resp = BasilConnection.MakeResponse(pMsg);
-                resp.Exception = "Session is not open. AA";
+                resp.Exception = "Session is not open. Static";
+                pProtocol.Send(resp);
+            }
+        }
+    }
+    class ProcessStaticIncomingMessages : IncomingMessageProcessor {
+        SpaceServerStatic _ssContext;
+        public ProcessStaticIncomingMessages(SpaceServerStatic pContext) : base(pContext) {
+            _ssContext = pContext;
+        }
+        public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
+            if (pMsg.Op == (uint)BMessageOps.OpenSessionReq) {
+                _ssContext.ProcessOpenSessionReq(pMsg, pConnection, pProtocol);
+            }
+            else {
+                BMessage resp = BasilConnection.MakeResponse(pMsg);
+                resp.Exception = "Session is not open. Static";
                 pProtocol.Send(resp);
             }
         }
@@ -69,23 +85,26 @@ namespace org.herbal3d.Ragu {
             string errorReason = "";
             // Get the login information from the OpenConnection
             if (pMsg.IProps.TryGetValue("clientAuth", out string clientAuthToken)) {
-                if (pMsg.IProps.TryGetValue("serviceAuth", out string serviceAuthPackage)) {
+                if (pMsg.IProps.TryGetValue("Auth", out string serviceAuth)) {
                     // have the info to try and log the user in
-                    OSAuthToken loginInfo = OSAuthToken.FromString(serviceAuthPackage);
-                    if (ValidateLoginAuth(loginInfo)) {
+                    OSAuthToken loginAuth = OSAuthToken.FromString(serviceAuth);
+                    if (ValidateLoginAuth(loginAuth)) {
                         // The user checks out so construct the success response
                         OSAuthToken incomingAuth = new OSAuthToken();
                         OSAuthToken outgoingAuth = OSAuthToken.FromString(clientAuthToken);
                         pConnection.SetAuthorizations(incomingAuth, outgoingAuth);
 
+                        // We also have a full command processor
+                        pConnection.SetOpProcessor(new ProcessStaticIncomingMessages(this));
+
                         BMessage resp = BasilConnection.MakeResponse(pMsg);
-                        resp.IProps.Add("ServerVersion", "xxx");
+                        resp.IProps.Add("ServerVersion", _context.ServerVersion);
                         resp.IProps.Add("ServerAuth", incomingAuth.Token);
                         pConnection.Send(resp);
 
-                        // Connect the user to the various other layers in the background
+                        // Send the static region information to the user
                         Task.Run(async () => {
-                            await StartConnection(pConnection, loginInfo);
+                            await StartConnection(pConnection, loginAuth);
                         });
                     }
                     else {
@@ -109,15 +128,30 @@ namespace org.herbal3d.Ragu {
         }
 
         private bool ValidateLoginAuth(OSAuthToken pUserAuth) {
-            return true;
+            bool ret = false;
+            string auth = pUserAuth.Token;
+            lock (_context.waitingForMakeConnection) {
+                if (_context.waitingForMakeConnection.TryGetValue(auth, out WaitingInfo waitingInfo)) {
+                    _context.log.Debug("{0}: login auth successful. Waited {1} seconds", _logHeader,
+                        (DateTime.Now - waitingInfo.whenCreated).TotalSeconds);
+                    _context.waitingForMakeConnection.Remove(auth);
+                    ret = true;
+                }
+                else {
+                    _context.log.Debug("{0}: login auth unsuccessful. Token: {1}", _logHeader, auth);
+                }
+            }
+            return ret;
         }
 
         // Received an OpenSession from a Basil client.
         // Send the fellow some content.
+#pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
         private async Task StartConnection(BasilConnection pConnection, OSAuthToken pUserAuth) {
+#pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
             try {
-                // _context.log.DebugFormat("{0} HandleBasilConnection", _logHeader);
 
+                /* TODO:
                 // Get region tile definition
                 LodenRegion lodenRegion = _rContext.scene.RequestModuleInterface<LodenRegion>();
                 string regionSpecURL = RaguAssetService.Instance.CreateAccessURL(lodenRegion.RegionTopLevelSpecURL);
@@ -182,9 +216,10 @@ namespace org.herbal3d.Ragu {
                     // _rContext.log.DebugFormat("{0} HandleBasilConnection: Created displayable {1} and instance {2}",
                     //                 _logHeader, displayableId, instanceId);
                 });
+                */
             }
             catch (Exception e) {
-                _rContext.log.ErrorFormat("{0} HandleBasilConnection. Exception connecting Basil to layers: {1}", _logHeader, e);
+                _rContext.log.Error("{0} HandleBasilConnection. Exception connecting Basil to layers: {1}", _logHeader, e);
             }
         }
     }

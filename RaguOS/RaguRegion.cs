@@ -20,6 +20,8 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using OpenSim.Region.Framework.Scenes;
+using org.herbal3d.cs.CommonUtil;
+
 
 namespace org.herbal3d.Ragu {
     // Per-region Ragu state and logic
@@ -64,7 +66,7 @@ namespace org.herbal3d.Ragu {
                 // Start listening for any connection to the base port and start the Command
                 //     and Control space server for that new client
                 RContext.LayerListeners.Add(SpaceServerCC.StaticLayerType, new SpaceServerListener(
-                    new cs.CommonUtil.ParamBlock(new Dictionary<string, object>() {
+                    new ParamBlock(new Dictionary<string, object>() {
                         {  "ConnectionURL",          RContext.parms.P<string>("SpaceServer.ConnectionURL")},
                         {  "Layer",                  SpaceServerCC.StaticLayerType},
                         {  "IsSecure",               RContext.parms.P<bool>("SpaceServer.IsSecure").ToString() },
@@ -82,7 +84,7 @@ namespace org.herbal3d.Ragu {
                     }
                 ));
                 RContext.LayerListeners.Add(SpaceServerStatic.StaticLayerType, new SpaceServerListener(
-                    new cs.CommonUtil.ParamBlock(new Dictionary<string, object>() {
+                    new ParamBlock(new Dictionary<string, object>() {
                         {  "ConnectionURL",          RContext.parms.P<string>("SpaceServerStatic.ConnectionURL")},
                         {  "Layer",                  SpaceServerStatic.StaticLayerType},
                         {  "IsSecure",               RContext.parms.P<bool>("SpaceServerStatic.IsSecure").ToString() },
@@ -96,11 +98,11 @@ namespace org.herbal3d.Ragu {
                     // This method is called when the listener receives a connection but before any
                     //     messsages have been exchanged.
                     (pTransport, pCanceller, pListenerParams) => {
-                        return new SpaceServerCC(RContext, pCanceller, pTransport);
+                        return new SpaceServerStatic(RContext, pCanceller, pTransport);
                     }
                 ));
                 RContext.LayerListeners.Add(SpaceServerActors.StaticLayerType, new SpaceServerListener(
-                    new cs.CommonUtil.ParamBlock(new Dictionary<string, object>() {
+                    new ParamBlock(new Dictionary<string, object>() {
                         {  "ConnectionURL",          RContext.parms.P<string>("SpaceServerDynamic.ConnectionURL")},
                         {  "Layer",                  SpaceServerActors.StaticLayerType},
                         {  "IsSecure",               RContext.parms.P<bool>("SpaceServerDynamic.IsSecure").ToString() },
@@ -114,11 +116,11 @@ namespace org.herbal3d.Ragu {
                     // This method is called when the listener receives a connection but before any
                     //     messsages have been exchanged.
                     (pTransport, pCanceller, pListenerParams) => {
-                        return new SpaceServerCC(RContext, pCanceller, pTransport);
+                        return new SpaceServerActors(RContext, pCanceller, pTransport);
                     }
                 ));
                 RContext.LayerListeners.Add(SpaceServerDynamic.StaticLayerType, new SpaceServerListener(
-                    new cs.CommonUtil.ParamBlock(new Dictionary<string, object>() {
+                    new ParamBlock(new Dictionary<string, object>() {
                         {  "ConnectionURL",          RContext.parms.P<string>("SpaceServerActor.ConnectionURL")},
                         {  "Layer",                  SpaceServerDynamic.StaticLayerType},
                         {  "IsSecure",               RContext.parms.P<bool>("SpaceServerActor.IsSecure").ToString() },
@@ -132,7 +134,7 @@ namespace org.herbal3d.Ragu {
                     // This method is called when the listener receives a connection but before any
                     //     messsages have been exchanged.
                     (pTransport, pCanceller, pListenerParams) => {
-                        return new SpaceServerCC(RContext, pCanceller, pTransport);
+                        return new SpaceServerDynamic(RContext, pCanceller, pTransport);
                     }
                 ));
 

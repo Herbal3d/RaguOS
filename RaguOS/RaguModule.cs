@@ -44,6 +44,7 @@ namespace org.herbal3d.Ragu {
     // Class passed around for global context for this region module instance
     public class RaguContext {
         public IConfig sysConfig;
+        public string ServerVersion;
         public RaguParams parms;    // assume it's readonly
         public readonly RaguStats stats;
         public Scene scene;
@@ -64,6 +65,7 @@ namespace org.herbal3d.Ragu {
             sessionKey = randomNumbers.Next().ToString();
             assetAccessKey = randomNumbers.Next().ToString();
             assetKeyExpiration = DateTime.UtcNow.AddHours(2);
+            ServerVersion = "2.3.4";    // TODO: where to get the Ragu version?
         }
     }
 
