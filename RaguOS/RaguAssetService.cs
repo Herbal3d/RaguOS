@@ -91,7 +91,9 @@ namespace org.herbal3d.Ragu {
             if (!handlerKeys.Contains(thisHandler)) {
                 _context.log.Debug("{0} Creating GET handler for path '{1}' at '{2}",
                                     _logHeader, HandlerPath, AssetServiceURL);
-                BAssetStorage storage = new BAssetStorage(_context.log, _context.parms);
+                BAssetStorage storage = new BAssetStorage(logger: _context.log,
+                            outputDir: pContext.parms.OutputDir,
+                            useDeepFilenames: pContext.parms.UseDeepFilenames) ;
                 _getHandler = new RaguGETStreamHandler(_context, HandlerPath, storage);
 
                 MainServer.Instance.AddStreamHandler(_getHandler);
@@ -161,7 +163,7 @@ namespace org.herbal3d.Ragu {
             string[] segments = httpRequest.Url.Segments;
 
             bool authorized = false;
-            if (!_context.parms.P<bool>("ShouldEnforceAssetAccessAuthorization")) {
+            if (!_context.parms.ShouldEnforceAssetAccessAuthorization) {
                 // Check for 'Authorization' in the request header
                 NameValueCollection headers = httpRequest.Headers;
                 string authValue = headers.GetOne("Authorization");

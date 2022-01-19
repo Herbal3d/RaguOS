@@ -24,8 +24,8 @@ namespace org.herbal3d.Ragu {
 
     // Function called when a connection is available for a SpaceServer
     public delegate SpaceServerBase CreateSpaceServerProcessor(BTransport pTransport,
-                                                    CancellationTokenSource pCanceller,
-                                                    ParamBlock pListenerParams);
+                                                    CancellationTokenSource pCanceller
+                                                    );
     /**
      * Class that listens for SpaceServer connections and starts
      * the appropriate SPaceServer to listen for a connection.
@@ -34,36 +34,48 @@ namespace org.herbal3d.Ragu {
         BLogger _log;
         string _spaceServerType;
         CreateSpaceServerProcessor _creator;
-        ParamBlock _params;
+
+        string _transport;
+        string _connectionURL;
+        string _protocol;
 
         // Listen for a connection and call the passed SpaceServer creater when a connection is made.
         // This canceller is for the whole service. A new one is created for the connection.
-        public SpaceServerListener(ParamBlock pParams, CancellationTokenSource pCanceller,
-                                        BLogger pDebugLogger, CreateSpaceServerProcessor pProcessor) {
-            _log = pDebugLogger;
-            _creator = pProcessor;
+        public SpaceServerListener(
+                        CreateSpaceServerProcessor processor,
+                        CancellationTokenSource canceller,
+                        BLogger logger,
+                        string connectionURL,
+                        string protocol = "Basil-JSON",
+                        string transport = "WS",
+                        string layer = "Layer",
+                        bool isSecure = false,
+                        string secureConnectionURL = "",
+                        string certificate = "",
+                        bool disableNaglesAlgorithm = false
+            ) {
 
-            // We expect these parameters
-            _params = new ParamBlock(null, pParams,
-                    new ParamBlock(new Dictionary<string, object>() {
-                        {  "ConnectionURL",          "" },
-                        {  "Protocol",               "Basil-JSON" },
-                        {  "Transport",              "WS" },
-                        {  "Layer",                  "Layer" },
-                        {  "IsSecure",               false},
-                        {  "SecureConnectionURL",    ""},
-                        {  "Certificate",            null},
-                        {  "DisableNaglesAlgorithm", true},
-                    }));
+            _log = logger;
+            _creator = processor;
+            _transport = transport;
+            _connectionURL = connectionURL;
+            _protocol = protocol;
 
             // For the moment, we assume there is only the WS transport.
             // Eventually, the parameters will specifiy multiple transports
             //    and this routine will open several listeners.
 
             // start listening and call SpaceServer creator when a connection is made
-            BTransportWS.ConnectionListener(_params,
-                    (pTrans, pCan, pParm) => pProcessor(pTrans, pCan, pParm),
-                    pCanceller, pDebugLogger);
+            BTransportWS.ConnectionListener(
+                connectionURL: connectionURL,
+                isSecure: isSecure,
+                secureConnectionURL: secureConnectionURL,
+                certificate: certificate,
+                logger: logger,
+                connectionProcessor: (pTrans, pCan) => _creator(pTrans, pCan),
+                cancellerSource: canceller,
+                disableNaglesAlgorithm: disableNaglesAlgorithm);
+
         }
 
         /*
@@ -77,9 +89,9 @@ namespace org.herbal3d.Ragu {
          */
         public virtual ParamBlock ParamsForMakeConnection(OSAuthToken pServiceAuth) {
             return new ParamBlock(new Dictionary<string, object>() {
-                { "transport",    _params.P<string>("Transport") },
-                { "transportURL", _params.P<string>("ConnectionURL") },
-                { "protocol",     _params.P<string>("Protocol") },
+                { "transport",    _transport },
+                { "transportURL", _connectionURL },
+                { "protocol",     _protocol },
                 { "service",      "SpaceServer" },
                 { "serviceAuth",   pServiceAuth.Token }
             });

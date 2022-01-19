@@ -134,11 +134,11 @@
       <Private>False</Private>
     </ProjectReference>
     <ProjectReference Include="..\..\HerbalCommonUtilCS\Herbal3d.CommonUtil.csproj">
-      <Project>{a0ec2ce8-61ff-46dd-aec1-0154c1041d78}</Project>
+      <Project>{562475fc-fc18-4e46-b5af-461754271efc}</Project>
       <Name>Herbal3d.CommonUtil</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\HerbalTransportCS\Herbal3d.HerbalTransportCS.csproj">
-      <Project>{40730af5-6df3-451a-8f15-76853e4e8111}</Project>
+      <Project>{d28ae0aa-2b14-4a10-89e4-cb78d8e733c5}</Project>
       <Name>Herbal3d.HerbalTransportCS</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\Loden\Loden\Herbal3d.Loden.csproj">

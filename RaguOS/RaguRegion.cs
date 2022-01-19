@@ -66,76 +66,64 @@ namespace org.herbal3d.Ragu {
                 // Start listening for any connection to the base port and start the Command
                 //     and Control space server for that new client
                 RContext.LayerListeners.Add(SpaceServerCC.StaticLayerType, new SpaceServerListener(
-                    new ParamBlock(new Dictionary<string, object>() {
-                        {  "ConnectionURL",          RContext.parms.P<string>("SpaceServer.ConnectionURL")},
-                        {  "Layer",                  SpaceServerCC.StaticLayerType},
-                        {  "IsSecure",               RContext.parms.P<bool>("SpaceServer.IsSecure").ToString() },
-                        {  "SecureConnectionURL",    RContext.parms.P<string>("SpaceServer.SecureConnectionURL") },
-                        {  "Certificate",            RContext.parms.P<string>("SpaceServer.Certificate") },
-                        {  "DisableNaglesAlgorithm", RContext.parms.P<bool>("SpaceServer.DisableNaglesAlgorithm").ToString() },
-                        {  "ExternalAccessHostname", RContext.HostnameForExternalAccess },
-                    }),
-                    _canceller,
-                    RContext.log,
-                    // This method is called when the listener receives a connection but before any
-                    //     messsages have been exchanged.
-                    (pTransport, pCanceller, pListenerParams) => {
-                        return new SpaceServerCC(RContext, pCanceller, pTransport);
-                    }
+                        connectionURL:          RContext.parms.SpaceServerCC_ConnectionURL,
+                        layer:                  SpaceServerCC.StaticLayerType,
+                        isSecure:               RContext.parms.SpaceServerCC_IsSecure,
+                        secureConnectionURL:    RContext.parms.SpaceServerCC_SecureConnectionURL,
+                        certificate:            RContext.parms.SpaceServerCC_Certificate,
+                        disableNaglesAlgorithm: RContext.parms.SpaceServerCC_DisableNaglesAlgorithm,
+                        canceller:              _canceller,
+                        logger:                 RContext.log,
+                        // This method is called when the listener receives a connection but before any
+                        //     messsages have been exchanged.
+                        processor:              (pTransport, pCanceller) => {
+                                                    return new SpaceServerCC(RContext, pCanceller, pTransport);
+                                                }
                 ));
                 RContext.LayerListeners.Add(SpaceServerStatic.StaticLayerType, new SpaceServerListener(
-                    new ParamBlock(new Dictionary<string, object>() {
-                        {  "ConnectionURL",          RContext.parms.P<string>("SpaceServerStatic.ConnectionURL")},
-                        {  "Layer",                  SpaceServerStatic.StaticLayerType},
-                        {  "IsSecure",               RContext.parms.P<bool>("SpaceServerStatic.IsSecure").ToString() },
-                        {  "SecureConnectionURL",    RContext.parms.P<string>("SpaceServerStatic.SecureConnectionURL") },
-                        {  "Certificate",            RContext.parms.P<string>("SpaceServerStatic.Certificate") },
-                        {  "DisableNaglesAlgorithm", RContext.parms.P<bool>("SpaceServerStatic.DisableNaglesAlgorithm").ToString() },
-                        {  "ExternalAccessHostname", RContext.HostnameForExternalAccess },
-                    }),
-                    _canceller,
-                    RContext.log,
-                    // This method is called when the listener receives a connection but before any
-                    //     messsages have been exchanged.
-                    (pTransport, pCanceller, pListenerParams) => {
-                        return new SpaceServerStatic(RContext, pCanceller, pTransport);
-                    }
+                        connectionURL:          RContext.parms.SpaceServerStatic_ConnectionURL,
+                        layer:                  SpaceServerStatic.StaticLayerType,
+                        isSecure:               RContext.parms.SpaceServerStatic_IsSecure,
+                        secureConnectionURL:    RContext.parms.SpaceServerStatic_SecureConnectionURL,
+                        certificate:            RContext.parms.SpaceServerStatic_Certificate,
+                        disableNaglesAlgorithm: RContext.parms.SpaceServerStatic_DisableNaglesAlgorithm,
+                        canceller:              _canceller,
+                        logger:                 RContext.log,
+                        // This method is called when the listener receives a connection but before any
+                        //     messsages have been exchanged.
+                        processor:              (pTransport, pCanceller) => {
+                                                    return new SpaceServerStatic(RContext, pCanceller, pTransport);
+                                                }
                 ));
                 RContext.LayerListeners.Add(SpaceServerActors.StaticLayerType, new SpaceServerListener(
-                    new ParamBlock(new Dictionary<string, object>() {
-                        {  "ConnectionURL",          RContext.parms.P<string>("SpaceServerDynamic.ConnectionURL")},
-                        {  "Layer",                  SpaceServerActors.StaticLayerType},
-                        {  "IsSecure",               RContext.parms.P<bool>("SpaceServerDynamic.IsSecure").ToString() },
-                        {  "SecureConnectionURL",    RContext.parms.P<string>("SpaceServerDynamic.SecureConnectionURL") },
-                        {  "Certificate",            RContext.parms.P<string>("SpaceServerDynamic.Certificate") },
-                        {  "DisableNaglesAlgorithm", RContext.parms.P<bool>("SpaceServerDynamic.DisableNaglesAlgorithm").ToString() },
-                        {  "ExternalAccessHostname", RContext.HostnameForExternalAccess },
-                    }),
-                    _canceller,
-                    RContext.log,
-                    // This method is called when the listener receives a connection but before any
-                    //     messsages have been exchanged.
-                    (pTransport, pCanceller, pListenerParams) => {
-                        return new SpaceServerActors(RContext, pCanceller, pTransport);
-                    }
+                        connectionURL:          RContext.parms.SpaceServerActors_ConnectionURL,
+                        layer:                  SpaceServerActors.StaticLayerType,
+                        isSecure:               RContext.parms.SpaceServerActors_IsSecure,
+                        secureConnectionURL:    RContext.parms.SpaceServerActors_SecureConnectionURL,
+                        certificate:            RContext.parms.SpaceServerActors_Certificate,
+                        disableNaglesAlgorithm: RContext.parms.SpaceServerActors_DisableNaglesAlgorithm,
+                        canceller:              _canceller,
+                        logger:                 RContext.log,
+                        // This method is called when the listener receives a connection but before any
+                        //     messsages have been exchanged.
+                        processor:              (pTransport, pCanceller) => {
+                                                    return new SpaceServerActors(RContext, pCanceller, pTransport);
+                                                }
                 ));
                 RContext.LayerListeners.Add(SpaceServerDynamic.StaticLayerType, new SpaceServerListener(
-                    new ParamBlock(new Dictionary<string, object>() {
-                        {  "ConnectionURL",          RContext.parms.P<string>("SpaceServerActor.ConnectionURL")},
-                        {  "Layer",                  SpaceServerDynamic.StaticLayerType},
-                        {  "IsSecure",               RContext.parms.P<bool>("SpaceServerActor.IsSecure").ToString() },
-                        {  "SecureConnectionURL",    RContext.parms.P<string>("SpaceServerActor.SecureConnectionURL") },
-                        {  "Certificate",            RContext.parms.P<string>("SpaceServerActor.Certificate") },
-                        {  "DisableNaglesAlgorithm", RContext.parms.P<bool>("SpaceServerActor.DisableNaglesAlgorithm").ToString() },
-                        {  "ExternalAccessHostname", RContext.HostnameForExternalAccess },
-                    }),
-                    _canceller,
-                    RContext.log,
-                    // This method is called when the listener receives a connection but before any
-                    //     messsages have been exchanged.
-                    (pTransport, pCanceller, pListenerParams) => {
-                        return new SpaceServerDynamic(RContext, pCanceller, pTransport);
-                    }
+                        connectionURL:          RContext.parms.SpaceServerDynamic_ConnectionURL,
+                        layer:                  SpaceServerActors.StaticLayerType,
+                        isSecure:               RContext.parms.SpaceServerDynamic_IsSecure,
+                        secureConnectionURL:    RContext.parms.SpaceServerDynamic_SecureConnectionURL,
+                        certificate:            RContext.parms.SpaceServerDynamic_Certificate,
+                        disableNaglesAlgorithm: RContext.parms.SpaceServerDynamic_DisableNaglesAlgorithm,
+                        canceller:              _canceller,
+                        logger:                 RContext.log,
+                        // This method is called when the listener receives a connection but before any
+                        //     messsages have been exchanged.
+                        processor:              (pTransport, pCanceller) => {
+                                                    return new SpaceServerDynamic(RContext, pCanceller, pTransport);
+                                                }
                 ));
 
             }
@@ -155,7 +143,7 @@ namespace org.herbal3d.Ragu {
                 pContext.HostnameForExternalAccess = RContext.scene.RegionInfo.ExternalHostName;
             }
             else {
-                pContext.HostnameForExternalAccess = RContext.parms.P<string>("ExternalAccessHostname");
+                pContext.HostnameForExternalAccess = RContext.parms.ExternalAccessHostname;
                 if (String.IsNullOrEmpty(pContext.HostnameForExternalAccess)) {
                     // The hostname was not specified in the config file so figure it out.
                     // Look for the first IP address that is Ethernet, up, and not virtual or loopback.
