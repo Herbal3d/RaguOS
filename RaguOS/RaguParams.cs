@@ -33,7 +33,7 @@ namespace org.herbal3d.Ragu {
     public class RaguParams  {
         private readonly string _logHeader = "[RAGU PARAMS]";
 
-        public RaguParams(IBLogger pLogger, IConfig pConfig) {
+        public RaguParams(BLogger pLogger, IConfig pConfig) {
             // If we were passed INI configuration, overlay the default values
             if (pConfig != null) {
                 SetParameterConfigurationValues(pConfig);

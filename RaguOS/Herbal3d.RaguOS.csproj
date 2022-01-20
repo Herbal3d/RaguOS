@@ -197,6 +197,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="LoggerLog4Net.cs" />
     <Compile Include="RaguAssetService.cs">
       <SubType>Code</SubType>
     </Compile>

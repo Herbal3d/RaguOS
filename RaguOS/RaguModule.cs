@@ -99,15 +99,17 @@ namespace org.herbal3d.Ragu {
         public void Initialise(IConfigSource pConfig) {
             var iniConfig = pConfig.Configs["Ragu"];
             // Temporary logger that outputs to console before we have the configuration
-            var tempLogger = new BLogger(logBaseFilename: null, logToConsole: true);
+            // var tempLogger = new BLoggerNLog(logBaseFilename: null, logToConsole: true);
+            var tempLogger = new BLoggerLog4Net(_log);
 
             RaguParams raguParams = new RaguParams(tempLogger, iniConfig);
             _context = new RaguContext() {
                 sysConfig = iniConfig,
                 parms = raguParams,
-                log = new BLogger(logBaseFilename: raguParams.LogBaseFilename,
-                    logToConsole: raguParams.LogToConsole,
-                    logToFile: raguParams.LogToFile)
+                // log = new BLoggerNLog(logBaseFilename: raguParams.LogBaseFilename,
+                //     logToConsole: raguParams.LogToConsole,
+                //     logToFile: raguParams.LogToFile)
+                log = tempLogger
             };
             if (_context.parms.Enabled) {
                 _log.InfoFormat("{0} Enabled", _logHeader);
