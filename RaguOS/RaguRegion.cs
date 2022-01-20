@@ -65,66 +65,12 @@ namespace org.herbal3d.Ragu {
             try {
                 // Start listening for any connection to the base port and start the Command
                 //     and Control space server for that new client
-                RContext.LayerListeners.Add(SpaceServerCC.StaticLayerType, new SpaceServerListener(
-                        connectionURL:          RContext.parms.SpaceServerCC_ConnectionURL,
-                        layer:                  SpaceServerCC.StaticLayerType,
-                        isSecure:               RContext.parms.SpaceServerCC_IsSecure,
-                        secureConnectionURL:    RContext.parms.SpaceServerCC_SecureConnectionURL,
-                        certificate:            RContext.parms.SpaceServerCC_Certificate,
-                        disableNaglesAlgorithm: RContext.parms.SpaceServerCC_DisableNaglesAlgorithm,
-                        canceller:              _canceller,
-                        logger:                 RContext.log,
-                        // This method is called when the listener receives a connection but before any
-                        //     messsages have been exchanged.
-                        processor:              (pTransport, pCanceller) => {
-                                                    return new SpaceServerCC(RContext, pCanceller, pTransport);
-                                                }
-                ));
-                RContext.LayerListeners.Add(SpaceServerStatic.StaticLayerType, new SpaceServerListener(
-                        connectionURL:          RContext.parms.SpaceServerStatic_ConnectionURL,
-                        layer:                  SpaceServerStatic.StaticLayerType,
-                        isSecure:               RContext.parms.SpaceServerStatic_IsSecure,
-                        secureConnectionURL:    RContext.parms.SpaceServerStatic_SecureConnectionURL,
-                        certificate:            RContext.parms.SpaceServerStatic_Certificate,
-                        disableNaglesAlgorithm: RContext.parms.SpaceServerStatic_DisableNaglesAlgorithm,
-                        canceller:              _canceller,
-                        logger:                 RContext.log,
-                        // This method is called when the listener receives a connection but before any
-                        //     messsages have been exchanged.
-                        processor:              (pTransport, pCanceller) => {
-                                                    return new SpaceServerStatic(RContext, pCanceller, pTransport);
-                                                }
-                ));
-                RContext.LayerListeners.Add(SpaceServerActors.StaticLayerType, new SpaceServerListener(
-                        connectionURL:          RContext.parms.SpaceServerActors_ConnectionURL,
-                        layer:                  SpaceServerActors.StaticLayerType,
-                        isSecure:               RContext.parms.SpaceServerActors_IsSecure,
-                        secureConnectionURL:    RContext.parms.SpaceServerActors_SecureConnectionURL,
-                        certificate:            RContext.parms.SpaceServerActors_Certificate,
-                        disableNaglesAlgorithm: RContext.parms.SpaceServerActors_DisableNaglesAlgorithm,
-                        canceller:              _canceller,
-                        logger:                 RContext.log,
-                        // This method is called when the listener receives a connection but before any
-                        //     messsages have been exchanged.
-                        processor:              (pTransport, pCanceller) => {
-                                                    return new SpaceServerActors(RContext, pCanceller, pTransport);
-                                                }
-                ));
-                RContext.LayerListeners.Add(SpaceServerDynamic.StaticLayerType, new SpaceServerListener(
-                        connectionURL:          RContext.parms.SpaceServerDynamic_ConnectionURL,
-                        layer:                  SpaceServerActors.StaticLayerType,
-                        isSecure:               RContext.parms.SpaceServerDynamic_IsSecure,
-                        secureConnectionURL:    RContext.parms.SpaceServerDynamic_SecureConnectionURL,
-                        certificate:            RContext.parms.SpaceServerDynamic_Certificate,
-                        disableNaglesAlgorithm: RContext.parms.SpaceServerDynamic_DisableNaglesAlgorithm,
-                        canceller:              _canceller,
-                        logger:                 RContext.log,
-                        // This method is called when the listener receives a connection but before any
-                        //     messsages have been exchanged.
-                        processor:              (pTransport, pCanceller) => {
-                                                    return new SpaceServerDynamic(RContext, pCanceller, pTransport);
-                                                }
-                ));
+                RContext.SpaceServerCCService = SpaceServerCC.SpaceServerCCService(RContext, _canceller);
+
+                // Start the other layer services.
+                RContext.SpaceServerStaticService = SpaceServerStatic.SpaceServerStaticService(RContext, _canceller);
+                RContext.SpaceServerActorsService = SpaceServerActors.SpaceServerActorsService(RContext, _canceller);
+                RContext.SpaceServerDynamicService = SpaceServerDynamic.SpaceServerDynamicService(RContext, _canceller);
 
             }
             catch (Exception e) {

@@ -28,6 +28,8 @@ using OpenSim.Region.Framework.Scenes;
 
 namespace org.herbal3d.Ragu {
 
+    
+
     // Processor of incoming messages when we're waiting for the OpenSession.
     class ProcessCCOpenConnection : IncomingMessageProcessor {
         SpaceServerCC _ssContext;
@@ -50,6 +52,27 @@ namespace org.herbal3d.Ragu {
         private static readonly string _logHeader = "[SpaceServerCC]";
 
         public static readonly string StaticLayerType = "CC";
+
+        // Function called to start up the service listener.
+        // THis starts listening for network connections and creates instances of the SpaceServer
+        //     for each of the incoming connections
+        public static SpaceServerListener SpaceServerCCService(RaguContext pRContext, CancellationTokenSource pCanceller) {
+            return new SpaceServerListener(
+                connectionURL:          pRContext.parms.SpaceServerCC_ConnectionURL,
+                layer:                  SpaceServerCC.StaticLayerType,
+                isSecure:               pRContext.parms.SpaceServerCC_IsSecure,
+                secureConnectionURL:    pRContext.parms.SpaceServerCC_SecureConnectionURL,
+                certificate:            pRContext.parms.SpaceServerCC_Certificate,
+                disableNaglesAlgorithm: pRContext.parms.SpaceServerCC_DisableNaglesAlgorithm,
+                canceller:              pCanceller,
+                logger:                 pRContext.log,
+                // This method is called when the listener receives a connection but before any
+                //     messsages have been exchanged.
+                processor:              (pTransport, pCancellerP) => {
+                                            return new SpaceServerCC(pRContext, pCancellerP, pTransport);
+                                        }
+            );
+        }
 
         // Creation of an instance for a specific client.
         // This instance is created when someone connects to the  transport so we're passed the
@@ -123,19 +146,22 @@ namespace org.herbal3d.Ragu {
                 _context.log.Debug("{0} HandleBasilConnection", _logHeader);
 
                 // Invite the client to connect to the interesting layers.
-                string[] inviteLayers = { SpaceServerStatic.StaticLayerType,
-                        SpaceServerActors.StaticLayerType,
-                        SpaceServerDynamic.StaticLayerType };
-                foreach (string layerName in inviteLayers ) {
-                    // The MakeConnection sends an auth that this remembers so it can be checked
-                    //     when the OpenConnection is eventually received.
-                    WaitingInfo waiting = new WaitingInfo();
-                    this._context.waitingForMakeConnection.Add(waiting.incomingAuth.Token, waiting);
+                // Static
+                WaitingInfo waiting = new WaitingInfo();
+                this._context.waitingForMakeConnection.Add(waiting.incomingAuth.Token, waiting);
+                ParamBlock pp = _context.SpaceServerStaticService.ParamsForMakeConnection(waiting.incomingAuth);
+                await pConnection.MakeConnection(pp);
+                // Actors
+                waiting = new WaitingInfo();
+                this._context.waitingForMakeConnection.Add(waiting.incomingAuth.Token, waiting);
+                pp = _context.SpaceServerActorsService.ParamsForMakeConnection(waiting.incomingAuth);
+                await pConnection.MakeConnection(pp);
+                // Dynamic
+                waiting = new WaitingInfo();
+                this._context.waitingForMakeConnection.Add(waiting.incomingAuth.Token, waiting);
+                pp = _context.SpaceServerDynamicService.ParamsForMakeConnection(waiting.incomingAuth);
+                await pConnection.MakeConnection(pp);
 
-                    SpaceServerListener layer = _context.LayerListeners[layerName];
-                    ParamBlock pp = layer.ParamsForMakeConnection(waiting.incomingAuth);
-                    await pConnection.MakeConnection(pp);
-                }
             }
             catch (Exception e) {
                 _context.log.Error("{0} HandleBasilConnection. Exception connecting Basil to layers: {1}", _logHeader, e);

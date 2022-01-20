@@ -43,7 +43,10 @@ namespace org.herbal3d.Ragu {
 
     // Class passed around for global context for this region module instance
     public class RaguContext {
+        // System configuration information
         public IConfig sysConfig;
+
+        // Version generated at build time
         public string ServerVersion;
         public RaguParams parms;    // assume it's readonly
         public readonly RaguStats stats;
@@ -52,10 +55,16 @@ namespace org.herbal3d.Ragu {
         public readonly string sessionKey;
         public string assetAccessKey;
         public DateTime assetKeyExpiration;
+
         // The following are the layer servers for this region.
-        public Dictionary<string, SpaceServerListener> LayerListeners
-                            = new Dictionary<string, SpaceServerListener>();
+        public SpaceServerListener SpaceServerCCService;
+        public SpaceServerListener SpaceServerStaticService;
+        public SpaceServerListener SpaceServerActorsService;
+        public SpaceServerListener SpaceServerDynamicService;
+        // When a client is sent a MakeConnection, the OpenSession auth info is added here
         public Dictionary<string, WaitingInfo> waitingForMakeConnection = new Dictionary<string, WaitingInfo>();
+
+        // The hostname to use to access the service
         public string HostnameForExternalAccess;
 
         public RaguContext() {
@@ -65,6 +74,7 @@ namespace org.herbal3d.Ragu {
             sessionKey = randomNumbers.Next().ToString();
             assetAccessKey = randomNumbers.Next().ToString();
             assetKeyExpiration = DateTime.UtcNow.AddHours(2);
+
             ServerVersion = "2.3.4";    // TODO: where to get the Ragu version?
         }
     }

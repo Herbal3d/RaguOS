@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Robert Adams
+// Copyright (c) 2022 Robert Adams
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -64,6 +64,27 @@ namespace org.herbal3d.Ragu {
         private static readonly string _logHeader = "[SpaceServerActors]";
 
         public static readonly string StaticLayerType = "Actors";
+
+        // Function called to start up the service listener.
+        // THis starts listening for network connections and creates instances of the SpaceServer
+        //     for each of the incoming connections
+        public static SpaceServerListener SpaceServerActorsService(RaguContext pRContext, CancellationTokenSource pCanceller) {
+            return new SpaceServerListener(
+                connectionURL:          pRContext.parms.SpaceServerActors_ConnectionURL,
+                layer:                  SpaceServerActors.StaticLayerType,
+                isSecure:               pRContext.parms.SpaceServerActors_IsSecure,
+                secureConnectionURL:    pRContext.parms.SpaceServerActors_SecureConnectionURL,
+                certificate:            pRContext.parms.SpaceServerActors_Certificate,
+                disableNaglesAlgorithm: pRContext.parms.SpaceServerActors_DisableNaglesAlgorithm,
+                canceller:              pCanceller,
+                logger:                 pRContext.log,
+                // This method is called when the listener receives a connection but before any
+                //     messsages have been exchanged.
+                processor:              (pTransport, pCancellerP) => {
+                                            return new SpaceServerActors(pRContext, pCancellerP, pTransport);
+                                        }
+            );
+        }
 
         private readonly RaguContext _rContext;
 

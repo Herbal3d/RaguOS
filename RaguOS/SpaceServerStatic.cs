@@ -66,6 +66,27 @@ namespace org.herbal3d.Ragu {
 
         public static readonly string StaticLayerType = "Static";
 
+        // Fuction called to start up the service listener.
+        // THis starts listening for network connections and creates instances of the SpaceServer
+        //     for each of the incoming connections
+        public static SpaceServerListener SpaceServerStaticService(RaguContext pRContext, CancellationTokenSource pCanceller) {
+            return new SpaceServerListener(
+                connectionURL: pRContext.parms.SpaceServerStatic_ConnectionURL,
+                layer: SpaceServerStatic.StaticLayerType,
+                isSecure: pRContext.parms.SpaceServerStatic_IsSecure,
+                secureConnectionURL: pRContext.parms.SpaceServerStatic_SecureConnectionURL,
+                certificate: pRContext.parms.SpaceServerStatic_Certificate,
+                disableNaglesAlgorithm: pRContext.parms.SpaceServerStatic_DisableNaglesAlgorithm,
+                canceller: pCanceller,
+                logger: pRContext.log,
+                // This method is called when the listener receives a connection but before any
+                //     messsages have been exchanged.
+                processor: (pTransport, pCancellerP) => {
+                    return new SpaceServerStatic(pRContext, pCancellerP, pTransport);
+                }
+            );
+        }
+
         private RaguContext _rContext;
 
         public SpaceServerStatic(RaguContext pContext, CancellationTokenSource pCanceller, BTransport pTransport) 

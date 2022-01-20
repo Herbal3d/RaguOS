@@ -63,6 +63,27 @@ namespace org.herbal3d.Ragu {
 
         public static readonly string StaticLayerType = "Dynamic";
 
+        // Function called to start up the service listener.
+        // THis starts listening for network connections and creates instances of the SpaceServer
+        //     for each of the incoming connections
+        public static SpaceServerListener SpaceServerDynamicService(RaguContext pRContext, CancellationTokenSource pCanceller) {
+            return new SpaceServerListener(
+                connectionURL:          pRContext.parms.SpaceServerDynamic_ConnectionURL,
+                layer:                  SpaceServerActors.StaticLayerType,
+                isSecure:               pRContext.parms.SpaceServerDynamic_IsSecure,
+                secureConnectionURL:    pRContext.parms.SpaceServerDynamic_SecureConnectionURL,
+                certificate:            pRContext.parms.SpaceServerDynamic_Certificate,
+                disableNaglesAlgorithm: pRContext.parms.SpaceServerDynamic_DisableNaglesAlgorithm,
+                canceller:              pCanceller,
+                logger:                 pRContext.log,
+                // This method is called when the listener receives a connection but before any
+                //     messsages have been exchanged.
+                processor:              (pTransport, pCancellerP) => {
+                                            return new SpaceServerDynamic(pRContext, pCancellerP, pTransport);
+                                        }
+            );
+        }
+
         private RaguContext _rContext;
 
         public SpaceServerDynamic(RaguContext pContext, CancellationTokenSource pCanceller, BTransport pTransport) 
