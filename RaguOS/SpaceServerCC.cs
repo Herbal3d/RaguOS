@@ -31,19 +31,24 @@ namespace org.herbal3d.Ragu {
     
 
     // Processor of incoming messages when we're waiting for the OpenSession.
-    class ProcessCCOpenConnection : IncomingMessageProcessor {
+    class ProcessCCIncomingMessages : IncomingMessageProcessor {
         SpaceServerCC _ssContext;
-        public ProcessCCOpenConnection(SpaceServerCC pContext) : base(pContext) {
+        public ProcessCCIncomingMessages(SpaceServerCC pContext) : base(pContext) {
             _ssContext = pContext;
         }
         public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
-            if (pMsg.Op == (uint)BMessageOps.OpenSessionReq) {
-                _ssContext.ProcessOpenSessionReq(pMsg, pConnection, pProtocol);
-            }
-            else {
-                BMessage resp = BasilConnection.MakeResponse(pMsg);
-                resp.Exception = "Session is not open. AA";
-                pProtocol.Send(resp);
+            switch (pMsg.Op) {
+                case (uint)BMessageOps.OpenSessionReq:
+                    _ssContext.ProcessOpenSessionReq(pMsg, pConnection, pProtocol);
+                    break;
+                case (uint)BMessageOps.MakeConnectionResp:
+                    // We will get responses from our MakeConnections
+                    break;
+                default:
+                    BMessage resp = BasilConnection.MakeResponse(pMsg);
+                    resp.Exception = "Session is not open. AA";
+                    pProtocol.Send(resp);
+                    break;
             }
         }
     }
@@ -58,12 +63,15 @@ namespace org.herbal3d.Ragu {
         //     for each of the incoming connections
         public static SpaceServerListener SpaceServerCCService(RaguContext pRContext, CancellationTokenSource pCanceller) {
             return new SpaceServerListener(
-                connectionURL:          pRContext.parms.SpaceServerCC_ConnectionURL,
+                transportParams: new BTransportParams[] {
+                    new BTransportWSParams() {
+                        isSecure        = pRContext.parms.SpaceServerCC_IsSecure,
+                        port            = pRContext.parms.SpaceServerCC_WSConnectionPort,
+                        certificate     = pRContext.parms.SpaceServerCC_WSCertificate,
+                        disableNaglesAlgorithm = pRContext.parms.SpaceServerCC_DisableNaglesAlgorithm
+                    }
+                },
                 layer:                  SpaceServerCC.StaticLayerType,
-                isSecure:               pRContext.parms.SpaceServerCC_IsSecure,
-                secureConnectionURL:    pRContext.parms.SpaceServerCC_SecureConnectionURL,
-                certificate:            pRContext.parms.SpaceServerCC_Certificate,
-                disableNaglesAlgorithm: pRContext.parms.SpaceServerCC_DisableNaglesAlgorithm,
                 canceller:              pCanceller,
                 logger:                 pRContext.log,
                 // This method is called when the listener receives a connection but before any
@@ -85,102 +93,65 @@ namespace org.herbal3d.Ragu {
             LayerType = StaticLayerType;
 
             // The protocol for the initial OpenSession is always JSON
-            _protocol = new BProtocolJSON(null, _transport);
+            _protocol = new BProtocolJSON(null, _transport, RContext.log);
 
             // Expect BMessages and set up messsage processor to handle initial OpenSession
-            _connection = new BasilConnection(_protocol, _context.log);
-            _connection.SetOpProcessor(new ProcessCCOpenConnection(this));
-        }
-
-        // Called when an OpenConnection is received
-        public void ProcessOpenSessionReq(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
-            string errorReason = "";
-            // Get the login information from the OpenConnection
-            if (pMsg.IProps.TryGetValue("clientAuth", out string clientAuthToken)) {
-                if (pMsg.IProps.TryGetValue("Auth", out string serviceAuth)) {
-                    // have the info to try and log the user in
-                    OSAuthToken loginInfo = OSAuthToken.FromString(serviceAuth);
-                    if (ValidateLoginAuth(loginInfo)) {
-                        // The user checks out so construct the success response
-                        OSAuthToken incomingAuth = new OSAuthToken();
-                        OSAuthToken outgoingAuth = OSAuthToken.FromString(clientAuthToken);
-                        pConnection.SetAuthorizations(incomingAuth, outgoingAuth);
-
-                        BMessage resp = BasilConnection.MakeResponse(pMsg);
-                        resp.IProps.Add("ServerVersion", _context.ServerVersion);
-                        resp.IProps.Add("ServerAuth", incomingAuth.Token);
-                        pConnection.Send(resp);
-
-                        // Connect the user to the various other layers in the background
-                        Task.Run(() => {
-                            StartConnection(pConnection, loginInfo);
-                        });
-                    }
-                    else {
-                        errorReason = "Login credentials not valid";
-                    }
-                }
-                else {
-                    errorReason = "Login credentials not supplied (serviceAuth)";
-                }
-            }
-            else {
-                errorReason = "Connection auth not supplied (clientAuth)";
-            }
-
-            // If an error happened, return error response
-            if (errorReason.Length > 0) {
-                BMessage resp = BasilConnection.MakeResponse(pMsg);
-                resp.Exception = errorReason;
-                pConnection.Send(resp);
-            }
+            _connection = new BasilConnection(_protocol, RContext.log);
+            _connection.SetOpProcessor(new ProcessMessagesOpenConnection(this));
         }
 
         // Received an OpenSession from a Basil client.
         // Connect it to the other layers.
-        private async void StartConnection(BasilConnection pConnection, OSAuthToken pServiceAuth) {
-            try {
-                // Create the Circuit and ScenePresence for the user
-                CreateOpenSimPresence(pServiceAuth);
+        protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pServiceAuth) {
+            Task.Run(async () => {
+                try {
+                    // Create the Circuit and ScenePresence for the user
+                    CreateOpenSimPresence(pServiceAuth);
 
-                _context.log.Debug("{0} HandleBasilConnection", _logHeader);
+                    RContext.log.Debug("{0} HandleBasilConnection", _logHeader);
 
-                // Invite the client to connect to the interesting layers.
-                // Static
-                WaitingInfo waiting = new WaitingInfo();
-                this._context.waitingForMakeConnection.Add(waiting.incomingAuth.Token, waiting);
-                ParamBlock pp = _context.SpaceServerStaticService.ParamsForMakeConnection(waiting.incomingAuth);
-                await pConnection.MakeConnection(pp);
-                // Actors
-                waiting = new WaitingInfo();
-                this._context.waitingForMakeConnection.Add(waiting.incomingAuth.Token, waiting);
-                pp = _context.SpaceServerActorsService.ParamsForMakeConnection(waiting.incomingAuth);
-                await pConnection.MakeConnection(pp);
-                // Dynamic
-                waiting = new WaitingInfo();
-                this._context.waitingForMakeConnection.Add(waiting.incomingAuth.Token, waiting);
-                pp = _context.SpaceServerDynamicService.ParamsForMakeConnection(waiting.incomingAuth);
-                await pConnection.MakeConnection(pp);
+                    // Invite the client to connect to the interesting layers.
+                    // Static
+                    WaitingInfo waiting = new WaitingInfo();
+                    RContext.waitingForMakeConnection.Add(waiting.incomingAuth.Token, waiting);
+                    ParamBlock pp = RContext.SpaceServerStaticService.ParamsForMakeConnection(
+                                        RContext.HostnameForExternalAccess, waiting.incomingAuth);
+                    await pConnection.MakeConnection(pp);
+                    // Actors
+                    waiting = new WaitingInfo();
+                    RContext.waitingForMakeConnection.Add(waiting.incomingAuth.Token, waiting);
+                    pp = RContext.SpaceServerActorsService.ParamsForMakeConnection(
+                                        RContext.HostnameForExternalAccess, waiting.incomingAuth);
+                    await pConnection.MakeConnection(pp);
+                    // Dynamic
+                    waiting = new WaitingInfo();
+                    RContext.waitingForMakeConnection.Add(waiting.incomingAuth.Token, waiting);
+                    pp = RContext.SpaceServerDynamicService.ParamsForMakeConnection(
+                                        RContext.HostnameForExternalAccess, waiting.incomingAuth);
+                    await pConnection.MakeConnection(pp);
 
-            }
-            catch (Exception e) {
-                _context.log.Error("{0} HandleBasilConnection. Exception connecting Basil to layers: {1}", _logHeader, e);
-            }
+                }
+                catch (Exception e) {
+                    RContext.log.Error("{0} HandleBasilConnection. Exception connecting Basil to layers: {1}", _logHeader, e);
+                }
+            });
         }
 
-        bool ValidateLoginAuth(OSAuthToken pUserAuth) {
+        // The OpenSession request to the command/control SpaceServer has an authoriztion for the hosting
+        // region. The OSAuthToken should contain a bunch of information from the user login.
+        protected override bool ValidateLoginAuth(OSAuthToken pUserAuth) {
             bool isAuthorized = false;
-            if (_context.parms.ShouldEnforceUserAuth) {
+            if (RContext.parms.ShouldEnforceUserAuth) {
                 try {
                     string agentId = pUserAuth.GetProperty("AgentId");
                     OMV.UUID agentUUID = OMV.UUID.Parse(agentId);
                     OMV.UUID sessionID = OMV.UUID.Parse(pUserAuth.GetProperty("SessionID"));
                     OMV.UUID secureSessionID = OMV.UUID.Parse(pUserAuth.GetProperty("SSID"));
                     uint circuitCode = UInt32.Parse(pUserAuth.GetProperty("CC"));
-                    // _context.log.DebugFormat("{0} ValidateLoginAuth: agentUUID={1}, sessionID={2}, secureSessionID={3}, circuitCode={4}",
+                    // RContext.log.DebugFormat("{0} ValidateLoginAuth: agentUUID={1}, sessionID={2}, secureSessionID={3}, circuitCode={4}",
                     //             _logHeader, agentUUID, sessionID, secureSessionID, circuitCode);
 
-                    AgentCircuitData acd = _context.scene.AuthenticateHandler.GetAgentCircuitData(agentUUID);
+                    AgentCircuitData acd = RContext.scene.AuthenticateHandler.GetAgentCircuitData(agentUUID);
                     if (acd != null) {
                         if (acd.circuitcode == circuitCode) {
                             if (acd.SessionID == sessionID) {
@@ -188,23 +159,23 @@ namespace org.herbal3d.Ragu {
                                     isAuthorized = true;
                                 }
                                 else {
-                                    _context.log.Debug("{0} ValidateUserAuth: Failed secureSessionID test. AgentId={1}",
+                                    RContext.log.Debug("{0} ValidateUserAuth: Failed secureSessionID test. AgentId={1}",
                                                 _logHeader, agentId);
                                 }
                             }
                             else {
-                                _context.log.Debug("{0} ValidateUserAuth: Failed sessionId test. AgentId={1}",
+                                RContext.log.Debug("{0} ValidateUserAuth: Failed sessionId test. AgentId={1}",
                                             _logHeader, agentId);
                             }
                         }
                         else {
-                            _context.log.Debug("{0} ValidateUserAuth: Failed circuitCode test. AgentId={1}",
+                            RContext.log.Debug("{0} ValidateUserAuth: Failed circuitCode test. AgentId={1}",
                                         _logHeader, agentId);
                         }
                     }
                 }
                 catch (Exception e) {
-                    _context.log.Error("{0} ValidateUserAuth: exception authorizing: {1}",
+                    RContext.log.Error("{0} ValidateUserAuth: exception authorizing: {1}",
                                 _logHeader, e);
                     isAuthorized = false;
                 }
@@ -233,7 +204,7 @@ namespace org.herbal3d.Ragu {
             uint circuitCode = UInt32.Parse(pUserAuth.GetProperty("CC"));
 
             // The login operation created the initial circuit
-            AgentCircuitData acd = _context.scene.AuthenticateHandler.GetAgentCircuitData(agentUUID);
+            AgentCircuitData acd = RContext.scene.AuthenticateHandler.GetAgentCircuitData(agentUUID);
 
             if (acd != null) {
                 if (acd.SessionID == sessionUUID) {
@@ -242,29 +213,29 @@ namespace org.herbal3d.Ragu {
                                                     acd.startpos,   /* initial position */
                                                     OMV.UUID.Zero,  /* owner */
                                                     true,           /* senseAsAgent */
-                                                    _context.scene,
+                                                    RContext.scene,
                                                     acd.circuitcode);
                     // Start the client by adding it to the scene and doing event subscriptions
                     thisPerson.Start();
 
                     // Get the ScenePresence just to make sure we can
-                    if (_context.scene.TryGetScenePresence(agentUUID, out ScenePresence sp)) {
-                        _context.log.Debug("{0} Successful login for {1} {2} ({3})",
+                    if (RContext.scene.TryGetScenePresence(agentUUID, out ScenePresence sp)) {
+                        RContext.log.Debug("{0} Successful login for {1} {2} ({3})",
                                     _logHeader, firstName, lastName, agentId);
                         ret = true;
                     }
                     else {
-                        _context.log.Error("{0} Failed to create ScenePresence for {1} {2} ({3})",
+                        RContext.log.Error("{0} Failed to create ScenePresence for {1} {2} ({3})",
                                     _logHeader, firstName, lastName, agentId);
                     }
                 }
                 else {
-                    _context.log.Error("{0} CreateOpenSimPresence: AgentCircuitData does not match SessionID. AgentID={1}",
+                    RContext.log.Error("{0} CreateOpenSimPresence: AgentCircuitData does not match SessionID. AgentID={1}",
                             _logHeader, agentId);
                 }
             }
             else {
-                _context.log.Error("{0} CreateOpenSimPresence: presence was not created. AgentID={1}",
+                RContext.log.Error("{0} CreateOpenSimPresence: presence was not created. AgentID={1}",
                             _logHeader, agentId);
             }
 

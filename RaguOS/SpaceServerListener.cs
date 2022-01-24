@@ -35,9 +35,8 @@ namespace org.herbal3d.Ragu {
         string _spaceServerType;
         CreateSpaceServerProcessor _creator;
 
-        string _transport;
-        string _connectionURL;
         string _protocol;
+        BTransportParams[] _transportParams;
 
         // Listen for a connection and call the passed SpaceServer creater when a connection is made.
         // This canceller is for the whole service. A new one is created for the connection.
@@ -45,36 +44,29 @@ namespace org.herbal3d.Ragu {
                         CreateSpaceServerProcessor processor,
                         CancellationTokenSource canceller,
                         BLogger logger,
-                        string connectionURL,
-                        string protocol = "Basil-JSON",
-                        string transport = "WS",
-                        string layer = "Layer",
-                        bool isSecure = false,
-                        string secureConnectionURL = "",
-                        string certificate = "",
-                        bool disableNaglesAlgorithm = false
+                        BTransportParams[] transportParams,
+                        string layer = "Layer"
             ) {
 
             _log = logger;
             _creator = processor;
-            _transport = transport;
-            _connectionURL = connectionURL;
-            _protocol = protocol;
+            _transportParams = transportParams;
 
             // For the moment, we assume there is only the WS transport.
             // Eventually, the parameters will specifiy multiple transports
             //    and this routine will open several listeners.
 
+            foreach (var xportParam in transportParams) {
+                if (xportParam is BTransportWSParams) {
+                    BTransportWS.ConnectionListener(
+                        param: xportParam as BTransportWSParams,
+                        logger: logger,
+                        connectionProcessor: (pTrans, pCan) => _creator(pTrans, pCan),
+                        cancellerSource: canceller
+                    );
+                }
+            }
             // start listening and call SpaceServer creator when a connection is made
-            BTransportWS.ConnectionListener(
-                connectionURL: connectionURL,
-                isSecure: isSecure,
-                secureConnectionURL: secureConnectionURL,
-                certificate: certificate,
-                logger: logger,
-                connectionProcessor: (pTrans, pCan) => _creator(pTrans, pCan),
-                cancellerSource: canceller,
-                disableNaglesAlgorithm: disableNaglesAlgorithm);
 
         }
 
@@ -87,15 +79,16 @@ namespace org.herbal3d.Ragu {
          * @returns either ParamBlock of MakeConnection parameters or null if not
          *    to make a connection for this SpaceServer.
          */
-        public virtual ParamBlock ParamsForMakeConnection(OSAuthToken pServiceAuth) {
+        public virtual ParamBlock ParamsForMakeConnection(string pExternalHostname, OSAuthToken pServiceAuth) {
+            
+            BTransportParams parms = _transportParams.Where(pp => pp.preferred).First();
             return new ParamBlock(new Dictionary<string, object>() {
-                { "transport",    _transport },
-                { "transportURL", _connectionURL },
-                { "protocol",     _protocol },
+                { "transport",    parms.transport },
+                { "transportURL", parms.ExternalURL(pExternalHostname) },
+                { "protocol",     parms.protocol },
                 { "service",      "SpaceServer" },
                 { "serviceAuth",   pServiceAuth.Token }
             });
         }
-
     }
 }

@@ -24,23 +24,6 @@ using OMV = OpenMetaverse;
 
 namespace org.herbal3d.Ragu {
 
-    // Processor of incoming messages when we're waiting for the OpenSession.
-    class ProcessDynamicOpenConnection : IncomingMessageProcessor {
-        SpaceServerStatic _ssContext;
-        public ProcessDynamicOpenConnection(SpaceServerStatic pContext) : base(pContext) {
-            _ssContext = pContext;
-        }
-        public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
-            if (pMsg.Op == (uint)BMessageOps.OpenSessionReq) {
-                _ssContext.ProcessOpenSessionReq(pMsg, pConnection, pProtocol);
-            }
-            else {
-                BMessage resp = BasilConnection.MakeResponse(pMsg);
-                resp.Exception = "Session is not open. Static";
-                pProtocol.Send(resp);
-            }
-        }
-    }
     class ProcessDynamicIncomingMessages : IncomingMessageProcessor {
         SpaceServerDynamic _ssContext;
         public ProcessDynamicIncomingMessages(SpaceServerDynamic pContext) : base(pContext) {
@@ -68,12 +51,16 @@ namespace org.herbal3d.Ragu {
         //     for each of the incoming connections
         public static SpaceServerListener SpaceServerDynamicService(RaguContext pRContext, CancellationTokenSource pCanceller) {
             return new SpaceServerListener(
-                connectionURL:          pRContext.parms.SpaceServerDynamic_ConnectionURL,
+                transportParams: new BTransportParams[] {
+                    new BTransportWSParams() {
+                        preferred       = true,
+                        isSecure        = pRContext.parms.SpaceServerDynamic_IsSecure,
+                        port            = pRContext.parms.SpaceServerDynamic_WSConnectionPort,
+                        certificate     = pRContext.parms.SpaceServerDynamic_WSCertificate,
+                        disableNaglesAlgorithm = pRContext.parms.SpaceServerDynamic_DisableNaglesAlgorithm
+                    }
+                },
                 layer:                  SpaceServerActors.StaticLayerType,
-                isSecure:               pRContext.parms.SpaceServerDynamic_IsSecure,
-                secureConnectionURL:    pRContext.parms.SpaceServerDynamic_SecureConnectionURL,
-                certificate:            pRContext.parms.SpaceServerDynamic_Certificate,
-                disableNaglesAlgorithm: pRContext.parms.SpaceServerDynamic_DisableNaglesAlgorithm,
                 canceller:              pCanceller,
                 logger:                 pRContext.log,
                 // This method is called when the listener receives a connection but before any
@@ -88,73 +75,19 @@ namespace org.herbal3d.Ragu {
 
         public SpaceServerDynamic(RaguContext pContext, CancellationTokenSource pCanceller, BTransport pTransport) 
                         : base(pContext, pCanceller, pTransport) {
-            _rContext = pContext;
             LayerType = StaticLayerType;
-        }
-        public void ProcessOpenSessionReq(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
-            string errorReason = "";
-            // Get the login information from the OpenConnection
-            if (pMsg.IProps.TryGetValue("clientAuth", out string clientAuthToken)) {
-                if (pMsg.IProps.TryGetValue("Auth", out string serviceAuth)) {
-                    // have the info to try and log the user in
-                    OSAuthToken loginAuth = OSAuthToken.FromString(serviceAuth);
-                    if (ValidateLoginAuth(loginAuth)) {
-                        // The user checks out so construct the success response
-                        OSAuthToken incomingAuth = new OSAuthToken();
-                        OSAuthToken outgoingAuth = OSAuthToken.FromString(clientAuthToken);
-                        pConnection.SetAuthorizations(incomingAuth, outgoingAuth);
 
-                        // We also have a full command processor
-                        pConnection.SetOpProcessor(new ProcessDynamicIncomingMessages(this));
+            // The protocol for the initial OpenSession is always JSON
+            _protocol = new BProtocolJSON(null, _transport, _rContext.log);
 
-                        BMessage resp = BasilConnection.MakeResponse(pMsg);
-                        resp.IProps.Add("ServerVersion", _context.ServerVersion);
-                        resp.IProps.Add("ServerAuth", incomingAuth.Token);
-                        pConnection.Send(resp);
-
-                        // Send the static region information to the user
-                        Task.Run(() => {
-                            StartConnection(pConnection, loginAuth);
-                        });
-                    }
-                    else {
-                        errorReason = "Login credentials not valid";
-                    }
-                }
-                else {
-                    errorReason = "Login credentials not supplied (serviceAuth)";
-                }
-            }
-            else {
-                errorReason = "Connection auth not supplied (clientAuth)";
-            }
-
-            // If an error happened, return error response
-            if (errorReason.Length > 0) {
-                BMessage resp = BasilConnection.MakeResponse(pMsg);
-                resp.Exception = errorReason;
-                pConnection.Send(resp);
-            }
+            // Expect BMessages and set up messsage processor to handle initial OpenSession
+            _connection = new BasilConnection(_protocol, RContext.log);
+            _connection.SetOpProcessor(new ProcessMessagesOpenConnection(this));
         }
 
-        private bool ValidateLoginAuth(OSAuthToken pUserAuth) {
-            bool ret = false;
-            string auth = pUserAuth.Token;
-            lock (_context.waitingForMakeConnection) {
-                if (_context.waitingForMakeConnection.TryGetValue(auth, out WaitingInfo waitingInfo)) {
-                    _context.log.Debug("{0}: login auth successful. Waited {1} seconds", _logHeader,
-                        (DateTime.Now - waitingInfo.whenCreated).TotalSeconds);
-                    _context.waitingForMakeConnection.Remove(auth);
-                    ret = true;
-                }
-                else {
-                    _context.log.Debug("{0}: login auth unsuccessful. Token: {1}", _logHeader, auth);
-                }
-            }
-            return ret;
-        }
-
-        private void StartConnection(BasilConnection pConnection, OSAuthToken pUserAuth) {
+        protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pServiceAuth) {
+            // We also have a full command processor
+            pConnection.SetOpProcessor(new ProcessDynamicIncomingMessages(this));
             return;
         }
 

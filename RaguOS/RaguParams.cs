@@ -61,55 +61,48 @@ namespace org.herbal3d.Ragu {
 
         [ConfigParam(name: "SpaceServerCC_IsSecure", valueType: typeof(bool), desc: "Whether to accept only secure connections")]
         public bool SpaceServerCC_IsSecure = false;
-        [ConfigParam(name: "SpaceServerCC_SecureConnectionURL", valueType: typeof(string), desc: "URL to use to create inbound connection")]
-        public string SpaceServerCC_SecureConnectionURL = "wss://0.0.0.0:11440";
-        [ConfigParam(name: "SpaceServerCC_Certificate", valueType: typeof(string), desc: "Certificate to accept for secure inbound connection")]
-        public string SpaceServerCC_Certificate = null;
-        [ConfigParam(name: "SpaceServerCC_WebSocketPort", valueType: typeof(int), desc: "Port to open for inbound connection")]
-        public int SpaceServerCC_WebSocketPort = 11440;
-        [ConfigParam(name: "SpaceServerCC_ConnectionURL", valueType: typeof(string), desc: "URL to use to create inbound connection")]
-        public string SpaceServerCC_ConnectionURL = "ws://0.0.0.0:11440";
+        [ConfigParam(name: "SpaceServerCC_WSConnectionHost", valueType: typeof(string), desc: "Host to use when making WS connection")]
+        public string SpaceServerCC_WSConnectionHost = "0.0.0.0";
+        [ConfigParam(name: "SpaceServerCC_WSConnectionPort", valueType: typeof(int), desc: "Port for incoming WS connection")]
+        public int SpaceServerCC_WSConnectionPort = 11440;
+        [ConfigParam(name: "SpaceServerCC_WSCertificate", valueType: typeof(string), desc: "Certificate to accept for secure inbound connection")]
+        public string SpaceServerCC_WSCertificate = null;
         [ConfigParam(name: "SpaceServerCC_DisableNaglesAlgorithm", valueType: typeof(bool), desc: "Whether to enable/disable outbound delay")]
         public bool SpaceServerCC_DisableNaglesAlgorithm = true;
 
         [ConfigParam(name: "SpaceServerStatic_IsSecure", valueType: typeof(bool), desc: "Whether to accept only secure connections")]
         public bool SpaceServerStatic_IsSecure = false;
-        [ConfigParam(name: "SpaceServerStatic_SecureConnectionURL", valueType: typeof(string), desc: "URL to use to create inbound connection")]
-        public string SpaceServerStatic_SecureConnectionURL = "wss://0.0.0.0:11441";
-        [ConfigParam(name: "SpaceServerStatic_Certificate", valueType: typeof(string), desc: "Certificate to accept for secure inbound connection")]
-        public string SpaceServerStatic_Certificate = null;
-        [ConfigParam(name: "SpaceServerStatic_WebSocketPort", valueType: typeof(int), desc: "Port to open for inbound connection")]
-        public int SpaceServerStatic_WebSocketPort = 11441;
-        [ConfigParam(name: "SpaceServerStatic_ConnectionURL", valueType: typeof(string), desc: "URL to use to create inbound connection")]
-        public string SpaceServerStatic_ConnectionURL = "ws://0.0.0.0:11441";
+        [ConfigParam(name: "SpaceServerStatic_WSConnectionHost", valueType: typeof(string), desc: "Host to use when making WS connection")]
+        public string SpaceServerStatic_WSConnectionHost = "0.0.0.0";
+        [ConfigParam(name: "SpaceServerStatic_WSConnectionPort", valueType: typeof(int), desc: "Port for incoming WS connection")]
+        public int SpaceServerStatic_WSConnectionPort = 11441;
+        [ConfigParam(name: "SpaceServerStatic_WSCertificate", valueType: typeof(string), desc: "Certificate to accept for secure inbound connection")]
+        public string SpaceServerStatic_WSCertificate = null;
         [ConfigParam(name: "SpaceServerStatic_DisableNaglesAlgorithm", valueType: typeof(bool), desc: "Whether to enable/disable outbound delay")]
         public bool SpaceServerStatic_DisableNaglesAlgorithm = true;
 
         [ConfigParam(name: "SpaceServerActors_IsSecure", valueType: typeof(bool), desc: "Whether to accept only secure connections")]
         public bool SpaceServerActors_IsSecure = false;
-        [ConfigParam(name: "SpaceServerActors_SecureConnectionURL", valueType: typeof(string), desc: "URL to use to create inbound connection")]
-        public string SpaceServerActors_SecureConnectionURL = "wss://0.0.0.0:11442";
-        [ConfigParam(name: "SpaceServerActors_Certificate", valueType: typeof(string), desc: "Certificate to accept for secure inbound connection")]
-        public string SpaceServerActors_Certificate = null;
-        [ConfigParam(name: "SpaceServerActors_WebSocketPort", valueType: typeof(int), desc: "Port to open for inbound connection")]
-        public int SpaceServerActors_WebSocketPort = 11442;
-        [ConfigParam(name: "SpaceServerActors_ConnectionURL", valueType: typeof(string), desc: "URL to use to create inbound connection")]
-        public string SpaceServerActors_ConnectionURL = "ws://0.0.0.0:11442";
+        [ConfigParam(name: "SpaceServerActors_WSConnectionHost", valueType: typeof(string), desc: "Host to use when making WS connection")]
+        public string SpaceServerActors_WSConnectionHost = "0.0.0.0";
+        [ConfigParam(name: "SpaceServerActors_WSConnectionPort", valueType: typeof(int), desc: "Port for incoming WS connection")]
+        public int SpaceServerActors_WSConnectionPort = 11442;
+        [ConfigParam(name: "SpaceServerActors_WSCertificate", valueType: typeof(string), desc: "Certificate to accept for secure inbound connection")]
+        public string SpaceServerActors_WSCertificate = null;
         [ConfigParam(name: "SpaceServerActors_DisableNaglesAlgorithm", valueType: typeof(bool), desc: "Whether to enable/disable outbound delay")]
         public bool SpaceServerActors_DisableNaglesAlgorithm = true;
 
         [ConfigParam(name: "SpaceServerDynamic_IsSecure", valueType: typeof(bool), desc: "Whether to accept only secure connections")]
         public bool SpaceServerDynamic_IsSecure = false;
-        [ConfigParam(name: "SpaceServerDynamic_SecureConnectionURL", valueType: typeof(string), desc: "URL to use to create inbound connection")]
-        public string SpaceServerDynamic_SecureConnectionURL = "wss://0.0.0.0:11443";
-        [ConfigParam(name: "SpaceServerDynamic_Certificate", valueType: typeof(string), desc: "Certificate to accept for secure inbound connection")]
-        public string SpaceServerDynamic_Certificate = null;
-        [ConfigParam(name: "SpaceServerDynamic_WebSocketPort", valueType: typeof(int), desc: "Port to open for inbound connection")]
-        public int SpaceServerDynamic_WebSocketPort = 11443;
-        [ConfigParam(name: "SpaceServerDynamic_ConnectionURL", valueType: typeof(string), desc: "URL to use to create inbound connection")]
-        public string SpaceServerDynamic_ConnectionURL = "ws://0.0.0.0:11443";
+        [ConfigParam(name: "SpaceServerDynamic_WSConnectionHost", valueType: typeof(string), desc: "Host to use when making WS connection")]
+        public string SpaceServerDynamic_WSConnectionHost = "0.0.0.0";
+        [ConfigParam(name: "SpaceServerDynamic_WSConnectionPort", valueType: typeof(int), desc: "Port for incoming WS connection")]
+        public int SpaceServerDynamic_WSConnectionPort = 11443;
+        [ConfigParam(name: "SpaceServerDynamic_WSCertificate", valueType: typeof(string), desc: "Certificate to accept for secure inbound connection")]
+        public string SpaceServerDynamic_WSCertificate = null;
         [ConfigParam(name: "SpaceServerDynamic_DisableNaglesAlgorithm", valueType: typeof(bool), desc: "Whether to enable/disable outbound delay")]
         public bool SpaceServerDynamic_DisableNaglesAlgorithm = true;
+
 
         [ConfigParam(name: "OutputDir", valueType: typeof(string), desc: "Base directory for Loden asset storage")]
         public string OutputDir = "./LodenAssets";
