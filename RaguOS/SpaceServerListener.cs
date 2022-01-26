@@ -32,10 +32,8 @@ namespace org.herbal3d.Ragu {
      */
     public class SpaceServerListener {
         BLogger _log;
-        string _spaceServerType;
         CreateSpaceServerProcessor _creator;
 
-        string _protocol;
         BTransportParams[] _transportParams;
 
         // Listen for a connection and call the passed SpaceServer creater when a connection is made.
@@ -79,16 +77,16 @@ namespace org.herbal3d.Ragu {
          * @returns either ParamBlock of MakeConnection parameters or null if not
          *    to make a connection for this SpaceServer.
          */
-        public virtual ParamBlock ParamsForMakeConnection(string pExternalHostname, OSAuthToken pServiceAuth) {
+        public virtual Dictionary<string,string> ParamsForMakeConnection(string pExternalHostname, OSAuthToken pServiceAuth) {
             
             BTransportParams parms = _transportParams.Where(pp => pp.preferred).First();
-            return new ParamBlock(new Dictionary<string, object>() {
+            return new Dictionary<string, string>() {
                 { "transport",    parms.transport },
                 { "transportURL", parms.ExternalURL(pExternalHostname) },
                 { "protocol",     parms.protocol },
                 { "service",      "SpaceServer" },
-                { "serviceAuth",   pServiceAuth.Token }
-            });
+                { "serviceAuth",  pServiceAuth.Token }
+            };
         }
     }
 }

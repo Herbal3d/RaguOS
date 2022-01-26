@@ -98,37 +98,36 @@ namespace org.herbal3d.Ragu {
             // Expect BMessages and set up messsage processor to handle initial OpenSession
             _connection = new BasilConnection(_protocol, RContext.log);
             _connection.SetOpProcessor(new ProcessMessagesOpenConnection(this));
+            _connection.Start();
         }
 
         // Received an OpenSession from a Basil client.
         // Connect it to the other layers.
-        protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pServiceAuth) {
-            Task.Run(async () => {
+        protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pLoginAuth) {
+            _ = Task.Run(async () => {
                 try {
                     // Create the Circuit and ScenePresence for the user
-                    CreateOpenSimPresence(pServiceAuth);
-
-                    RContext.log.Debug("{0} HandleBasilConnection", _logHeader);
+                    CreateOpenSimPresence(pLoginAuth);
 
                     // Invite the client to connect to the interesting layers.
+
                     // Static
-                    WaitingInfo waiting = new WaitingInfo();
-                    RContext.waitingForMakeConnection.Add(waiting.incomingAuth.Token, waiting);
-                    ParamBlock pp = RContext.SpaceServerStaticService.ParamsForMakeConnection(
+                    WaitingInfo waiting = RememberWaitingForOpenSession();
+                    var pp = RContext.SpaceServerStaticService.ParamsForMakeConnection(
                                         RContext.HostnameForExternalAccess, waiting.incomingAuth);
-                    await pConnection.MakeConnection(pp);
+                    _ = pConnection.MakeConnection(pp);
+
                     // Actors
-                    waiting = new WaitingInfo();
-                    RContext.waitingForMakeConnection.Add(waiting.incomingAuth.Token, waiting);
+                    waiting = RememberWaitingForOpenSession();
                     pp = RContext.SpaceServerActorsService.ParamsForMakeConnection(
                                         RContext.HostnameForExternalAccess, waiting.incomingAuth);
-                    await pConnection.MakeConnection(pp);
+                    _ = pConnection.MakeConnection(pp);
+
                     // Dynamic
-                    waiting = new WaitingInfo();
-                    RContext.waitingForMakeConnection.Add(waiting.incomingAuth.Token, waiting);
+                    waiting = RememberWaitingForOpenSession();
                     pp = RContext.SpaceServerDynamicService.ParamsForMakeConnection(
                                         RContext.HostnameForExternalAccess, waiting.incomingAuth);
-                    await pConnection.MakeConnection(pp);
+                    _ = pConnection.MakeConnection(pp);
 
                 }
                 catch (Exception e) {
@@ -148,7 +147,7 @@ namespace org.herbal3d.Ragu {
                     OMV.UUID sessionID = OMV.UUID.Parse(pUserAuth.GetProperty("SessionID"));
                     OMV.UUID secureSessionID = OMV.UUID.Parse(pUserAuth.GetProperty("SSID"));
                     uint circuitCode = UInt32.Parse(pUserAuth.GetProperty("CC"));
-                    // RContext.log.DebugFormat("{0} ValidateLoginAuth: agentUUID={1}, sessionID={2}, secureSessionID={3}, circuitCode={4}",
+                    // RContext.log.Debug("{0} ValidateLoginAuth: agentUUID={1}, sessionID={2}, secureSessionID={3}, circuitCode={4}",
                     //             _logHeader, agentUUID, sessionID, secureSessionID, circuitCode);
 
                     AgentCircuitData acd = RContext.scene.AuthenticateHandler.GetAgentCircuitData(agentUUID);

@@ -48,19 +48,21 @@ namespace org.herbal3d.Ragu {
             string errorReason = "";
             // Get the login information from the OpenConnection
             if (pMsg.IProps.TryGetValue("clientAuth", out string clientAuthToken)) {
-                string serviceAuth = pMsg.Auth;
-                if (serviceAuth != null) {
-                    // have the info to try and log the user in
-                    OSAuthToken loginAuth = OSAuthToken.FromString(serviceAuth);
-                    if (ValidateLoginAuth(loginAuth)) {
-                        // The user checks out so construct the success response
-                        OSAuthToken incomingAuth = new OSAuthToken();
-                        OSAuthToken outgoingAuth = OSAuthToken.FromString(clientAuthToken);
-                        pConnection.SetAuthorizations(incomingAuth, outgoingAuth);
+                string incomingAuthString = pMsg.Auth;
+                if (incomingAuthString != null) {
+                    OSAuthToken loginAuth = OSAuthToken.FromString(incomingAuthString);
 
+                    OSAuthToken incomingAuth = new OSAuthToken();
+                    OSAuthToken outgoingAuth = OSAuthToken.FromString(clientAuthToken);
+                    pConnection.SetAuthorizations(incomingAuth, outgoingAuth);
+
+                    // have the info to try and log the user in
+                    if (ValidateLoginAuth(loginAuth)) {
+
+                        // The user checks out so construct the success response
                         BMessage resp = BasilConnection.MakeResponse(pMsg);
-                        resp.IProps.Add("ServerVersion", RContext.ServerVersion);
-                        resp.IProps.Add("ServerAuth", incomingAuth.Token);
+                        resp.IProps.Add("serverVersion", RContext.ServerVersion);
+                        resp.IProps.Add("serviceAuth", incomingAuth.Token);
                         pConnection.Send(resp);
 
                         OpenSessionProcessing(pConnection, loginAuth);
@@ -92,8 +94,8 @@ namespace org.herbal3d.Ragu {
             string auth = pUserAuth.Token;
             lock (RContext.waitingForMakeConnection) {
                 if (RContext.waitingForMakeConnection.TryGetValue(auth, out WaitingInfo waitingInfo)) {
-                    RContext.log.Debug("{0}: login auth successful. Waited {1} seconds", _logHeader,
-                        (DateTime.Now - waitingInfo.whenCreated).TotalSeconds);
+                    // RContext.log.Debug("{0}: login auth successful. Waited {1} seconds", _logHeader,
+                    //     (DateTime.Now - waitingInfo.whenCreated).TotalSeconds);
                     RContext.waitingForMakeConnection.Remove(auth);
                     ret = true;
                 }
@@ -104,8 +106,19 @@ namespace org.herbal3d.Ragu {
             return ret;
         }
 
-        protected abstract void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pLoginAuth);
+        // WHen sending an OpenSession, this remembers the credentials of the request
+        //     so the response can be validated.
+        protected WaitingInfo RememberWaitingForOpenSession() {
+            WaitingInfo waiting = new WaitingInfo();
+            lock (RContext.waitingForMakeConnection) {
+                RContext.waitingForMakeConnection.Add(waiting.incomingAuth.Token, waiting);
+                // RContext.log.Debug("SpaceServerBase.RememberWaitingForOpenSession: itoken={0}", waiting.incomingAuth.Token);
+            }
+            return waiting;
+        }
 
+        // Called when OpenSession is received to do any SpaceServer specific processing
+        protected abstract void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pLoginAuth);
 
     }
     // A message processor for SpaceServer's while they are waiting for an OpenConnection.
@@ -115,9 +128,10 @@ namespace org.herbal3d.Ragu {
         SpaceServerBase _ssContext;
         public ProcessMessagesOpenConnection(SpaceServerBase pContext) : base(pContext) {
             _ssContext = pContext;
+            // _ssContext.RContext.log.Debug("SpaceServerBase.ProcessMessageOpenConnection: new. Server type = {0}", _ssContext.LayerType);
         }
         public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
-            _ssContext.RContext.log.Debug("SpaceServerBase.ProcessMessageOpenConnection: mgs received. Server type = {0}", _ssContext.LayerType);
+            // _ssContext.RContext.log.Debug("SpaceServerBase.ProcessMessageOpenConnection: mgs received. Server type = {0}", _ssContext.LayerType);
             switch (pMsg.Op) {
                 case (uint)BMessageOps.OpenSessionReq:
                     _ssContext.ProcessOpenSessionReq(pMsg, pConnection, pProtocol);

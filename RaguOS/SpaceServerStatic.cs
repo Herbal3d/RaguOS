@@ -70,6 +70,7 @@ namespace org.herbal3d.Ragu {
                 // This method is called when the listener receives a connection but before any
                 //     messsages have been exchanged.
                 processor: (pTransport, pCancellerP) => {
+                    // pRContext.log.Debug("SpaceServerStaticService: creating new SpaceServerStatic");
                     return new SpaceServerStatic(pRContext, pCancellerP, pTransport);
                 }
             );
@@ -85,6 +86,7 @@ namespace org.herbal3d.Ragu {
             // Expect BMessages and set up messsage processor to handle initial OpenSession
             _connection = new BasilConnection(_protocol, RContext.log);
             _connection.SetOpProcessor(new ProcessMessagesOpenConnection(this));
+            _connection.Start();
         }
 
         protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken loginAuth) {
@@ -107,7 +109,7 @@ namespace org.herbal3d.Ragu {
 
                 /* TODO:
                 // Get region tile definition
-                LodenRegion lodenRegion = _rContext.scene.RequestModuleInterface<LodenRegion>();
+                LodenRegion lodenRegion = RContext.scene.RequestModuleInterface<LodenRegion>();
                 string regionSpecURL = RaguAssetService.Instance.CreateAccessURL(lodenRegion.RegionTopLevelSpecURL);
 
                 // Get the top level description of the region
@@ -121,13 +123,13 @@ namespace org.herbal3d.Ragu {
                     }
                 }
                 catch (Exception e) {
-                    _rContext.log.Error("{0} HandleBasilConnection: Failure reading region spec '{1}': {2}",
+                    RContext.log.Error("{0} HandleBasilConnection: Failure reading region spec '{1}': {2}",
                                     _logHeader, regionSpecURL, e);
                     // There is nothing more we can do
                     return;
                 }
                 if (regionSpec == null) {
-                    _rContext.log.Error("{0} HandleBasilConnection: Could not read regionSpec", _logHeader);
+                    RContext.log.Error("{0} HandleBasilConnection: Could not read regionSpec", _logHeader);
                     return;
                 }
 
@@ -167,7 +169,7 @@ namespace org.herbal3d.Ragu {
                     resp = await Client.CreateItemAsync(props, abilities);
                     BT.ItemId instanceId = new BT.ItemId(resp["ItemId"]);
 
-                    // _rContext.log.DebugFormat("{0} HandleBasilConnection: Created displayable {1} and instance {2}",
+                    // RContext.log.Debug("{0} HandleBasilConnection: Created displayable {1} and instance {2}",
                     //                 _logHeader, displayableId, instanceId);
                 });
                 */

@@ -71,18 +71,17 @@ namespace org.herbal3d.Ragu {
             );
         }
 
-        private RaguContext _rContext;
-
         public SpaceServerDynamic(RaguContext pContext, CancellationTokenSource pCanceller, BTransport pTransport) 
                         : base(pContext, pCanceller, pTransport) {
             LayerType = StaticLayerType;
 
             // The protocol for the initial OpenSession is always JSON
-            _protocol = new BProtocolJSON(null, _transport, _rContext.log);
+            _protocol = new BProtocolJSON(null, _transport, RContext.log);
 
             // Expect BMessages and set up messsage processor to handle initial OpenSession
             _connection = new BasilConnection(_protocol, RContext.log);
             _connection.SetOpProcessor(new ProcessMessagesOpenConnection(this));
+            _connection.Start();
         }
 
         protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pServiceAuth) {

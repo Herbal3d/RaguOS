@@ -39,6 +39,11 @@ namespace org.herbal3d.Ragu {
             outgoingAuth = new OSAuthToken();
             whenCreated = new DateTime();
         }
+        public WaitingInfo(OSAuthToken pIncomingAuth) {
+            incomingAuth = pIncomingAuth;
+            outgoingAuth = new OSAuthToken();
+            whenCreated = new DateTime();
+        }
     }
 
     // Class passed around for global context for this region module instance
