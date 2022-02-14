@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Robert Adams
+// Copyright (c) 2022 Robert Adams
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -107,7 +107,6 @@ namespace org.herbal3d.Ragu {
 #pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
             try {
 
-                /* TODO:
                 // Get region tile definition
                 LodenRegion lodenRegion = RContext.scene.RequestModuleInterface<LodenRegion>();
                 string regionSpecURL = RaguAssetService.Instance.CreateAccessURL(lodenRegion.RegionTopLevelSpecURL);
@@ -146,33 +145,26 @@ namespace org.herbal3d.Ragu {
 
                 // Tell the Basil server to load all of the region's contents
                 regionURIs.ForEach(async uri => {
-                    BT.Props props = new BT.Props();
-                    BT.AbilityList abilities = new BT.AbilityList {
-                        new BT.AbilityDisplayable() {
-                            DisplayableUrl = uri,
-                            AssetServiceType = "RAGU",
-                            DisplayableAuth = RaguAssetService.Instance.AccessToken.Token,
-                            DisplayableType = "meshset",
-                            LoaderType = "GLTF"
+                    AbilityList props = new AbilityList();
+                    props.Add(
+                        new AbilityAssembly() {
+                            AssetURL = uri,
+                            AssetAuth = RaguAssetService.Instance.AccessToken.Token,
+                            // AssetLoader = "GLTF"
+                            // AssetServiceType = "RAGU",
+                            // DisplayableType = "meshset",
                         }
-                    };
-                    BT.Props resp = await Client.CreateItemAsync(props, abilities);
-                    BT.ItemId displayableId = new BT.ItemId(resp["ItemId"]);
-
-                    props = new BT.Props();
-                    abilities = new BT.AbilityList {
-                        new BT.AbilityInstance() {
-                            DisplayableItemId = displayableId,
+                    );
+                    props.Add(new AbilityInstance() {
                             Pos = new double[] { 0, 0, 0 }
                         }
-                    };
-                    resp = await Client.CreateItemAsync(props, abilities);
-                    BT.ItemId instanceId = new BT.ItemId(resp["ItemId"]);
+                    );
+                    BMessage resp = await pConnection.CreateItem(props);
+                    string instanceId = AbilityBItem.GetId(resp);
 
-                    // RContext.log.Debug("{0} HandleBasilConnection: Created displayable {1} and instance {2}",
-                    //                 _logHeader, displayableId, instanceId);
+                    RContext.log.Debug("{0} HandleBasilConnection: Created instance {1}",
+                                    _logHeader, instanceId);
                 });
-                */
             }
             catch (Exception e) {
                 RContext.log.Error("{0} HandleBasilConnection. Exception connecting Basil to layers: {1}", _logHeader, e);

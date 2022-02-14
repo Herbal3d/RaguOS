@@ -77,10 +77,12 @@ namespace org.herbal3d.Ragu {
          * @returns either ParamBlock of MakeConnection parameters or null if not
          *    to make a connection for this SpaceServer.
          */
-        public virtual Dictionary<string,string> ParamsForMakeConnection(string pExternalHostname, OSAuthToken pServiceAuth) {
+        public virtual Dictionary<string,object> ParamsForMakeConnection(string pExternalHostname, OSAuthToken pServiceAuth) {
             
+            // Select the preferred transport for this service
             BTransportParams parms = _transportParams.Where(pp => pp.preferred).First();
-            return new Dictionary<string, string>() {
+            // Build the block of parameters needed for  the MakeConnection
+            return new Dictionary<string, object>() {
                 { "transport",    parms.transport },
                 { "transportURL", parms.ExternalURL(pExternalHostname) },
                 { "protocol",     parms.protocol },

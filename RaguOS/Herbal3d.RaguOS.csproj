@@ -73,6 +73,11 @@
     <Prefer32Bit>False</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Herbal3d.CommonUtil">
+      <Name>Herbal3d.CommonUtil</Name>
+      <Private>False</Private>
+      <HintPath>..\..\..\..\bin\Debug\netstandard2.0\Herbal3d.CommonUtilCS.dll</HintPath>
+    </Reference>
     <Reference Include="log4net">
       <Name>log4net</Name>
       <Private>False</Private>
@@ -133,12 +138,8 @@
       <Package>{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</Package>
       <Private>False</Private>
     </ProjectReference>
-    <ProjectReference Include="..\..\HerbalCommonUtilCS\Herbal3d.CommonUtil.csproj">
-      <Project>{562475fc-fc18-4e46-b5af-461754271efc}</Project>
-      <Name>Herbal3d.CommonUtil</Name>
-    </ProjectReference>
     <ProjectReference Include="..\..\HerbalTransportCS\Herbal3d.HerbalTransportCS.csproj">
-      <Project>{d28ae0aa-2b14-4a10-89e4-cb78d8e733c5}</Project>
+      <Project>{19e81fd4-ee2c-4ddd-a61d-ad1087c672ff}</Project>
       <Name>Herbal3d.HerbalTransportCS</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\Loden\Loden\Herbal3d.Loden.csproj">
@@ -197,7 +198,9 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="LoggerLog4Net.cs" />
+    <Compile Include="LoggerLog4Net.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="RaguAssetService.cs">
       <SubType>Code</SubType>
     </Compile>

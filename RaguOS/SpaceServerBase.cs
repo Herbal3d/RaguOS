@@ -47,13 +47,14 @@ namespace org.herbal3d.Ragu {
         public void ProcessOpenSessionReq(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
             string errorReason = "";
             // Get the login information from the OpenConnection
-            if (pMsg.IProps.TryGetValue("clientAuth", out string clientAuthToken)) {
+            OSAuthToken clientAuth = AbilityOpenSession.GetClientAuth(pMsg);
+            if (clientAuth != null) {
                 string incomingAuthString = pMsg.Auth;
                 if (incomingAuthString != null) {
                     OSAuthToken loginAuth = OSAuthToken.FromString(incomingAuthString);
 
                     OSAuthToken incomingAuth = new OSAuthToken();
-                    OSAuthToken outgoingAuth = OSAuthToken.FromString(clientAuthToken);
+                    OSAuthToken outgoingAuth = clientAuth;
                     pConnection.SetAuthorizations(incomingAuth, outgoingAuth);
 
                     // have the info to try and log the user in
@@ -61,8 +62,8 @@ namespace org.herbal3d.Ragu {
 
                         // The user checks out so construct the success response
                         BMessage resp = BasilConnection.MakeResponse(pMsg);
-                        resp.IProps.Add("serverVersion", RContext.ServerVersion);
-                        resp.IProps.Add("serviceAuth", incomingAuth.Token);
+                        resp.IProps.Add(AbilityOpenSession.ServerVersionProp, RContext.ServerVersion);
+                        resp.IProps.Add(AbilityOpenSession.ServerAuthProp, incomingAuth.Token);
                         pConnection.Send(resp);
 
                         OpenSessionProcessing(pConnection, loginAuth);
