@@ -73,11 +73,6 @@
     <Prefer32Bit>False</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Herbal3d.CommonUtil">
-      <Name>Herbal3d.CommonUtil</Name>
-      <Private>False</Private>
-      <HintPath>..\..\..\..\bin\Debug\netstandard2.0\Herbal3d.CommonUtilCS.dll</HintPath>
-    </Reference>
     <Reference Include="log4net">
       <Name>log4net</Name>
       <Private>False</Private>
@@ -137,6 +132,10 @@
       <Project>{CD57AD69-0000-0000-0000-000000000000}</Project>
       <Package>{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</Package>
       <Private>False</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\..\HerbalCommonUtilCS\Herbal3d.CommonUtil.csproj">
+      <Project>{08d33393-ff3a-434b-a885-08ad03dad1e6}</Project>
+      <Name>Herbal3d.CommonUtil</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\HerbalTransportCS\Herbal3d.HerbalTransportCS.csproj">
       <Project>{19e81fd4-ee2c-4ddd-a61d-ad1087c672ff}</Project>

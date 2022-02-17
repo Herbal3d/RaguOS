@@ -163,19 +163,19 @@ namespace org.herbal3d.Ragu {
             string[] segments = httpRequest.Url.Segments;
 
             bool authorized = false;
-            if (!_context.parms.ShouldEnforceAssetAccessAuthorization) {
+            if (_context.parms.ShouldEnforceAssetAccessAuthorization) {
                 // Check for 'Authorization' in the request header
                 NameValueCollection headers = httpRequest.Headers;
                 string authValue = headers.GetOne("Authorization");
                 if (authValue != null) {
-                    // _context.log.Debug("{0} Checking Authorization header", _logHeader);
+                    _context.log.Debug("{0} Checking Authorization header", _logHeader);
                     if (AccessToken != null && authValue == AccessToken.Token) {
-                        // _context.log.Debug("{0} Matched Authorization header. Auth={1}", _logHeader, authValue);
+                        _context.log.Debug("{0} Matched Authorization header. Auth={1}", _logHeader, authValue);
                         authorized = true;
                     }
-                    // else {
-                    //     _context.log.DebugFormat("{0} Failed Authorization header. Auth={1}", _logHeader, authValue);
-                    // }
+                    else {
+                        _context.log.Debug("{0} Failed Authorization header. Auth={1}", _logHeader, authValue);
+                    }
                 }
                 else {
                     // if no 'Authorization', see if an access token was embedded in the URL.
@@ -188,6 +188,7 @@ namespace org.herbal3d.Ragu {
                                 authValue = authValue.Substring(0, authValue.Length - 1);
                             }
                             if (authValue == AccessToken.Token) {
+                                _context.log.Debug("{0} Matched bearer-. Auth={1}", _logHeader, authValue);
                                 authorized = true;
                             }
                             break;
@@ -219,9 +220,11 @@ namespace org.herbal3d.Ragu {
                     httpResponse.ContentLength = assetLength;
                     httpResponse.ContentType = mimeType;
                     httpResponse.Body.Write(asset, 0, assetLength);
+                    _context.log.Debug("{0} Returning asset fn={1}", _logHeader, filename);
                 }
                 else {
                     httpResponse.StatusCode = (int)System.Net.HttpStatusCode.NotFound;
+                    _context.log.Debug("{0} Failed asset fetch. fn={1}", _logHeader, filename);
                 }
                 // Cross-Origin Resource Sharing with simple requests
                 httpResponse.AddHeader("Access-Control-Allow-Origin", "*");
