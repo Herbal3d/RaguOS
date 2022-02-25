@@ -160,7 +160,6 @@ namespace org.herbal3d.Ragu {
                             Pos = new double[] { 0, 0, 0 }
                         }
                     );
-                    RContext.log.Debug("{0}: CreateItem: props={1}", _logHeader, props.DumpProps());
                     BMessage resp = await pConnection.CreateItem(props);
                     string instanceId = AbilityBItem.GetId(resp);
 
