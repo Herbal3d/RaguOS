@@ -157,7 +157,7 @@ namespace org.herbal3d.Ragu {
                     );
                     props.Add(new AbilityInstance() {
                             RefItem = "SELF",
-                            Pos = new double[] { 0, 0, 0 }
+                            WorldPos = new double[] { 0, 0, 0 }
                         }
                     );
                     BMessage resp = await pConnection.CreateItem(props);

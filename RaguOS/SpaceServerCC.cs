@@ -142,9 +142,9 @@ namespace org.herbal3d.Ragu {
             bool isAuthorized = false;
             if (RContext.parms.ShouldEnforceUserAuth) {
                 try {
-                    string agentId = pUserAuth.GetProperty("AgentId");
+                    string agentId = pUserAuth.GetProperty("aId");
                     OMV.UUID agentUUID = OMV.UUID.Parse(agentId);
-                    OMV.UUID sessionID = OMV.UUID.Parse(pUserAuth.GetProperty("SessionID"));
+                    OMV.UUID sessionID = OMV.UUID.Parse(pUserAuth.GetProperty("sId"));
                     OMV.UUID secureSessionID = OMV.UUID.Parse(pUserAuth.GetProperty("SSID"));
                     uint circuitCode = UInt32.Parse(pUserAuth.GetProperty("CC"));
                     // RContext.log.Debug("{0} ValidateLoginAuth: agentUUID={1}, sessionID={2}, secureSessionID={3}, circuitCode={4}",
@@ -194,48 +194,54 @@ namespace org.herbal3d.Ragu {
         private bool CreateOpenSimPresence(OSAuthToken pUserAuth) {
             bool ret = false;
 
-            // Get identifying info from the auth
-            string agentId = pUserAuth.GetProperty("AgentId");
-            OMV.UUID agentUUID = OMV.UUID.Parse(agentId);
-            OMV.UUID sessionUUID = OMV.UUID.Parse(pUserAuth.GetProperty("SessionID"));
-            string firstName =  pUserAuth.GetProperty("FN");
-            string lastName =  pUserAuth.GetProperty("LN");
-            uint circuitCode = UInt32.Parse(pUserAuth.GetProperty("CC"));
+            try {
+                // Get identifying info from the auth
+                string agentId = pUserAuth.GetProperty("aId");
+                OMV.UUID agentUUID = OMV.UUID.Parse(agentId);
+                OMV.UUID sessionUUID = OMV.UUID.Parse(pUserAuth.GetProperty("sId"));
+                string firstName = pUserAuth.GetProperty("FN");
+                string lastName = pUserAuth.GetProperty("LN");
+                uint circuitCode = UInt32.Parse(pUserAuth.GetProperty("CC"));
 
-            // The login operation created the initial circuit
-            AgentCircuitData acd = RContext.scene.AuthenticateHandler.GetAgentCircuitData(agentUUID);
+                // The login operation created the initial circuit
+                AgentCircuitData acd = RContext.scene.AuthenticateHandler.GetAgentCircuitData(agentUUID);
 
-            if (acd != null) {
-                if (acd.SessionID == sessionUUID) {
-                    IClientAPI thisPerson = new RaguAvatar(firstName, lastName,
-                                                    agentUUID,
-                                                    acd.startpos,   /* initial position */
-                                                    OMV.UUID.Zero,  /* owner */
-                                                    true,           /* senseAsAgent */
-                                                    RContext.scene,
-                                                    acd.circuitcode);
-                    // Start the client by adding it to the scene and doing event subscriptions
-                    thisPerson.Start();
+                if (acd != null) {
+                    if (acd.SessionID == sessionUUID) {
+                        IClientAPI thisPerson = new RaguAvatar(firstName, lastName,
+                                                        agentUUID,
+                                                        acd.startpos,   /* initial position */
+                                                        OMV.UUID.Zero,  /* owner */
+                                                        true,           /* senseAsAgent */
+                                                        RContext.scene,
+                                                        acd.circuitcode);
+                        // Start the client by adding it to the scene and doing event subscriptions
+                        thisPerson.Start();
 
-                    // Get the ScenePresence just to make sure we can
-                    if (RContext.scene.TryGetScenePresence(agentUUID, out ScenePresence sp)) {
-                        RContext.log.Debug("{0} Successful login for {1} {2} ({3})",
-                                    _logHeader, firstName, lastName, agentId);
-                        ret = true;
+                        // Get the ScenePresence just to make sure we can
+                        if (RContext.scene.TryGetScenePresence(agentUUID, out ScenePresence sp)) {
+                            RContext.log.Debug("{0} Successful login for {1} {2} ({3})",
+                                        _logHeader, firstName, lastName, agentId);
+                            ret = true;
+                        }
+                        else {
+                            RContext.log.Error("{0} Failed to create ScenePresence for {1} {2} ({3})",
+                                        _logHeader, firstName, lastName, agentId);
+                        }
                     }
                     else {
-                        RContext.log.Error("{0} Failed to create ScenePresence for {1} {2} ({3})",
-                                    _logHeader, firstName, lastName, agentId);
+                        RContext.log.Error("{0} CreateOpenSimPresence: AgentCircuitData does not match SessionID. AgentID={1}",
+                                _logHeader, agentId);
                     }
                 }
                 else {
-                    RContext.log.Error("{0} CreateOpenSimPresence: AgentCircuitData does not match SessionID. AgentID={1}",
-                            _logHeader, agentId);
+                    RContext.log.Error("{0} CreateOpenSimPresence: presence was not created. AgentID={1}",
+                                _logHeader, agentId);
                 }
             }
-            else {
-                RContext.log.Error("{0} CreateOpenSimPresence: presence was not created. AgentID={1}",
-                            _logHeader, agentId);
+            catch (Exception e) {
+                RContext.log.Error("{0} Exception creating presence: {1}", _logHeader, e);
+                ret = false;
             }
 
             return ret;

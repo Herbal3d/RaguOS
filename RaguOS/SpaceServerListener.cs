@@ -58,7 +58,7 @@ namespace org.herbal3d.Ragu {
                 if (xportParam is BTransportWSParams) {
                     BTransportWS.ConnectionListener(
                         param: xportParam as BTransportWSParams,
-                        logger: logger,
+                        logger: _log,
                         connectionProcessor: (pTrans, pCan) => _creator(pTrans, pCan),
                         cancellerSource: canceller
                     );
