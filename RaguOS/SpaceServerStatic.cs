@@ -150,9 +150,6 @@ namespace org.herbal3d.Ragu {
                         new AbilityAssembly() {
                             AssetURL = uri,
                             AssetAuth = RaguAssetService.Instance.AccessToken.Token,
-                            // AssetLoader = "GLTF"
-                            // AssetServiceType = "RAGU",
-                            // DisplayableType = "meshset",
                         }
                     );
                     props.Add(new AbilityInstance() {

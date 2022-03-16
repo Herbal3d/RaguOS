@@ -117,45 +117,51 @@ namespace org.herbal3d.Ragu {
         }
         private void AddExistingPresences() {
             RContext.scene.GetScenePresences().ForEach(pres => {
-                PresenceInfo pi = new PresenceInfo(pres, this, RContext);
+                PresenceInfo pi = new PresenceInfo(pres, _connection, this, RContext);
                 AddPresence(pi);
                 pi.AddAppearanceInstance();
             });
         }
 
         private void Event_OnNewPresence(ScenePresence pPresence) {
-            // RContext.log.DebugFormat("{0} Event_OnNewPresence", _logHeader);
+            // RContext.log.Debug("{0} Event_OnNewPresence", _logHeader);
             PresenceInfo pi;
             if (FindPresence(pPresence.UUID, out pi)) {
                 RContext.log.Error("{0} Event_OnNewPresence: two events for the same presence", _logHeader);
             }
             else {
-                pi = new PresenceInfo(pPresence, this, RContext);
+                pi = new PresenceInfo(pPresence, _connection, this, RContext);
                 AddPresence(pi);
                 pi.AddAppearanceInstance();
             }
         }
         private void Event_OnRemovePresence(OMV.UUID pPresenceUUID) {
-            // RContext.log.DebugFormat("{0} Event_OnRemovePresence", _logHeader);
+            // RContext.log.Debug("{0} Event_OnRemovePresence", _logHeader);
             if (FindPresence(pPresenceUUID, out PresenceInfo pi)) {
                 pi.RemoveAppearanceInstance();
                 RemovePresence(pi);
             }
         }
         private void Event_OnClientMovement(ScenePresence pPresence) {
-            // RContext.log.DebugFormat("{0} Event_OnClientMovement", _logHeader);
+            // RContext.log.Debug("{0} Event_OnClientMovement", _logHeader);
             if (FindPresence(pPresence, out PresenceInfo pi)) {
                 pi.UpdatePosition();
+            }
+            else {
+                RContext.log.Error("{0} Event_OnClientMovement: did not find presence", _logHeader);
             }
         }
         private void Event_OnSignificantClientMovement(ScenePresence pPresence) {
-            // RContext.log.DebugFormat("{0} Event_OnSignificantClientMovement", _logHeader);
+            // RContext.log.Debug("{0} Event_OnSignificantClientMovement", _logHeader);
             if (FindPresence(pPresence, out PresenceInfo pi)) {
                 pi.UpdatePosition();
             }
+            else {
+                RContext.log.Error("{0} Event_OnSignificantClientMovement. Did not find presence", _logHeader);
+            }
         }
         private void Event_OnScenePresenceUpdated(ScenePresence pPresence) {
-            // RContext.log.DebugFormat("{0} Event_OnScenePresenceUpdated", _logHeader);
+            // RContext.log.Debug("{0} Event_OnScenePresenceUpdated", _logHeader);
             if (FindPresence(pPresence, out PresenceInfo pi)) {
                 pi.UpdatePosition();
             }
@@ -220,71 +226,60 @@ namespace org.herbal3d.Ragu {
 
             public ScenePresence presence;
             private RaguContext _context;
+            private BasilConnection _connection;
             private SpaceServerActors _spaceServer;
             // private BT.ItemId _instanceId;
             private string _instanceId;
 
-            public PresenceInfo(ScenePresence pPresence, SpaceServerActors pSpaceServer, RaguContext pContext) {
+            public PresenceInfo(ScenePresence pPresence, BasilConnection pConnection, SpaceServerActors pSpaceServer, RaguContext pContext) {
                 presence = pPresence;
                 _context = pContext;
+                _connection = pConnection;
                 _spaceServer = pSpaceServer;
             }
             public async void UpdatePosition() {
-                /*
                 if (_instanceId != null) {
-                    BT.Props props = new BT.Props();
-                    PackageInstancePosition(ref props);
-                    await _spaceServer.Client.UpdatePropertiesAsync(_instanceId, props);
-                    // _context.log.DebugFormat("{0} UpdatePosition: p={1}, r={2}",
+                    var coordParams = new AbilityInstance() {
+                        WorldPos = GetWorldPosition(),
+                        WorldRot = GetWorldRotation()
+                    };
+                    await _connection.UpdateProperties(_instanceId, coordParams);
+                    // _context.log.Debug("{0} UpdatePosition: p={1}, r={2}",
                     //             _logHeader, presence.AbsolutePosition, presence.Rotation);
                 }
-                */
             }
             public void UpdateAppearance() {
                 if (_instanceId != null) {
                 }
             }
             public void AddAppearanceInstance() {
-            /*
                 Task.Run(async () => {
                     try {
                         // TODO: use avatar appearance baking code to build GLTF version of avatar
                         // For the moment, use a canned, static mesh
                         string tempAppearanceURL = "https://files.misterblue.com/BasilTest/gltf/Duck/glTF/Duck.gltf";
 
-                        // Create the displayable for the actor
-                        BT.Props displayableProps = new BT.Props();
-                        BT.AbilityList displayableAbilities = new BT.AbilityList() {
-                            new BT.AbilityDisplayable() {
-                                DisplayableUrl = tempAppearanceURL,
-                                AssetServiceType = "HTTP",
-                                DisplayableType = "meshset",
-                                LoaderType = "GLTF"
+                        AbilityList props = new AbilityList();
+                        props.Add(
+                            new AbilityAssembly() {
+                                AssetURL = tempAppearanceURL,
+                                AssetAuth = RaguAssetService.Instance.AccessToken.Token,
                             }
-                        };
-                        BT.Props displayableResp = await _spaceServer.Client.CreateItemAsync(displayableProps, displayableAbilities);
-                        _instanceId = new BT.ItemId(displayableResp["ItemId"]);
-                        // _context.log.DebugFormat("{0} AddAppearanceInstance: created displayable: {1}",
-                        //                 _logHeader, _instanceId);
-
-                        // Add the instance to that displayable
-                        BT.Props instanceProps = new BT.Props() {
-                            {  "displayableItemId", _instanceId.Id }
-                        };
-                        PackageInstancePosition(ref instanceProps);
-                        // _context.log.DebugFormat("{0} AddAppearanceInstance: instance props={1}",
-                        //             _logHeader, instanceProps.ToString());
-                        BT.AbilityList instanceAbilities = new AbilityList() {
-                            new BT.AbilityInstance(instanceProps)
-                        };
-                        BT.Props instanceResp = await _spaceServer.Client.AddAbilityAsync(_instanceId, instanceAbilities);
+                        );
+                        props.Add(new AbilityInstance() {
+                                RefItem = "SELF",
+                                WorldPos = GetWorldPosition(),
+                                WorldRot = GetWorldRotation()
+                            }
+                        );
+                        BMessage resp = await _connection.CreateItem(props);
+                        _instanceId = AbilityBItem.GetId(resp);
                     }
                     catch (Exception e) {
-                        _context.log.DebugFormat("{0} AddAppearanceInstance: exception adding appearance: {1}",
+                        _context.log.Error("{0} AddAppearanceInstance: exception adding appearance: {1}",
                                         _logHeader, e);
                     };
                 });
-            */
             }
 
             public void RemoveAppearanceInstance() {
@@ -295,16 +290,18 @@ namespace org.herbal3d.Ragu {
                     };
                 });
             }
-            /*
-            // Return an InstancePositionInfo with the presence's current position
-            public void PackageInstancePosition(ref BT.Props pProps) {
-                // Convert coordinates from OpenSim Zup to GLTF Yup
+            // Return the Instance's position converted from OpenSim Zup to GLTF Yup
+            public double[] GetWorldPosition() {
                 OMV.Vector3 thePos = CoordAxis.ConvertZupToYup(presence.AbsolutePosition);
-                OMV.Quaternion theRot = CoordAxis.ConvertZupToYup(presence.Rotation);
-                pProps.Add("Pos", String.Format("[{0},{1},{2}]", thePos.X, thePos.Y, thePos.Z));
-                pProps.Add("Rot", String.Format("[{0},{1},{2},{3}]", theRot.X, theRot.Y, theRot.Z, theRot.W));
+                // OMV.Vector3 thePos = presence.AbsolutePosition;
+                return new double[] { thePos.X, thePos.Y, thePos.Z };
             }
-            */
+            // Return the Instance's rotation converted from OpenSim Zup to GLTF Yup
+            public double[] GetWorldRotation() {
+                // OMV.Quaternion theRot = CoordAxis.ConvertZupToYup(presence.Rotation);
+                OMV.Quaternion theRot = CoordAxis.ConvertZupToYup(presence.Rotation);
+                return new double[] { theRot.X, theRot.Y, theRot.Z, theRot.W };
+            }
         }
     }
 }
