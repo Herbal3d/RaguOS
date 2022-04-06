@@ -151,6 +151,7 @@ namespace org.herbal3d.Ragu {
             if (_context.parms.Enabled) {
                 _context.log.Debug("{0} Region loaded. Starting region manager", _logHeader);
                 _regionProcessor = new RaguRegion(_context);
+                _context.scene.RegisterModuleInterface<RaguRegion>(_regionProcessor);
                 _regionProcessor.Start();
             }
         }
