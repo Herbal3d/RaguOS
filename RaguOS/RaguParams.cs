@@ -111,94 +111,14 @@ namespace org.herbal3d.Ragu {
 
         [ConfigParam(name: "LogBaseFilename", valueType: typeof(string), desc: "where to send log files")]
         public string LogBaseFilename = null;
-        [ConfigParam(name: "LogToConsole", valueType: typeof(bool), desc: "where to send log files")]
+        [ConfigParam(name: "LogToConsole", valueType: typeof(bool), desc: "Whether to also log directly to the console")]
         public bool LogToConsole = false;
-        [ConfigParam(name: "LogToFiles", valueType: typeof(bool), desc: "where to send log files")]
+        [ConfigParam(name: "LogToFiles", valueType: typeof(bool), desc: "Log to special log file")]
         public bool LogToFile = false;
         [ConfigParam(name: "LogBuilding", valueType: typeof(bool), desc: "log detail BScene/BInstance object building")]
         public bool LogBuilding = true;
         [ConfigParam(name: "LogGltfBuilding", valueType: typeof(bool), desc: "output detailed gltf construction details")]
         public bool LogGltfBuilding = false;
-
-
-        /*
-        private void DefineParameters() {
-            base.ParameterDefinitions = new ParameterDefnBase[] {
-                new ParameterDefn<bool>("Enabled", "If false, module is not enabled to operate",
-                    false),
-
-                new ParameterDefn<string>("ExternalAccessHostname", "Hostname for external clients it access. Computed if zero length",
-                    ""),
-                new ParameterDefn<bool>("ShouldEnforceUserAuth", "Whether to check and enforce user authentication in OpenConnection",
-                    true),
-                new ParameterDefn<bool>("ShouldEnforceAssetAccessAuthorization", "All asset requests require an 'Authentication' header",
-                    false),
-                new ParameterDefn<bool>("ShouldAliveCheckSessions", "Whether to start AliveCheck messages for open connections",
-                    false),
-
-                new ParameterDefn<bool>("SpaceServerCC_IsSecure", "Whether to accept only secure connections",
-                    false),
-                new ParameterDefn<string>("SpaceServerCC_SecureConnectionURL", "URL to use to create inbound connection",
-                    "wss://0.0.0.0:11440"),
-                new ParameterDefn<string>("SpaceServerCC_Certificate", "Certificate to accept for secure inbound connection",
-                    ""),
-                new ParameterDefn<int>("SpaceServerCC_WebSocketPort", "URL to use to create inbound connection",
-                    11440),
-                new ParameterDefn<string>("SpaceServerCC_ConnectionURL", "URL to use to create inbound connection",
-                    "ws://0.0.0.0:11440"),
-                new ParameterDefn<bool>("SpaceServerCC_DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
-                    true),
-
-                new ParameterDefn<bool>("SpaceServerStatic_IsSecure", "Whether to accept only secure connections",
-                    false),
-                new ParameterDefn<string>("SpaceServerStatic_SecureConnectionURL", "URL to use to create inbound connection",
-                    "wss://0.0.0.0:11441"),
-                new ParameterDefn<string>("SpaceServerStatic_Certificate", "Certificate to accept for secure inbound connection",
-                    ""),
-                new ParameterDefn<string>("SpaceServerStatic_ConnectionURL", "URL to use to create inbound connection",
-                    "ws://0.0.0.0:11441"),
-                new ParameterDefn<bool>("SpaceServerStatic_DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
-                    true),
-
-                new ParameterDefn<bool>("SpaceServerActors_IsSecure", "Whether to accept only secure connections",
-                    false),
-                new ParameterDefn<string>("SpaceServerActors_SecureConnectionURL", "URL to use to create inbound connection",
-                    "wss://0.0.0.0:11442"),
-                new ParameterDefn<string>("SpaceServerActors_Certificate", "Certificate to accept for secure inbound connection",
-                    ""),
-                new ParameterDefn<string>("SpaceServerActors_ConnectionURL", "URL to use to create inbound connection",
-                    "ws://0.0.0.0:11442"),
-                new ParameterDefn<bool>("SpaceServerActors_DisableNaglesAlgorithm", "Whether to enable/disable outbound delay",
-                    true),
-
-                new ParameterDefn<string>("OutputDir", "Base directory for Loden asset storage",
-                    "./LodenAssets"),
-                new ParameterDefn<bool>("UseDeepFilenames", "Reference Loden assets in multi-directory deep file storage",
-                    true),
-
-                new ParameterDefn<bool>("LogBuilding", "log detail BScene/BInstance object building",
-                    true),
-                new ParameterDefn<bool>("LogGltfBuilding", "output detailed gltf construction details",
-                    false),
-            };
-        }
-
-        // =====================================================================================
-        // =====================================================================================
-        // Get user set values out of the ini file.
-        public  void SetParameterConfigurationValues(IConfig cfg, IBLogger pLogger)
-        {
-            foreach (ParameterDefnBase parm in ParameterDefinitions)
-            {
-                // _logger.log.DebugFormat("{0}: parm={1}, desc='{2}'", _logHeader, parm.name, parm.desc);
-                parm.logger = pLogger;
-                string configValue = cfg.GetString(parm.name, parm.GetValue());
-                if (!String.IsNullOrEmpty(configValue)) {
-                    parm.SetValue(cfg.GetString(parm.name, parm.GetValue()));
-                }
-            }
-        }
-        */
 
         /*
          * Loop through all the ConfigParam attributes and, if the parameter exists in the configuration
@@ -216,6 +136,61 @@ namespace org.herbal3d.Ragu {
                     }
                 }
             }
+        }
+        // Return a string version of a particular parameter value
+        public string GetParameterValue(string pName) {
+            var ret = String.Empty;
+            foreach (FieldInfo fi in this.GetType().GetFields()) {
+                foreach (Attribute attr in Attribute.GetCustomAttributes(fi)) {
+                    ConfigParam cp = attr as ConfigParam;
+                    if (cp != null) {
+                        if (cp.name == pName) {
+                            var val = fi.GetValue(this);
+                            if (val != null) {
+                                ret = val.ToString();
+                            }
+                            break;
+                        }
+                    }
+                }
+                if (ret != String.Empty) {
+                    break;
+                }
+            }
+            return ret;
+        }
+        // Set a parameter value
+        public bool SetParameterValue(string pName, string pVal) {
+            var ret = false;
+            foreach (FieldInfo fi in this.GetType().GetFields()) {
+                foreach (Attribute attr in Attribute.GetCustomAttributes(fi)) {
+                    ConfigParam cp = attr as ConfigParam;
+                    if (cp != null) {
+                        if (cp.name == pName) {
+                            fi.SetValue(this, ParamBlock.ConvertToObj(cp.valueType, pVal));
+                            ret = true;
+                            break;
+                        }
+                    }
+                }
+                if (ret) {
+                    break;
+                }
+            }
+            return ret;
+        }
+        // Return a list of all the parameters and their descriptions
+        public Dictionary<string, string> ListParameters() {
+            var ret = new Dictionary<string,string>();
+            foreach (FieldInfo fi in this.GetType().GetFields()) {
+                foreach (Attribute attr in Attribute.GetCustomAttributes(fi)) {
+                    ConfigParam cp = attr as ConfigParam;
+                    if (cp != null) {
+                        ret.Add(cp.name, cp.desc);
+                    }
+                }
+            }
+            return ret;
         }
     }
 }
