@@ -152,9 +152,9 @@ namespace org.herbal3d.Ragu {
                             AssetAuth = RaguAssetService.Instance.AccessToken.Token,
                         }
                     );
-                    props.Add(new AbilityInstance() {
-                            RefItem = "SELF",
-                            WorldPos = new double[] { 0, 0, 0 }
+                    props.Add(new AbilityPlacement() {
+                            WorldPos = new double[] { 0, 0, 0 },
+                            WorldRot = new double[] { 0, 0, 0, 1 }
                         }
                     );
                     BMessage resp = await pConnection.CreateItem(props);

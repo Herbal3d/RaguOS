@@ -239,7 +239,7 @@ namespace org.herbal3d.Ragu {
             }
             public async void UpdatePosition() {
                 if (_instanceId != null) {
-                    var coordParams = new AbilityInstance() {
+                    var coordParams = new AbilityPlacement() {
                         WorldPos = GetWorldPosition(),
                         WorldRot = GetWorldRotation()
                     };
@@ -266,8 +266,7 @@ namespace org.herbal3d.Ragu {
                                 AssetAuth = RaguAssetService.Instance.AccessToken.Token,
                             }
                         );
-                        props.Add(new AbilityInstance() {
-                                RefItem = "SELF",
+                        props.Add(new AbilityPlacement() {
                                 WorldPos = GetWorldPosition(),
                                 WorldRot = GetWorldRotation()
                             }
@@ -298,8 +297,8 @@ namespace org.herbal3d.Ragu {
             }
             // Return the Instance's rotation converted from OpenSim Zup to GLTF Yup
             public double[] GetWorldRotation() {
+                OMV.Quaternion theRot = presence.Rotation;
                 // OMV.Quaternion theRot = CoordAxis.ConvertZupToYup(presence.Rotation);
-                OMV.Quaternion theRot = CoordAxis.ConvertZupToYup(presence.Rotation);
                 return new double[] { theRot.X, theRot.Y, theRot.Z, theRot.W };
             }
         }
