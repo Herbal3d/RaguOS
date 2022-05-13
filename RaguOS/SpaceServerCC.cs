@@ -65,21 +65,22 @@ namespace org.herbal3d.Ragu {
             return new SpaceServerListener(
                 transportParams: new BTransportParams[] {
                     new BTransportWSParams() {
-                        isSecure        = pRContext.parms.SpaceServerCC_IsSecure,
-                        port            = pRContext.parms.SpaceServerCC_WSConnectionPort,
-                        certificate     = pRContext.parms.SpaceServerCC_WSCertificate,
-                        disableNaglesAlgorithm = pRContext.parms.SpaceServerCC_DisableNaglesAlgorithm
+                        preferred       = true,
+                        isSecure        = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerCC.StaticLayerType, "WSIsSecure"),
+                        port            = pRContext.parms.GetConnectionParam<int>(pRContext, SpaceServerCC.StaticLayerType, "WSPort"),
+                        certificate     = pRContext.parms.GetConnectionParam<string>(pRContext, SpaceServerCC.StaticLayerType, "WSCertificate"),
+                        disableNaglesAlgorithm = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerCC.StaticLayerType, "DisableNaglesAlgorithm")
                     }
                 },
-                layer:                  SpaceServerCC.StaticLayerType,
-                canceller:              pCanceller,
-                logger:                 pRContext.log,
+                layer: SpaceServerCC.StaticLayerType,
+                canceller: pCanceller,
+                logger: pRContext.log,
                 // This method is called when the listener receives a connection but before any
                 //     messsages have been exchanged.
-                processor:              (pTransport, pCancellerP) => {
-                                            return new SpaceServerCC(pRContext, pCancellerP, pTransport);
-                                        }
-            );
+                processor: (pTransport, pCancellerP) => {
+                    return new SpaceServerCC(pRContext, pCancellerP, pTransport);
+                }
+            ) ;
         }
 
         // Creation of an instance for a specific client.
@@ -104,7 +105,7 @@ namespace org.herbal3d.Ragu {
         // Received an OpenSession from a Basil client.
         // Connect it to the other layers.
         protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pLoginAuth) {
-            _ = Task.Run(async () => {
+            _ = Task.Run( () => {
                 try {
                     // Create the Circuit and ScenePresence for the user
                     CreateOpenSimPresence(pLoginAuth);

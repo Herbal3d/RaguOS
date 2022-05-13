@@ -41,13 +41,13 @@ namespace org.herbal3d.Ragu {
         }
 
         // General OpenSession request processing.
-        // The message is parsed and it calls SPaceServerBase.ValidataLoginAuth to validate the session
+        // The message is parsed and it calls SpaceServerBase.ValidataLoginAuth to validate the session
         //     and, if successful, calls SpaceServerBase.OpenSessionProcessing to do the SpaceServer operations.
         //     Both these functions can be overridden.
         public void ProcessOpenSessionReq(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
             string errorReason = "";
             // Get the login information from the OpenConnection
-            OSAuthToken clientAuth = AbilityOpenSession.GetClientAuth(pMsg);
+            OSAuthToken clientAuth = AbOpenSession.GetClientAuth(pMsg);
             if (clientAuth != null) {
                 string incomingAuthString = pMsg.Auth;
                 if (incomingAuthString != null) {
@@ -62,8 +62,8 @@ namespace org.herbal3d.Ragu {
 
                         // The user checks out so construct the success response
                         BMessage resp = BasilConnection.MakeResponse(pMsg);
-                        resp.IProps.Add(AbilityOpenSession.ServerVersionProp, RContext.ServerVersion);
-                        resp.IProps.Add(AbilityOpenSession.ServerAuthProp, incomingAuth.Token);
+                        resp.IProps.Add(AbOpenSession.ServerVersionProp, RContext.ServerVersion);
+                        resp.IProps.Add(AbOpenSession.ServerAuthProp, incomingAuth.Token);
                         pConnection.Send(resp);
 
                         OpenSessionProcessing(pConnection, loginAuth);
@@ -123,7 +123,7 @@ namespace org.herbal3d.Ragu {
 
     }
     // A message processor for SpaceServer's while they are waiting for an OpenConnection.
-    // THis is used initially when a SpaceSErver is created and is replaced with a full
+    // THis is used initially when a SpaceServer is created and is replaced with a full
     //     message processor when the OpenConnection is successful.
     public class ProcessMessagesOpenConnection : IncomingMessageProcessor {
         SpaceServerBase _ssContext;

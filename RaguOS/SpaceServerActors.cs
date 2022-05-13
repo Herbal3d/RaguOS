@@ -12,7 +12,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,22 +27,26 @@ using OMV = OpenMetaverse;
 
 namespace org.herbal3d.Ragu {
 
+    // Processor of incoming messages after we're connected up
     class ProcessActorsIncomingMessages : IncomingMessageProcessor {
         SpaceServerActors _ssContext;
         public ProcessActorsIncomingMessages(SpaceServerActors pContext) : base(pContext) {
             _ssContext = pContext;
         }
         public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
-            if (pMsg.Op == (uint)BMessageOps.OpenSessionReq) {
-                _ssContext.ProcessOpenSessionReq(pMsg, pConnection, pProtocol);
-            }
-            else {
-                BMessage resp = BasilConnection.MakeResponse(pMsg);
-                resp.Exception = "Session is not open. ActorsIC";
-                pProtocol.Send(resp);
+            switch (pMsg.Op) {
+                case (uint)BMessageOps.UpdatePropertiesReq:
+                    // TODO:
+                    break;
+                default:
+                    BMessage resp = BasilConnection.MakeResponse(pMsg);
+                    resp.Exception = "Unknown operation: " + _ssContext.LayerType;
+                    pProtocol.Send(resp);
+                    break;
             }
         }
     }
+
     public class SpaceServerActors : SpaceServerBase {
         private static readonly string _logHeader = "[SpaceServerActors]";
 
@@ -57,10 +60,10 @@ namespace org.herbal3d.Ragu {
                 transportParams: new BTransportParams[] {
                     new BTransportWSParams() {
                         preferred       = true,
-                        isSecure        = pRContext.parms.SpaceServerActors_IsSecure,
-                        port            = pRContext.parms.SpaceServerActors_WSConnectionPort,
-                        certificate     = pRContext.parms.SpaceServerActors_WSCertificate,
-                        disableNaglesAlgorithm = pRContext.parms.SpaceServerActors_DisableNaglesAlgorithm
+                        isSecure        = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerActors.StaticLayerType, "WSIsSecure"),
+                        port            = pRContext.parms.GetConnectionParam<int>(pRContext, SpaceServerActors.StaticLayerType, "WSPort"),
+                        certificate     = pRContext.parms.GetConnectionParam<string>(pRContext, SpaceServerActors.StaticLayerType, "WSCertificate"),
+                        disableNaglesAlgorithm = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerActors.StaticLayerType, "DisableNaglesAlgorithm")
                     }
                 },
                 layer: SpaceServerActors.StaticLayerType,
@@ -89,7 +92,7 @@ namespace org.herbal3d.Ragu {
 
         protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pServiceAuth) {
             // We also have a full command processor
-            pConnection.SetOpProcessor(new ProcessActorsIncomingMessages(this));
+            pConnection.SetOpProcessor(new ProcessMessagesOpenConnection(this));
 
             AddEventSubscriptions();
             AddExistingPresences();
@@ -126,7 +129,7 @@ namespace org.herbal3d.Ragu {
         private void Event_OnNewPresence(ScenePresence pPresence) {
             // RContext.log.Debug("{0} Event_OnNewPresence", _logHeader);
             PresenceInfo pi;
-            if (FindPresence(pPresence.UUID, out pi)) {
+            if (TryFindPresence(pPresence.UUID, out pi)) {
                 RContext.log.Error("{0} Event_OnNewPresence: two events for the same presence", _logHeader);
             }
             else {
@@ -137,14 +140,14 @@ namespace org.herbal3d.Ragu {
         }
         private void Event_OnRemovePresence(OMV.UUID pPresenceUUID) {
             // RContext.log.Debug("{0} Event_OnRemovePresence", _logHeader);
-            if (FindPresence(pPresenceUUID, out PresenceInfo pi)) {
+            if (TryFindPresence(pPresenceUUID, out PresenceInfo pi)) {
                 pi.RemoveAppearanceInstance();
                 RemovePresence(pi);
             }
         }
         private void Event_OnClientMovement(ScenePresence pPresence) {
             // RContext.log.Debug("{0} Event_OnClientMovement", _logHeader);
-            if (FindPresence(pPresence, out PresenceInfo pi)) {
+            if (TryFindPresence(pPresence, out PresenceInfo pi)) {
                 pi.UpdatePosition();
             }
             else {
@@ -153,7 +156,7 @@ namespace org.herbal3d.Ragu {
         }
         private void Event_OnSignificantClientMovement(ScenePresence pPresence) {
             // RContext.log.Debug("{0} Event_OnSignificantClientMovement", _logHeader);
-            if (FindPresence(pPresence, out PresenceInfo pi)) {
+            if (TryFindPresence(pPresence, out PresenceInfo pi)) {
                 pi.UpdatePosition();
             }
             else {
@@ -162,19 +165,18 @@ namespace org.herbal3d.Ragu {
         }
         private void Event_OnScenePresenceUpdated(ScenePresence pPresence) {
             // RContext.log.Debug("{0} Event_OnScenePresenceUpdated", _logHeader);
-            if (FindPresence(pPresence, out PresenceInfo pi)) {
+            if (TryFindPresence(pPresence, out PresenceInfo pi)) {
                 pi.UpdatePosition();
             }
         }
 
         private List<PresenceInfo> _presences = new List<PresenceInfo>();
         // Find a presence based on it's ScenePresence instance
-        private bool FindPresence(ScenePresence pScenePresence, out PresenceInfo pFound) {
+        private bool TryFindPresence(ScenePresence pScenePresence, out PresenceInfo pFound) {
             bool ret = false;
             lock (_presences) {
                 try {
-                    PresenceInfo found = _presences.Where(p => p.presence == pScenePresence).First();
-                    pFound = found;
+                    pFound = _presences.Where(p => p.presence == pScenePresence).First();
                     ret = true;
                 }
                 catch {
@@ -184,12 +186,11 @@ namespace org.herbal3d.Ragu {
             return ret;
         }
         // Find a presence using it's UUID
-        private bool FindPresence(OMV.UUID pPresenceId, out PresenceInfo pFound) {
+        private bool TryFindPresence(OMV.UUID pPresenceId, out PresenceInfo pFound) {
             bool ret = false;
             lock (_presences) {
                 try {
-                    PresenceInfo found = _presences.Where(p => p.presence.UUID == pPresenceId).First();
-                    pFound = found;
+                    pFound = _presences.Where(p => p.presence.UUID == pPresenceId).First();
                     ret = true;
                 }
                 catch {
@@ -239,7 +240,7 @@ namespace org.herbal3d.Ragu {
             }
             public async void UpdatePosition() {
                 if (_instanceId != null) {
-                    var coordParams = new AbilityPlacement() {
+                    var coordParams = new AbPlacement() {
                         WorldPos = GetWorldPosition(),
                         WorldRot = GetWorldRotation()
                     };
@@ -261,18 +262,18 @@ namespace org.herbal3d.Ragu {
 
                         AbilityList props = new AbilityList();
                         props.Add(
-                            new AbilityAssembly() {
+                            new AbAssembly() {
                                 AssetURL = tempAppearanceURL,
                                 AssetAuth = RaguAssetService.Instance.AccessToken.Token,
                             }
                         );
-                        props.Add(new AbilityPlacement() {
+                        props.Add(new AbPlacement() {
                                 WorldPos = GetWorldPosition(),
                                 WorldRot = GetWorldRotation()
                             }
                         );
                         BMessage resp = await _connection.CreateItem(props);
-                        _instanceId = AbilityBItem.GetId(resp);
+                        _instanceId = AbBItem.GetId(resp);
                     }
                     catch (Exception e) {
                         _context.log.Error("{0} AddAppearanceInstance: exception adding appearance: {1}",
@@ -284,7 +285,7 @@ namespace org.herbal3d.Ragu {
             public void RemoveAppearanceInstance() {
                 Task.Run( async () => {
                     if (_instanceId != null) {
-                        // await _spaceServer.Client.DeleteItemAsync(_instanceId);
+                        await _connection.DeleteItem(_instanceId);
                         _instanceId = null;
                     };
                 });

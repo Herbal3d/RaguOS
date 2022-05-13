@@ -45,11 +45,9 @@ using OpenMetaverse;
 using OpenMetaverse.Packets;
 using OpenSim.Framework;
 using OpenSim.Region.Framework.Scenes;
-using log4net;
 
 namespace org.herbal3d.Ragu {
-    public class RaguAvatar : IClientAPI
-    {
+    public class RaguAvatar : IClientAPI {
         private readonly string m_firstname;
         private readonly string m_lastname;
         private readonly Vector3 m_startPos;
@@ -61,11 +59,10 @@ namespace org.herbal3d.Ragu {
         public List<uint> SelectedObjects {get; private set;}
 
         public RaguAvatar(
-            string firstname, string lastname, UUID agentID,
-            Vector3 position, UUID ownerID,
-            bool senseAsAgent, Scene scene,
-            uint circuitCode)
-        {
+                string firstname, string lastname, UUID agentID,
+                Vector3 position, UUID ownerID,
+                bool senseAsAgent, Scene scene,
+                uint circuitCode) {
             m_firstname = firstname;
             m_lastname = lastname;
             m_startPos = position;
@@ -76,57 +73,47 @@ namespace org.herbal3d.Ragu {
             this.CircuitCode = circuitCode;
         }
 
-        public IScene Scene
-        {
+        public IScene Scene {
             get { return m_scene; }
         }
 
-        public UUID ScopeId
-        {
+        public UUID ScopeId {
             get { return m_scopeID; }
         }
 
         public int PingTimeMS { get { return 0; } }
 
-        public UUID OwnerID
-        {
+        public UUID OwnerID {
             get { return m_ownerID; }
         }
 
         public ISceneAgent SceneAgent { get; set; }
 
-        public void Say(string message)
-        {
+        public void Say(string message) {
             SendOnChatFromClient(0, message, ChatTypeEnum.Say);
         }
 
-        public void Say(int channel, string message)
-        {
+        public void Say(int channel, string message) {
             SendOnChatFromClient(channel, message, ChatTypeEnum.Say);
         }
 
-        public void Shout(int channel, string message)
-        {
+        public void Shout(int channel, string message) {
             SendOnChatFromClient(channel, message, ChatTypeEnum.Shout);
         }
 
-        public void Whisper(int channel, string message)
-        {
+        public void Whisper(int channel, string message) {
             SendOnChatFromClient(channel, message, ChatTypeEnum.Whisper);
         }
 
-        public void Broadcast(string message)
-        {
+        public void Broadcast(string message) {
             SendOnChatFromClient(0, message, ChatTypeEnum.Broadcast);
         }
 
-        public void GiveMoney(UUID target, int amount)
-        {
+        public void GiveMoney(UUID target, int amount) {
             OnMoneyTransferRequest(m_uuid, target, amount, 1, "Payment");
         }
 
-        public bool Touch(UUID target)
-        {
+        public bool Touch(UUID target) {
             SceneObjectPart part = m_scene.GetSceneObjectPart(target);
             if (part == null)
                 return false;
@@ -143,8 +130,7 @@ namespace org.herbal3d.Ragu {
                 STCoord = new Vector3(-1.0f, -1.0f, 0.0f) // TOUCH_INVALID_TEXCOORD
             };
             surfaceArgs.UVCoord = surfaceArgs.STCoord; // TOUCH_INVALID_TEXCOORD
-            List<SurfaceTouchEventArgs> touchArgs = new List<SurfaceTouchEventArgs>
-            {
+            List<SurfaceTouchEventArgs> touchArgs = new List<SurfaceTouchEventArgs> {
                 surfaceArgs
             };
             Vector3 offset = part.OffsetPosition * -1.0f;
@@ -156,8 +142,7 @@ namespace org.herbal3d.Ragu {
             return true;
         }
 
-        private bool HasTouchEvents(SceneObjectPart part)
-        {
+        private bool HasTouchEvents(SceneObjectPart part) {
             if ((part.ScriptEvents & scriptEvents.touch) != 0 ||
                 (part.ScriptEvents & scriptEvents.touch_start) != 0 ||
                 (part.ScriptEvents & scriptEvents.touch_end) != 0)
@@ -165,54 +150,45 @@ namespace org.herbal3d.Ragu {
             return false;
         }
 
-        public void InstantMessage(UUID target, string message)
-        {
+        public void InstantMessage(UUID target, string message) {
             OnInstantMessage(this, new GridInstantMessage(m_scene,
                     m_uuid, m_firstname + " " + m_lastname,
                     target, 0, false, message,
                     UUID.Zero, false, Position, new byte[0], true));
         }
 
-        public void SendAgentOffline(UUID[] agentIDs)
-        {
+        public void SendAgentOffline(UUID[] agentIDs) {
 
         }
 
-        public void SendAgentOnline(UUID[] agentIDs)
-        {
+        public void SendAgentOnline(UUID[] agentIDs) {
 
         }
 
-        public void SendFindAgent(UUID HunterID, UUID PreyID, double GlobalX, double GlobalY)
-        {
+        public void SendFindAgent(UUID HunterID, UUID PreyID, double GlobalX, double GlobalY) {
 
         }
 
-        public void SendSitResponse(UUID TargetID, Vector3 OffsetPos,
-                    Quaternion SitOrientation, bool autopilot,
+        public void SendSitResponse(UUID TargetID, Vector3 OffsetPos, Quaternion SitOrientation, bool autopilot,
                     Vector3 CameraAtOffset, Vector3 CameraEyeOffset, bool ForceMouseLook)
         {
 
         }
 
-        public void SendAdminResponse(UUID Token, uint AdminLevel)
-        {
+        public void SendAdminResponse(UUID Token, uint AdminLevel) {
 
         }
 
-        public void SendGroupMembership(GroupMembershipData[] GroupMembership)
-        {
+        public void SendGroupMembership(GroupMembershipData[] GroupMembership) {
 
         }
 
-        public Vector3 Position
-        {
+        public Vector3 Position {
             get { return m_scene.Entities[m_uuid].AbsolutePosition; }
             set { m_scene.Entities[m_uuid].AbsolutePosition = value; }
         }
 
-        public bool SendLogoutPacketWhenClosing
-        {
+        public bool SendLogoutPacketWhenClosing {
             set { }
         }
 
@@ -512,11 +488,9 @@ namespace org.herbal3d.Ragu {
 
         #endregion
 
-        public void ActivateGesture(UUID assetId, UUID gestureId)
-        {
+        public void ActivateGesture(UUID assetId, UUID gestureId) {
         }
-        public void DeactivateGesture(UUID assetId, UUID gestureId)
-        {
+        public void DeactivateGesture(UUID assetId, UUID gestureId) {
         }
 
         #region Overrriden Methods IGNORE
@@ -1097,261 +1071,199 @@ namespace org.herbal3d.Ragu {
         #endregion
 
 
-        public void SendParcelMediaCommand(uint flags, ParcelMediaCommandEnum command, float time)
-        {
+        public void SendParcelMediaCommand(uint flags, ParcelMediaCommandEnum command, float time) {
         }
 
         public void SendParcelMediaUpdate(string mediaUrl, UUID mediaTextureID,
                                    byte autoScale, string mediaType, string mediaDesc, int mediaWidth, int mediaHeight,
-                                   byte mediaLoop)
-        {
+                                   byte mediaLoop) {
         }
 
-        public void SendSetFollowCamProperties (UUID objectID, SortedDictionary<int, float> parameters)
-        {
+        public void SendSetFollowCamProperties (UUID objectID, SortedDictionary<int, float> parameters) {
         }
 
-        public void SendClearFollowCamProperties (UUID objectID)
-        {
+        public void SendClearFollowCamProperties (UUID objectID) {
         }
 
-        public void SendRegionHandle (UUID regoinID, ulong handle)
-        {
+        public void SendRegionHandle (UUID regoinID, ulong handle) {
         }
 
-        public void SendParcelInfo (RegionInfo info, LandData land, UUID parcelID, uint x, uint y)
-        {
+        public void SendParcelInfo (RegionInfo info, LandData land, UUID parcelID, uint x, uint y) {
         }
 
-        public void SetClientOption(string option, string value)
-        {
+        public void SetClientOption(string option, string value) {
         }
 
-        public string GetClientOption(string option)
-        {
+        public string GetClientOption(string option) {
             return string.Empty;
         }
 
-        public void SendScriptTeleportRequest (string objName, string simName, Vector3 pos, Vector3 lookAt)
-        {
+        public void SendScriptTeleportRequest (string objName, string simName, Vector3 pos, Vector3 lookAt) {
         }
 
-        public void SendDirPlacesReply(UUID queryID, DirPlacesReplyData[] data)
-        {
+        public void SendDirPlacesReply(UUID queryID, DirPlacesReplyData[] data) {
         }
 
-        public void SendDirPeopleReply(UUID queryID, DirPeopleReplyData[] data)
-        {
+        public void SendDirPeopleReply(UUID queryID, DirPeopleReplyData[] data) {
         }
 
-        public void SendDirEventsReply(UUID queryID, DirEventsReplyData[] data)
-        {
+        public void SendDirEventsReply(UUID queryID, DirEventsReplyData[] data) {
         }
 
-        public void SendDirGroupsReply(UUID queryID, DirGroupsReplyData[] data)
-        {
+        public void SendDirGroupsReply(UUID queryID, DirGroupsReplyData[] data) {
         }
 
-        public void SendDirClassifiedReply(UUID queryID, DirClassifiedReplyData[] data)
-        {
+        public void SendDirClassifiedReply(UUID queryID, DirClassifiedReplyData[] data) {
         }
 
-        public void SendDirLandReply(UUID queryID, DirLandReplyData[] data)
-        {
+        public void SendDirLandReply(UUID queryID, DirLandReplyData[] data) {
         }
 
-        public void SendDirPopularReply(UUID queryID, DirPopularReplyData[] data)
-        {
+        public void SendDirPopularReply(UUID queryID, DirPopularReplyData[] data) {
         }
 
-        public void SendMapItemReply(mapItemReply[] replies, uint mapitemtype, uint flags)
-        {
+        public void SendMapItemReply(mapItemReply[] replies, uint mapitemtype, uint flags) {
         }
 
-        public void SendEventInfoReply (EventData info)
-        {
+        public void SendEventInfoReply (EventData info) {
         }
 
-        public void SendOfferCallingCard (UUID destID, UUID transactionID)
-        {
+        public void SendOfferCallingCard (UUID destID, UUID transactionID) {
         }
 
-        public void SendAcceptCallingCard (UUID transactionID)
-        {
+        public void SendAcceptCallingCard (UUID transactionID) {
         }
 
-        public void SendDeclineCallingCard (UUID transactionID)
-        {
+        public void SendDeclineCallingCard (UUID transactionID) {
         }
 
-        public void SendJoinGroupReply(UUID groupID, bool success)
-        {
+        public void SendJoinGroupReply(UUID groupID, bool success) {
         }
 
-        public void SendEjectGroupMemberReply(UUID agentID, UUID groupID, bool success)
-        {
+        public void SendEjectGroupMemberReply(UUID agentID, UUID groupID, bool success) {
         }
 
-        public void SendLeaveGroupReply(UUID groupID, bool success)
-        {
+        public void SendLeaveGroupReply(UUID groupID, bool success) {
         }
 
-        public void SendAvatarGroupsReply(UUID avatarID, GroupMembershipData[] data)
-        {
+        public void SendAvatarGroupsReply(UUID avatarID, GroupMembershipData[] data) {
         }
 
-        public void SendAgentGroupDataUpdate(UUID avatarID, GroupMembershipData[] data)
-        {
+        public void SendAgentGroupDataUpdate(UUID avatarID, GroupMembershipData[] data) {
         }
 
-        public void SendTerminateFriend(UUID exFriendID)
-        {
+        public void SendTerminateFriend(UUID exFriendID) {
         }
 
         #region IClientAPI Members
 
 
-        public bool AddGenericPacketHandler(string MethodName, GenericMessage handler)
-        {
+        public bool AddGenericPacketHandler(string MethodName, GenericMessage handler) {
             //throw new NotImplementedException();
             return false;
         }
 
-        public void SendAvatarClassifiedReply(UUID targetID, UUID[] classifiedID, string[] name)
-        {
+        public void SendAvatarClassifiedReply(UUID targetID, UUID[] classifiedID, string[] name) {
         }
 
-        public void SendClassifiedInfoReply(UUID classifiedID, UUID creatorID, uint creationDate, uint expirationDate, uint category, string name, string description, UUID parcelID, uint parentEstate, UUID snapshotID, string simName, Vector3 globalPos, string parcelName, byte classifiedFlags, int price)
-        {
+        public void SendClassifiedInfoReply(UUID classifiedID, UUID creatorID, uint creationDate, uint expirationDate, uint category, string name, string description, UUID parcelID, uint parentEstate, UUID snapshotID, string simName, Vector3 globalPos, string parcelName, byte classifiedFlags, int price) {
         }
 
-        public void SendAgentDropGroup(UUID groupID)
-        {
+        public void SendAgentDropGroup(UUID groupID) {
         }
 
-        public void SendAvatarNotesReply(UUID targetID, string text)
-        {
+        public void SendAvatarNotesReply(UUID targetID, string text) {
         }
 
-        public void SendAvatarPickerReply(UUID QueryID, List<UserData> users)
-        {
+        public void SendAvatarPickerReply(UUID QueryID, List<UserData> users) {
         }
-        public void SendAvatarPicksReply(UUID targetID, Dictionary<UUID, string> picks)
-        {
+        public void SendAvatarPicksReply(UUID targetID, Dictionary<UUID, string> picks) {
         }
 
-        public void SendAvatarClassifiedReply(UUID targetID, Dictionary<UUID, string> classifieds)
-        {
+        public void SendAvatarClassifiedReply(UUID targetID, Dictionary<UUID, string> classifieds) {
         }
 
-        public void SendParcelDwellReply(int localID, UUID parcelID, float dwell)
-        {
+        public void SendParcelDwellReply(int localID, UUID parcelID, float dwell) {
         }
 
-        public void SendUserInfoReply(bool imViaEmail, bool visible, string email)
-        {
+        public void SendUserInfoReply(bool imViaEmail, bool visible, string email) {
         }
 
-        public void SendCreateGroupReply(UUID groupID, bool success, string message)
-        {
+        public void SendCreateGroupReply(UUID groupID, bool success, string message) {
         }
 
-        public void RefreshGroupMembership()
-        {
+        public void RefreshGroupMembership() {
         }
 
-        public void UpdateGroupMembership(GroupMembershipData[] data)
-        {
+        public void UpdateGroupMembership(GroupMembershipData[] data) {
         }
 
-        public void GroupMembershipRemove(UUID GroupID)
-        {
+        public void GroupMembershipRemove(UUID GroupID) {
         }
 
-        public void GroupMembershipAddReplace(UUID GroupID,ulong GroupPowers)
-        {
+        public void GroupMembershipAddReplace(UUID GroupID,ulong GroupPowers) {
         }
 
-        public void SendUseCachedMuteList()
-        {
+        public void SendUseCachedMuteList() {
         }
 
-        public void SendEmpytMuteList()
-        {
+        public void SendEmpytMuteList() {
         }
 
-        public void SendMuteListUpdate(string filename)
-        {
+        public void SendMuteListUpdate(string filename) {
         }
 
-        public void SendPickInfoReply(UUID pickID,UUID creatorID, bool topPick, UUID parcelID, string name, string desc, UUID snapshotID, string user, string originalName, string simName, Vector3 posGlobal, int sortOrder, bool enabled)
-        {
+        public void SendPickInfoReply(UUID pickID,UUID creatorID, bool topPick, UUID parcelID, string name, string desc, UUID snapshotID, string user, string originalName, string simName, Vector3 posGlobal, int sortOrder, bool enabled) {
         }
         #endregion
 
-        public void SendRebakeAvatarTextures(UUID textureID)
-        {
+        public void SendRebakeAvatarTextures(UUID textureID) {
         }
 
-        public void SendAvatarInterestsReply(UUID avatarID, uint wantMask, string wantText, uint skillsMask, string skillsText, string languages)
-        {
+        public void SendAvatarInterestsReply(UUID avatarID, uint wantMask, string wantText, uint skillsMask, string skillsText, string languages) {
         }
 
-        public void SendGroupAccountingDetails(IClientAPI sender,UUID groupID, UUID transactionID, UUID sessionID, int amt)
-        {
+        public void SendGroupAccountingDetails(IClientAPI sender,UUID groupID, UUID transactionID, UUID sessionID, int amt) {
         }
 
-        public void SendGroupAccountingSummary(IClientAPI sender,UUID groupID, uint moneyAmt, int totalTier, int usedTier)
-        {
+        public void SendGroupAccountingSummary(IClientAPI sender,UUID groupID, uint moneyAmt, int totalTier, int usedTier) {
         }
 
-        public void SendGroupTransactionsSummaryDetails(IClientAPI sender,UUID groupID, UUID transactionID, UUID sessionID,int amt)
-        {
+        public void SendGroupTransactionsSummaryDetails(IClientAPI sender,UUID groupID, UUID transactionID, UUID sessionID,int amt) {
         }
 
-        public void SendGroupVoteHistory(UUID groupID, UUID transactionID, GroupVoteHistory[] Votes)
-        {
+        public void SendGroupVoteHistory(UUID groupID, UUID transactionID, GroupVoteHistory[] Votes) {
         }
 
-        public void SendGroupActiveProposals(UUID groupID, UUID transactionID, GroupActiveProposals[] Proposals)
-        {
+        public void SendGroupActiveProposals(UUID groupID, UUID transactionID, GroupActiveProposals[] Proposals) {
         }
 
-        public void SendChangeUserRights(UUID agentID, UUID friendID, int rights)
-        {
+        public void SendChangeUserRights(UUID agentID, UUID friendID, int rights) {
         }
 
-        public void SendTextBoxRequest(string message, int chatChannel, string objectname, UUID ownerID, string ownerFirstName, string ownerLastName, UUID objectId)
-        {
+        public void SendTextBoxRequest(string message, int chatChannel, string objectname, UUID ownerID, string ownerFirstName, string ownerLastName, UUID objectId) {
         }
 
-        public void SendAgentTerseUpdate(ISceneEntity presence)
-        {
+        public void SendAgentTerseUpdate(ISceneEntity presence) {
         }
 
-        public void SendPlacesReply(UUID queryID, UUID transactionID, PlacesReplyData[] data)
-        {
+        public void SendPlacesReply(UUID queryID, UUID transactionID, PlacesReplyData[] data) {
         }
 
-        public void SendSelectedPartsProprieties(List<ISceneEntity> parts)
-        {
+        public void SendSelectedPartsProprieties(List<ISceneEntity> parts) {
         }
 
-        public void SendPartPhysicsProprieties(ISceneEntity entity)
-        {
+        public void SendPartPhysicsProprieties(ISceneEntity entity) {
         }
 
-        public void SendPartFullUpdate(ISceneEntity ent, uint? parentID)
-        {
+        public void SendPartFullUpdate(ISceneEntity ent, uint? parentID) {
         }
 
-        public int GetAgentThrottleSilent(int throttle)
-        {
+        public int GetAgentThrottleSilent(int throttle) {
             return 0;
         }
 
-        public uint GetViewerCaps()
-        {
+        public uint GetViewerCaps() {
             return 0;
         }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Robert Adams
+// Copyright (c) 2012 Robert Adams
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -24,19 +24,22 @@ using OMV = OpenMetaverse;
 
 namespace org.herbal3d.Ragu {
 
+    // Processor of incoming messages after we're connected up
     class ProcessDynamicIncomingMessages : IncomingMessageProcessor {
         SpaceServerDynamic _ssContext;
         public ProcessDynamicIncomingMessages(SpaceServerDynamic pContext) : base(pContext) {
             _ssContext = pContext;
         }
         public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
-            if (pMsg.Op == (uint)BMessageOps.OpenSessionReq) {
-                _ssContext.ProcessOpenSessionReq(pMsg, pConnection, pProtocol);
-            }
-            else {
-                BMessage resp = BasilConnection.MakeResponse(pMsg);
-                resp.Exception = "Session is not open. Static";
-                pProtocol.Send(resp);
+            switch (pMsg.Op) {
+                case (uint)BMessageOps.UpdatePropertiesReq:
+                    // TODO:
+                    break;
+                default:
+                    BMessage resp = BasilConnection.MakeResponse(pMsg);
+                    resp.Exception = "Unknown operation: " + _ssContext.LayerType;
+                    pProtocol.Send(resp);
+                    break;
             }
         }
     }
@@ -54,10 +57,10 @@ namespace org.herbal3d.Ragu {
                 transportParams: new BTransportParams[] {
                     new BTransportWSParams() {
                         preferred       = true,
-                        isSecure        = pRContext.parms.SpaceServerDynamic_IsSecure,
-                        port            = pRContext.parms.SpaceServerDynamic_WSConnectionPort,
-                        certificate     = pRContext.parms.SpaceServerDynamic_WSCertificate,
-                        disableNaglesAlgorithm = pRContext.parms.SpaceServerDynamic_DisableNaglesAlgorithm
+                        isSecure        = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerDynamic.StaticLayerType, "WSIsSecure"),
+                        port            = pRContext.parms.GetConnectionParam<int>(pRContext, SpaceServerDynamic.StaticLayerType, "WSPort"),
+                        certificate     = pRContext.parms.GetConnectionParam<string>(pRContext, SpaceServerDynamic.StaticLayerType, "WSCertificate"),
+                        disableNaglesAlgorithm = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerDynamic.StaticLayerType, "DisableNaglesAlgorithm")
                     }
                 },
                 layer:                  SpaceServerActors.StaticLayerType,

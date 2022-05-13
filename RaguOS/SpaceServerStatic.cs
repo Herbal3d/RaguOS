@@ -26,20 +26,21 @@ using org.herbal3d.Loden;
 
 namespace org.herbal3d.Ragu {
 
-    // Processor of incoming messages when we're waiting for the OpenSession.
+    // Processor of incoming messages after we're connected up
     class ProcessStaticIncomingMessages : IncomingMessageProcessor {
         SpaceServerStatic _ssContext;
         public ProcessStaticIncomingMessages(SpaceServerStatic pContext) : base(pContext) {
             _ssContext = pContext;
         }
         public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
-            if (pMsg.Op == (uint)BMessageOps.OpenSessionReq) {
-                _ssContext.ProcessOpenSessionReq(pMsg, pConnection, pProtocol);
-            }
-            else {
-                BMessage resp = BasilConnection.MakeResponse(pMsg);
-                resp.Exception = "Session is not open. Static";
-                pProtocol.Send(resp);
+            switch (pMsg.Op) {
+                case (uint)BMessageOps.UpdatePropertiesReq:
+                    break;
+                default:
+                    BMessage resp = BasilConnection.MakeResponse(pMsg);
+                    resp.Exception = "Unknown operation: " + _ssContext.LayerType;
+                    pProtocol.Send(resp);
+                    break;
             }
         }
     }
@@ -58,10 +59,10 @@ namespace org.herbal3d.Ragu {
                 transportParams: new BTransportParams[] {
                     new BTransportWSParams() {
                         preferred       = true,
-                        isSecure        = pRContext.parms.SpaceServerStatic_IsSecure,
-                        port            = pRContext.parms.SpaceServerStatic_WSConnectionPort,
-                        certificate     = pRContext.parms.SpaceServerStatic_WSCertificate,
-                        disableNaglesAlgorithm = pRContext.parms.SpaceServerStatic_DisableNaglesAlgorithm
+                        isSecure        = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerStatic.StaticLayerType, "WSIsSecure"),
+                        port            = pRContext.parms.GetConnectionParam<int>(pRContext, SpaceServerStatic.StaticLayerType, "WSPort"),
+                        certificate     = pRContext.parms.GetConnectionParam<string>(pRContext, SpaceServerStatic.StaticLayerType, "WSCertificate"),
+                        disableNaglesAlgorithm = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerStatic.StaticLayerType, "DisableNaglesAlgorithm")
                     }
                 },
                 layer: SpaceServerStatic.StaticLayerType,
@@ -147,18 +148,18 @@ namespace org.herbal3d.Ragu {
                 regionURIs.ForEach(async uri => {
                     AbilityList props = new AbilityList();
                     props.Add(
-                        new AbilityAssembly() {
+                        new AbAssembly() {
                             AssetURL = uri,
                             AssetAuth = RaguAssetService.Instance.AccessToken.Token,
                         }
                     );
-                    props.Add(new AbilityPlacement() {
+                    props.Add(new AbPlacement() {
                             WorldPos = new double[] { 0, 0, 0 },
                             WorldRot = new double[] { 0, 0, 0, 1 }
                         }
                     );
                     BMessage resp = await pConnection.CreateItem(props);
-                    string instanceId = AbilityBItem.GetId(resp);
+                    string instanceId = AbBItem.GetId(resp);
 
                     RContext.log.Debug("{0} HandleBasilConnection: Created instance {1}",
                                     _logHeader, instanceId);
