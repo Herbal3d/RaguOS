@@ -40,7 +40,7 @@ namespace org.herbal3d.Ragu {
                     break;
                 default:
                     BMessage resp = BasilConnection.MakeResponse(pMsg);
-                    resp.Exception = "Unknown operation: " + _ssContext.LayerType;
+                    resp.Exception = "Unsupported operation on SpaceServer" + _ssContext.LayerType;
                     pProtocol.Send(resp);
                     break;
             }
@@ -92,7 +92,7 @@ namespace org.herbal3d.Ragu {
 
         protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pServiceAuth) {
             // We also have a full command processor
-            pConnection.SetOpProcessor(new ProcessMessagesOpenConnection(this));
+            pConnection.SetOpProcessor(new ProcessActorsIncomingMessages(this));
 
             AddEventSubscriptions();
             AddExistingPresences();
@@ -227,16 +227,18 @@ namespace org.herbal3d.Ragu {
 
             public ScenePresence presence;
             private RaguContext _context;
-            private BasilConnection _connection;
             private SpaceServerActors _spaceServer;
+            private BasilConnection _connection;
             // private BT.ItemId _instanceId;
             private string _instanceId;
+            private bool _isFocusAvatar = false;
 
             public PresenceInfo(ScenePresence pPresence, BasilConnection pConnection, SpaceServerActors pSpaceServer, RaguContext pContext) {
                 presence = pPresence;
                 _context = pContext;
                 _connection = pConnection;
                 _spaceServer = pSpaceServer;
+                _isFocusAvatar = pPresence.UUID == _context.focusAvatarUUID;
             }
             public async void UpdatePosition() {
                 if (_instanceId != null) {
@@ -254,25 +256,31 @@ namespace org.herbal3d.Ragu {
                 }
             }
             public void AddAppearanceInstance() {
-                Task.Run(async () => {
+                _ = Task.Run(async () => {
                     try {
                         // TODO: use avatar appearance baking code to build GLTF version of avatar
                         // For the moment, use a canned, static mesh
                         string tempAppearanceURL = "https://files.misterblue.com/BasilTest/gltf/Duck/glTF/Duck.gltf";
 
-                        AbilityList props = new AbilityList();
-                        props.Add(
+                        AbilityList abilProps = new AbilityList();
+                        abilProps.Add(
                             new AbAssembly() {
                                 AssetURL = tempAppearanceURL,
                                 AssetAuth = RaguAssetService.Instance.AccessToken.Token,
                             }
                         );
-                        props.Add(new AbPlacement() {
+                        abilProps.Add(
+                            new AbPlacement() {
                                 WorldPos = GetWorldPosition(),
                                 WorldRot = GetWorldRotation()
                             }
                         );
-                        BMessage resp = await _connection.CreateItem(props);
+                        if (_isFocusAvatar) {
+                            // If the main client avatar, set for user controlling its actions
+                            abilProps.Add( new AbOSAvaMove() );
+                        };
+
+                        BMessage resp = await _connection.CreateItem(abilProps);
                         _instanceId = AbBItem.GetId(resp);
                     }
                     catch (Exception e) {

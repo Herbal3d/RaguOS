@@ -30,7 +30,7 @@ namespace org.herbal3d.Ragu {
 
     
 
-    // Processor of incoming messages when we're waiting for the OpenSession.
+    // Processor of incoming messages after OpenSession -- regular messages
     class ProcessCCIncomingMessages : IncomingMessageProcessor {
         SpaceServerCC _ssContext;
         public ProcessCCIncomingMessages(SpaceServerCC pContext) : base(pContext) {
@@ -38,15 +38,12 @@ namespace org.herbal3d.Ragu {
         }
         public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
             switch (pMsg.Op) {
-                case (uint)BMessageOps.OpenSessionReq:
-                    _ssContext.ProcessOpenSessionReq(pMsg, pConnection, pProtocol);
-                    break;
-                case (uint)BMessageOps.MakeConnectionResp:
-                    // We will get responses from our MakeConnections
+                case (uint)BMessageOps.UpdatePropertiesReq:
+                    // TODO:
                     break;
                 default:
                     BMessage resp = BasilConnection.MakeResponse(pMsg);
-                    resp.Exception = "Session is not open. AA";
+                    resp.Exception = "Unsupported operation on SpaceServer" + _ssContext.LayerType;
                     pProtocol.Send(resp);
                     break;
             }
@@ -223,6 +220,9 @@ namespace org.herbal3d.Ragu {
                         if (RContext.scene.TryGetScenePresence(agentUUID, out ScenePresence sp)) {
                             RContext.log.Debug("{0} Successful login for {1} {2} ({3})",
                                         _logHeader, firstName, lastName, agentId);
+                            RContext.focusAvatarUUID = agentUUID;
+                            RContext.focusAvatarScenePresence = sp;
+                            RContext.focusRaguAvatar = thisPerson;
                             ret = true;
                         }
                         else {

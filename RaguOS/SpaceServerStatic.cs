@@ -38,7 +38,7 @@ namespace org.herbal3d.Ragu {
                     break;
                 default:
                     BMessage resp = BasilConnection.MakeResponse(pMsg);
-                    resp.Exception = "Unknown operation: " + _ssContext.LayerType;
+                    resp.Exception = "Unsupported operation on SpaceServer" + _ssContext.LayerType;
                     pProtocol.Send(resp);
                     break;
             }

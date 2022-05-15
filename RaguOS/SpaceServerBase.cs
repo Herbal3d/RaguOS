@@ -47,25 +47,32 @@ namespace org.herbal3d.Ragu {
         public void ProcessOpenSessionReq(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
             string errorReason = "";
             // Get the login information from the OpenConnection
-            OSAuthToken clientAuth = AbOpenSession.GetClientAuth(pMsg);
+            OSAuthToken clientAuth = OpenSessionResp.GetClientAuth(pMsg);
             if (clientAuth != null) {
                 string incomingAuthString = pMsg.Auth;
                 if (incomingAuthString != null) {
                     OSAuthToken loginAuth = OSAuthToken.FromString(incomingAuthString);
 
+                    // Create a new auth token for communication into this.
+                    // This 'incomingAuth' is sent with the OpenSession response to be used
+                    //     by the client for future communication
                     OSAuthToken incomingAuth = new OSAuthToken();
+                    // 'clientAuth' is the token sent by the client that this should send
+                    //     with future messages to authenticate me.
                     OSAuthToken outgoingAuth = clientAuth;
                     pConnection.SetAuthorizations(incomingAuth, outgoingAuth);
 
-                    // have the info to try and log the user in
+                    // have the info. If CC will log user in otherwise checks for layer waiting for OpenSession
                     if (ValidateLoginAuth(loginAuth)) {
 
                         // The user checks out so construct the success response
-                        BMessage resp = BasilConnection.MakeResponse(pMsg);
-                        resp.IProps.Add(AbOpenSession.ServerVersionProp, RContext.ServerVersion);
-                        resp.IProps.Add(AbOpenSession.ServerAuthProp, incomingAuth.Token);
-                        pConnection.Send(resp);
+                        var openSessionRespParams = new OpenSessionResp() {
+                            ServerVersion = VersionInfo.longVersion,
+                            ServerAuth = incomingAuth.Token
+                        };
+                        pConnection.SendResponse(pMsg, openSessionRespParams);
 
+                        // Call the over-ridable function to do any layer specific processing
                         OpenSessionProcessing(pConnection, loginAuth);
                     }
                     else {
@@ -98,7 +105,7 @@ namespace org.herbal3d.Ragu {
                     // RContext.log.Debug("{0}: login auth successful. Waited {1} seconds", _logHeader,
                     //     (DateTime.Now - waitingInfo.whenCreated).TotalSeconds);
                     RContext.waitingForMakeConnection.Remove(auth);
-                    ret = true;
+                    ret = waitingInfo.incomingAuth.Equals(pUserAuth);
                 }
                 else {
                     RContext.log.Debug("{0}: login auth unsuccessful. Token: {1}", _logHeader, auth);

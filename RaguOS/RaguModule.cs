@@ -15,11 +15,14 @@ using System.Linq;
 using System.Reflection;
 using Mono.Addins;
 
+using OpenSim.Framework;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
 
 using org.herbal3d.cs.CommonUtil;
 using org.herbal3d.OSAuth;
+
+using OMV = OpenMetaverse;
 
 using Nini.Config;
 using log4net;
@@ -51,17 +54,14 @@ namespace org.herbal3d.Ragu {
         // System configuration information
         public IConfig sysConfig;
 
-        // Version generated at build time
-        public string ServerVersion;
         public RaguParams parms;    // assume it's readonly
         public readonly RaguStats stats;
         public Scene scene;
         public BLogger log;
         public readonly string sessionKey;
-        public string assetAccessKey;
-        public DateTime assetKeyExpiration;
 
         // The following are the layer servers for this region.
+        // TODO: someday make this a dynamic collection
         public SpaceServerListener SpaceServerCCService;
         public SpaceServerListener SpaceServerStaticService;
         public SpaceServerListener SpaceServerActorsService;
@@ -69,18 +69,16 @@ namespace org.herbal3d.Ragu {
         // When a client is sent a MakeConnection, the OpenSession auth info is added here
         public Dictionary<string, WaitingInfo> waitingForMakeConnection = new Dictionary<string, WaitingInfo>();
 
+        // The logged in avatar
+        public OMV.UUID focusAvatarUUID;
+        public IClientAPI focusRaguAvatar;
+        public ScenePresence focusAvatarScenePresence;
+
         // The hostname to use to access the service
         public string HostnameForExternalAccess;
 
         public RaguContext() {
-            var randomNumbers = new Random();
-            stats = new RaguStats(this);
-            // TODO: make session and asset keys bearer certificates with expiration, etc
-            sessionKey = randomNumbers.Next().ToString();
-            assetAccessKey = randomNumbers.Next().ToString();
-            assetKeyExpiration = DateTime.UtcNow.AddHours(2);
-
-            ServerVersion = "2.3.4";    // TODO: where to get the Ragu version?
+            sessionKey = org.herbal3d.cs.CommonUtil.Util.RandomString(8);
         }
     }
 
