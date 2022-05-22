@@ -56,7 +56,7 @@ namespace org.herbal3d.Ragu {
                     // Create a new auth token for communication into this.
                     // This 'incomingAuth' is sent with the OpenSession response to be used
                     //     by the client for future communication
-                    OSAuthToken incomingAuth = new OSAuthToken();
+                    OSAuthToken incomingAuth = OSAuthToken.SimpleToken();
                     // 'clientAuth' is the token sent by the client that this should send
                     //     with future messages to authenticate me.
                     OSAuthToken outgoingAuth = clientAuth;

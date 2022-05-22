@@ -36,7 +36,23 @@ namespace org.herbal3d.Ragu {
         public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
             switch (pMsg.Op) {
                 case (uint)BMessageOps.UpdatePropertiesReq:
-                    // TODO:
+                    if (pMsg.IId == _ssContext.FocusPresence.InstanceId) {
+                        foreach (var kvp in pMsg.IProps) {
+                            switch (kvp.Key) {
+                                case "moveAction":
+                                    _ssContext.AvatarAction(kvp.Value);
+                                    break;
+                                default:
+                                    break;
+                            }
+                        }
+                        pConnection.SendResponse(pMsg);
+                    }
+                    else {
+                        BMessage notUsResp = BasilConnection.MakeResponse(pMsg);
+                        notUsResp.Exception = "Unknown Id";
+                        pProtocol.Send(notUsResp);
+                    }
                     break;
                 default:
                     BMessage resp = BasilConnection.MakeResponse(pMsg);
@@ -44,6 +60,7 @@ namespace org.herbal3d.Ragu {
                     pProtocol.Send(resp);
                     break;
             }
+
         }
     }
 
@@ -51,6 +68,8 @@ namespace org.herbal3d.Ragu {
         private static readonly string _logHeader = "[SpaceServerActors]";
 
         public static readonly string StaticLayerType = "Actors";
+
+        public PresenceInfo FocusPresence { get; private set; }
 
         // Function called to start up the service listener.
         // THis starts listening for network connections and creates instances of the SpaceServer
@@ -77,7 +96,7 @@ namespace org.herbal3d.Ragu {
             );
         }
 
-        public SpaceServerActors(RaguContext pContext, CancellationTokenSource pCanceller, BTransport pTransport) 
+        public SpaceServerActors(RaguContext pContext, CancellationTokenSource pCanceller, BTransport pTransport)
                         : base(pContext, pCanceller, pTransport) {
             LayerType = StaticLayerType;
 
@@ -99,20 +118,20 @@ namespace org.herbal3d.Ragu {
         }
 
         private void AddEventSubscriptions() {
-            RContext.scene.EventManager.OnNewPresence               += Event_OnNewPresence;
-            RContext.scene.EventManager.OnRemovePresence            += Event_OnRemovePresence;
+            RContext.scene.EventManager.OnNewPresence += Event_OnNewPresence;
+            RContext.scene.EventManager.OnRemovePresence += Event_OnRemovePresence;
             // update to client position (either this or 'significant')
-            RContext.scene.EventManager.OnClientMovement            += Event_OnClientMovement;
+            RContext.scene.EventManager.OnClientMovement += Event_OnClientMovement;
             // "significant" update to client position
             RContext.scene.EventManager.OnSignificantClientMovement += Event_OnSignificantClientMovement;
             // Gets called for most position/camera/action updates. Seems to be once a second.
             // RContext.scene.EventManager.OnScenePresenceUpdated      += Event_OnScenePresenceUpdated;
         }
         private void RemoveEventSubscriptions() {
-            RContext.scene.EventManager.OnNewPresence               -= Event_OnNewPresence;
-            RContext.scene.EventManager.OnRemovePresence            -= Event_OnRemovePresence;
+            RContext.scene.EventManager.OnNewPresence -= Event_OnNewPresence;
+            RContext.scene.EventManager.OnRemovePresence -= Event_OnRemovePresence;
             // update to client position (either this or 'significant')
-            RContext.scene.EventManager.OnClientMovement            -= Event_OnClientMovement;
+            RContext.scene.EventManager.OnClientMovement -= Event_OnClientMovement;
             // "significant" update to client position
             RContext.scene.EventManager.OnSignificantClientMovement -= Event_OnSignificantClientMovement;
             // Gets called for most position/camera/action updates
@@ -121,6 +140,9 @@ namespace org.herbal3d.Ragu {
         private void AddExistingPresences() {
             RContext.scene.GetScenePresences().ForEach(pres => {
                 PresenceInfo pi = new PresenceInfo(pres, _connection, this, RContext);
+                if (pi.IsFocusAvatar) {
+                    FocusPresence = pi;
+                }
                 AddPresence(pi);
                 pi.AddAppearanceInstance();
             });
@@ -141,6 +163,9 @@ namespace org.herbal3d.Ragu {
         private void Event_OnRemovePresence(OMV.UUID pPresenceUUID) {
             // RContext.log.Debug("{0} Event_OnRemovePresence", _logHeader);
             if (TryFindPresence(pPresenceUUID, out PresenceInfo pi)) {
+                if (pi.InstanceId == FocusPresence.InstanceId) {
+                    FocusPresence = null;
+                }
                 pi.RemoveAppearanceInstance();
                 RemovePresence(pi);
             }
@@ -168,6 +193,10 @@ namespace org.herbal3d.Ragu {
             if (TryFindPresence(pPresence, out PresenceInfo pi)) {
                 pi.UpdatePosition();
             }
+        }
+
+        public void AvatarAction(object pAction) {
+
         }
 
         private List<PresenceInfo> _presences = new List<PresenceInfo>();
@@ -219,97 +248,99 @@ namespace org.herbal3d.Ragu {
                 }
             }
         }
+    }
 
+    // Local class for a presence and the operations we do on the Basil display.
+    public class PresenceInfo {
+        private static readonly string _logHeader = "[PresenceInfo]";
 
-        // Local class for a presence and the operations we do on the Basil display.
-        private class PresenceInfo {
-            private static readonly string _logHeader = "[PresenceInfo]";
+        public ScenePresence presence;
+        private RaguContext _context;
+        private SpaceServerActors _spaceServer;
+        private BasilConnection _connection;
 
-            public ScenePresence presence;
-            private RaguContext _context;
-            private SpaceServerActors _spaceServer;
-            private BasilConnection _connection;
-            // private BT.ItemId _instanceId;
-            private string _instanceId;
-            private bool _isFocusAvatar = false;
+        // BItem.ID of the created 
+        public string InstanceId { get; private set; }
 
-            public PresenceInfo(ScenePresence pPresence, BasilConnection pConnection, SpaceServerActors pSpaceServer, RaguContext pContext) {
-                presence = pPresence;
-                _context = pContext;
-                _connection = pConnection;
-                _spaceServer = pSpaceServer;
-                _isFocusAvatar = pPresence.UUID == _context.focusAvatarUUID;
+        // 'true' if the logged in/main avatar
+        public bool IsFocusAvatar { get; private set; }
+
+        public PresenceInfo(ScenePresence pPresence, BasilConnection pConnection, SpaceServerActors pSpaceServer, RaguContext pContext) {
+            presence = pPresence;
+            _context = pContext;
+            _connection = pConnection;
+            _spaceServer = pSpaceServer;
+            IsFocusAvatar = pPresence.UUID == _context.focusAvatarUUID;
+        }
+        public async void UpdatePosition() {
+            if (InstanceId != null) {
+                var coordParams = new AbPlacement() {
+                    WorldPos = GetWorldPosition(),
+                    WorldRot = GetWorldRotation()
+                };
+                await _connection.UpdateProperties(InstanceId, coordParams);
+                // _context.log.Debug("{0} UpdatePosition: p={1}, r={2}",
+                //             _logHeader, presence.AbsolutePosition, presence.Rotation);
             }
-            public async void UpdatePosition() {
-                if (_instanceId != null) {
-                    var coordParams = new AbPlacement() {
-                        WorldPos = GetWorldPosition(),
-                        WorldRot = GetWorldRotation()
+        }
+        public void UpdateAppearance() {
+            if (InstanceId != null) {
+            }
+        }
+        public void AddAppearanceInstance() {
+            _ = Task.Run(async () => {
+                try {
+                    // TODO: use avatar appearance baking code to build GLTF version of avatar
+                    // For the moment, use a canned, static mesh
+                    string tempAppearanceURL = "https://files.misterblue.com/BasilTest/gltf/Duck/glTF/Duck.gltf";
+
+                    AbilityList abilProps = new AbilityList();
+                    abilProps.Add(
+                        new AbAssembly() {
+                            AssetURL = tempAppearanceURL,
+                            AssetAuth = RaguAssetService.Instance.AccessToken.Token,
+                        }
+                    );
+                    abilProps.Add(
+                        new AbPlacement() {
+                            WorldPos = GetWorldPosition(),
+                            WorldRot = GetWorldRotation()
+                        }
+                    );
+                    if (IsFocusAvatar) {
+                        // If the main client avatar, set for user controlling its actions
+                        abilProps.Add( new AbOSAvaMove() );
                     };
-                    await _connection.UpdateProperties(_instanceId, coordParams);
-                    // _context.log.Debug("{0} UpdatePosition: p={1}, r={2}",
-                    //             _logHeader, presence.AbsolutePosition, presence.Rotation);
+
+                    BMessage resp = await _connection.CreateItem(abilProps);
+                    InstanceId = AbBItem.GetId(resp);
                 }
-            }
-            public void UpdateAppearance() {
-                if (_instanceId != null) {
-                }
-            }
-            public void AddAppearanceInstance() {
-                _ = Task.Run(async () => {
-                    try {
-                        // TODO: use avatar appearance baking code to build GLTF version of avatar
-                        // For the moment, use a canned, static mesh
-                        string tempAppearanceURL = "https://files.misterblue.com/BasilTest/gltf/Duck/glTF/Duck.gltf";
+                catch (Exception e) {
+                    _context.log.Error("{0} AddAppearanceInstance: exception adding appearance: {1}",
+                                    _logHeader, e);
+                };
+            });
+        }
 
-                        AbilityList abilProps = new AbilityList();
-                        abilProps.Add(
-                            new AbAssembly() {
-                                AssetURL = tempAppearanceURL,
-                                AssetAuth = RaguAssetService.Instance.AccessToken.Token,
-                            }
-                        );
-                        abilProps.Add(
-                            new AbPlacement() {
-                                WorldPos = GetWorldPosition(),
-                                WorldRot = GetWorldRotation()
-                            }
-                        );
-                        if (_isFocusAvatar) {
-                            // If the main client avatar, set for user controlling its actions
-                            abilProps.Add( new AbOSAvaMove() );
-                        };
-
-                        BMessage resp = await _connection.CreateItem(abilProps);
-                        _instanceId = AbBItem.GetId(resp);
-                    }
-                    catch (Exception e) {
-                        _context.log.Error("{0} AddAppearanceInstance: exception adding appearance: {1}",
-                                        _logHeader, e);
-                    };
-                });
-            }
-
-            public void RemoveAppearanceInstance() {
-                Task.Run( async () => {
-                    if (_instanceId != null) {
-                        await _connection.DeleteItem(_instanceId);
-                        _instanceId = null;
-                    };
-                });
-            }
-            // Return the Instance's position converted from OpenSim Zup to GLTF Yup
-            public double[] GetWorldPosition() {
-                OMV.Vector3 thePos = CoordAxis.ConvertZupToYup(presence.AbsolutePosition);
-                // OMV.Vector3 thePos = presence.AbsolutePosition;
-                return new double[] { thePos.X, thePos.Y, thePos.Z };
-            }
-            // Return the Instance's rotation converted from OpenSim Zup to GLTF Yup
-            public double[] GetWorldRotation() {
-                OMV.Quaternion theRot = presence.Rotation;
-                // OMV.Quaternion theRot = CoordAxis.ConvertZupToYup(presence.Rotation);
-                return new double[] { theRot.X, theRot.Y, theRot.Z, theRot.W };
-            }
+        public void RemoveAppearanceInstance() {
+            Task.Run( async () => {
+                if (InstanceId != null) {
+                    await _connection.DeleteItem(InstanceId);
+                    InstanceId = null;
+                };
+            });
+        }
+        // Return the Instance's position converted from OpenSim Zup to GLTF Yup
+        public double[] GetWorldPosition() {
+            OMV.Vector3 thePos = CoordAxis.ConvertZupToYup(presence.AbsolutePosition);
+            // OMV.Vector3 thePos = presence.AbsolutePosition;
+            return new double[] { thePos.X, thePos.Y, thePos.Z };
+        }
+        // Return the Instance's rotation converted from OpenSim Zup to GLTF Yup
+        public double[] GetWorldRotation() {
+            OMV.Quaternion theRot = presence.Rotation;
+            // OMV.Quaternion theRot = CoordAxis.ConvertZupToYup(presence.Rotation);
+            return new double[] { theRot.X, theRot.Y, theRot.Z, theRot.W };
         }
     }
 }

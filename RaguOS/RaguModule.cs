@@ -38,8 +38,11 @@ namespace org.herbal3d.Ragu {
         public DateTime whenCreated;
 
         public WaitingInfo() {
-            incomingAuth = new OSAuthToken();
-            outgoingAuth = new OSAuthToken();
+            // incomingAuth = new OSAuthToken();
+            // outgoingAuth = new OSAuthToken();
+            // Using shorter auth tokens
+            incomingAuth = OSAuthToken.SimpleToken();
+            outgoingAuth = OSAuthToken.SimpleToken();
             whenCreated = new DateTime();
         }
         public WaitingInfo(OSAuthToken pIncomingAuth) {

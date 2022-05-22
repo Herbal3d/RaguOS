@@ -115,6 +115,7 @@ namespace org.herbal3d.Ragu {
                                         RContext.HostnameForExternalAccess, waiting.incomingAuth);
                     _ = pConnection.MakeConnection(pp);
 
+                    /*
                     // Actors
                     waiting = RememberWaitingForOpenSession();
                     pp = RContext.SpaceServerActorsService.ParamsForMakeConnection(
@@ -126,6 +127,7 @@ namespace org.herbal3d.Ragu {
                     pp = RContext.SpaceServerDynamicService.ParamsForMakeConnection(
                                         RContext.HostnameForExternalAccess, waiting.incomingAuth);
                     _ = pConnection.MakeConnection(pp);
+                    */
 
                 }
                 catch (Exception e) {

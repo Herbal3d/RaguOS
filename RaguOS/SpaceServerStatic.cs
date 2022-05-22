@@ -150,6 +150,7 @@ namespace org.herbal3d.Ragu {
                     props.Add(
                         new AbAssembly() {
                             AssetURL = uri,
+                            AssetLoader = "gltf",
                             AssetAuth = RaguAssetService.Instance.AccessToken.Token,
                         }
                     );
