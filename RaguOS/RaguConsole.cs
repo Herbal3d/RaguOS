@@ -30,6 +30,7 @@ namespace org.herbal3d.Ragu {
         private const string LogHeader = "RaguCommand";
         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
+        private bool m_Enabled = false;
         private List<Scene> m_scenes = new List<Scene>();
         private static bool m_commandsLoaded = false;
 
@@ -38,38 +39,39 @@ namespace org.herbal3d.Ragu {
 
         public Type ReplaceableInterface { get { return null; } }
 
-        public void Initialise(IConfigSource source)
+        public void Initialise(IConfigSource pConfig)
         {
-            m_log.DebugFormat("{0}: INITIALIZED MODULE", LogHeader);
+            var iniConfig = pConfig.Configs["Ragu"];
+            m_Enabled = iniConfig.GetBoolean("Enabled");
         }
 
         public void PostInitialise()
         {
-            m_log.DebugFormat("[{0}: POST INITIALIZED MODULE", LogHeader);
-            InstallInterfaces();
+            if (m_Enabled) {
+                m_log.DebugFormat("{0}: Enabled", LogHeader);
+                InstallInterfaces();
+            }
         }
 
         public void Close()
         {
-            m_log.DebugFormat("{0}: CLOSED MODULE", LogHeader);
         }
 
         public void AddRegion(Scene scene)
         {
-            m_log.DebugFormat("{0}: REGION {1} ADDED", LogHeader, scene.RegionInfo.RegionName);
-            m_scenes.Add(scene);
+            if (m_Enabled) {
+                m_scenes.Add(scene);
+            }
         }
 
         public void RemoveRegion(Scene scene)
         {
-            m_log.DebugFormat("{0}: REGION {1} REMOVED", LogHeader, scene.RegionInfo.RegionName);
             if (m_scenes.Contains(scene))
                 m_scenes.Remove(scene);
         }
 
         public void RegionLoaded(Scene scene)
         {
-            m_log.DebugFormat("{0}: REGION {1} LOADED", LogHeader, scene.RegionInfo.RegionName);
         }
         #endregion INonSharedRegionModule
 
@@ -96,7 +98,7 @@ namespace org.herbal3d.Ragu {
                     "Regions", false, "ragu get",
                     getInvocation,
                     "Get Ragu parameter",
-                    ProcessRaguSet);
+                    ProcessRaguGet);
 
                 m_commandsLoaded = true;
             }
@@ -119,7 +121,16 @@ namespace org.herbal3d.Ragu {
             RaguRegion ragu = scene.RequestModuleInterface<RaguRegion>();
             if (ragu != null) {
                 string parm = cmdparms[2];
-                WriteOut("  {0}: {1}", parm, ragu.RContext.parms.GetParameterValue(parm));
+                if (parm.ToLower() == "all") {
+                    var parms = ragu.RContext.parms;
+                    Dictionary<string, string> parmList = parms.ListParameters();
+                    foreach (var kvp in parmList) {
+                        WriteOut("   {0}: {1}", kvp.Key, ragu.RContext.parms.GetParameterValue(kvp.Key));
+                    }
+                }
+                else {
+                    WriteOut("  {0}: {1}", parm, ragu.RContext.parms.GetParameterValue(parm));
+                }
             }
         }
 

@@ -108,6 +108,10 @@ namespace org.herbal3d.Ragu {
                         .First();
                 }
             }
+
+            // Put computed hostname in parameters so it can be seen externally
+            RContext.parms.ExternalAccessHostname = pContext.HostnameForExternalAccess;
+
             RContext.log.Debug("{0} HostnameForExternalAccess = {1}", _logHeader, pContext.HostnameForExternalAccess);
         }
     }

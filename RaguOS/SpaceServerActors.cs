@@ -118,20 +118,20 @@ namespace org.herbal3d.Ragu {
         }
 
         private void AddEventSubscriptions() {
-            RContext.scene.EventManager.OnNewPresence += Event_OnNewPresence;
-            RContext.scene.EventManager.OnRemovePresence += Event_OnRemovePresence;
+            RContext.scene.EventManager.OnNewPresence       += Event_OnNewPresence;
+            RContext.scene.EventManager.OnRemovePresence    += Event_OnRemovePresence;
             // update to client position (either this or 'significant')
-            RContext.scene.EventManager.OnClientMovement += Event_OnClientMovement;
+            RContext.scene.EventManager.OnClientMovement    += Event_OnClientMovement;
             // "significant" update to client position
             RContext.scene.EventManager.OnSignificantClientMovement += Event_OnSignificantClientMovement;
             // Gets called for most position/camera/action updates. Seems to be once a second.
             // RContext.scene.EventManager.OnScenePresenceUpdated      += Event_OnScenePresenceUpdated;
         }
         private void RemoveEventSubscriptions() {
-            RContext.scene.EventManager.OnNewPresence -= Event_OnNewPresence;
-            RContext.scene.EventManager.OnRemovePresence -= Event_OnRemovePresence;
+            RContext.scene.EventManager.OnNewPresence       -= Event_OnNewPresence;
+            RContext.scene.EventManager.OnRemovePresence    -= Event_OnRemovePresence;
             // update to client position (either this or 'significant')
-            RContext.scene.EventManager.OnClientMovement -= Event_OnClientMovement;
+            RContext.scene.EventManager.OnClientMovement    -= Event_OnClientMovement;
             // "significant" update to client position
             RContext.scene.EventManager.OnSignificantClientMovement -= Event_OnSignificantClientMovement;
             // Gets called for most position/camera/action updates
