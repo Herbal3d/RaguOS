@@ -20,6 +20,7 @@ using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
 
 using org.herbal3d.cs.CommonUtil;
+using org.herbal3d.cs.CommonEntities;
 using org.herbal3d.OSAuth;
 
 using OMV = OpenMetaverse;
@@ -118,7 +119,11 @@ namespace org.herbal3d.Ragu {
                 log = tempLogger
             };
             if (_context.parms.Enabled) {
-                _log.InfoFormat("{0} Enabled", _logHeader);
+                _log.InfoFormat("{0} Enabled. Using Loden={1}, CommonEntities={2}, CommonUtil={3}", _logHeader,
+                    org.herbal3d.Loden.VersionInfo.longVersion,
+                    org.herbal3d.cs.CommonEntities.VersionInfo.longVersion,
+                    org.herbal3d.cs.CommonUtil.VersionInfo.longVersion
+                );
             }
         }
         //
