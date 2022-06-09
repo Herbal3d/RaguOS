@@ -90,9 +90,8 @@ namespace org.herbal3d.Ragu {
             _connection.Start();
         }
 
-        protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken loginAuth) {
+        protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken loginAuth, WaitingInfo pWaitingInfo) {
 
-            // We also have a full command processor
             pConnection.SetOpProcessor(new ProcessStaticIncomingMessages(this));
 
             // Send the static region information to the user

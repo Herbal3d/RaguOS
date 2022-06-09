@@ -87,7 +87,7 @@ namespace org.herbal3d.Ragu {
             _connection.Start();
         }
 
-        protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pServiceAuth) {
+        protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pServiceAuth, WaitingInfo pWaitingInfo) {
             // We also have a full command processor
             pConnection.SetOpProcessor(new ProcessDynamicIncomingMessages(this));
             return;

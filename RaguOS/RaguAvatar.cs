@@ -44,10 +44,11 @@ using System.Net;
 using OpenMetaverse;
 using OpenMetaverse.Packets;
 using OpenSim.Framework;
+using OpenSim.Framework.Client;
 using OpenSim.Region.Framework.Scenes;
 
 namespace org.herbal3d.Ragu {
-    public class RaguAvatar : IClientAPI {
+    public class RaguAvatar : IClientAPI, IClientIM, IClientChat {
         private readonly string m_firstname;
         private readonly string m_lastname;
         private readonly Vector3 m_startPos;
@@ -56,13 +57,17 @@ namespace org.herbal3d.Ragu {
         private readonly UUID m_scopeID;
         private readonly UUID m_ownerID;
         private UUID m_hostGroupID;
+        
+        private RaguContext m_context;
+
         public List<uint> SelectedObjects {get; private set;}
 
         public RaguAvatar(
                 string firstname, string lastname, UUID agentID,
                 Vector3 position, UUID ownerID,
                 bool senseAsAgent, Scene scene,
-                uint circuitCode) {
+                uint circuitCode,
+                RaguContext pContext) {
             m_firstname = firstname;
             m_lastname = lastname;
             m_startPos = position;
@@ -965,6 +970,7 @@ namespace org.herbal3d.Ragu {
         {
             // Start the client by adding it to the scene
             m_scene.AddNewAgent(this, PresenceType.User);
+            OnCompleteMovementToRegion?.Invoke(this, true);
         }
 
         public void Stop()
@@ -1265,6 +1271,12 @@ namespace org.herbal3d.Ragu {
 
         public uint GetViewerCaps() {
             return 0;
+        }
+
+        // ===============================================================
+        public void Logout() {
+            m_context.log.Info("[CLIENT]: Got a logout request for {0} in {1}", Name, Scene.RegionInfo.RegionName);
+            OnLogout?.Invoke(this);
         }
 
     }

@@ -31,12 +31,16 @@ using log4net;
 namespace org.herbal3d.Ragu {
 
     // When a SpaceServer sends a MakeConnection, it puts the expeced authentication here
-    // so, when the OpenSession is received, the passed authentication can be verified.
+    //     so, when the OpenSession is received, the passed authentication can be verified.
     // These are periodically expired.
+    // This is also used as a way to pass information from the sending of the MakeConnection
+    //     to the SpaceServer that is eventually created. Most specifically, the agentUUID
+    //     but more will be added in the future.
     public class WaitingInfo {
         public OSAuthToken incomingAuth;
         public OSAuthToken outgoingAuth;
         public DateTime whenCreated;
+        public OMV.UUID agentUUID;
 
         public WaitingInfo() {
             // incomingAuth = new OSAuthToken();
@@ -46,10 +50,12 @@ namespace org.herbal3d.Ragu {
             outgoingAuth = OSAuthToken.SimpleToken();
             whenCreated = new DateTime();
         }
-        public WaitingInfo(OSAuthToken pIncomingAuth) {
+        public WaitingInfo(OMV.UUID pAgentUUID): this() {
+            agentUUID = pAgentUUID;
+        }
+        public WaitingInfo(OSAuthToken pIncomingAuth, OMV.UUID pAgentUUID): this() {
             incomingAuth = pIncomingAuth;
-            outgoingAuth = new OSAuthToken();
-            whenCreated = new DateTime();
+            agentUUID = pAgentUUID;
         }
     }
 
@@ -64,19 +70,13 @@ namespace org.herbal3d.Ragu {
         public BLogger log;
         public readonly string sessionKey;
 
-        // The following are the layer servers for this region.
-        // TODO: someday make this a dynamic collection
-        public SpaceServerListener SpaceServerCCService;
-        public SpaceServerListener SpaceServerStaticService;
-        public SpaceServerListener SpaceServerActorsService;
-        public SpaceServerListener SpaceServerDynamicService;
+        // The following are the layer listeners for this region.
+        // Instances of each SpaceServer is created when incoming connections are received.
+        public Dictionary<string, SpaceServerListener> SpaceServerListeners = new Dictionary<string, SpaceServerListener>();
+        // All of the SpaceServers created for connections in this region.
+        public List<SpaceServerBase> SpaceServers = new List<SpaceServerBase>();
         // When a client is sent a MakeConnection, the OpenSession auth info is added here
         public Dictionary<string, WaitingInfo> waitingForMakeConnection = new Dictionary<string, WaitingInfo>();
-
-        // The logged in avatar
-        public OMV.UUID focusAvatarUUID;
-        public IClientAPI focusRaguAvatar;
-        public ScenePresence focusAvatarScenePresence;
 
         // The hostname to use to access the service
         public string HostnameForExternalAccess;

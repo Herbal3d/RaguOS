@@ -85,7 +85,7 @@ namespace org.herbal3d.Ragu {
                 MainConsole.Instance.Commands.AddCommand(
                     "Regions", false, "ragu list",
                     listInvocation,
-                    "List state of Ragu connections",
+                    "List state of Ragu parameters",
                     ProcessRaguList);
 
                 MainConsole.Instance.Commands.AddCommand(
@@ -99,6 +99,12 @@ namespace org.herbal3d.Ragu {
                     getInvocation,
                     "Get Ragu parameter",
                     ProcessRaguGet);
+
+                MainConsole.Instance.Commands.AddCommand(
+                    "Regions", false, "ragu listss",
+                    getInvocation,
+                    "List SpaceServers",
+                    ProcessRaguListSS);
 
                 m_commandsLoaded = true;
             }
@@ -179,6 +185,31 @@ namespace org.herbal3d.Ragu {
                 foreach (var kvp in parmList)
                 {
                     WriteOut("   {0}: {1}", kvp.Key, kvp.Value);
+                }
+            }
+            else
+            {
+                WriteError("Current regions does not have Ragu enabled");
+            }
+            return;
+        }
+
+        private void ProcessRaguListSS(string module, string[] cmdparms)
+        {
+            if (SceneManager.Instance == null || SceneManager.Instance.CurrentScene == null) {
+                WriteError("Error: no region selected. Use 'change region' to select a region.");
+                return;
+            }
+            Scene scene = SceneManager.Instance.CurrentScene;
+
+            RaguRegion ragu = scene.RequestModuleInterface<RaguRegion>();
+            if (ragu != null)
+            {
+                var sss = ragu.RContext.SpaceServers;
+                WriteOut("SpaceServers:");
+                WriteOut("  {0,8}: {1,20}", "Layer", "AgentUUID");
+                foreach (var ss in sss) {
+                    WriteOut("{0,8}: {1,20}", ss.LayerType, ss.AgentUUID);
                 }
             }
             else

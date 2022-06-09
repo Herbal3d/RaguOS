@@ -38,14 +38,23 @@ namespace org.herbal3d.Ragu {
         }
         public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
             switch (pMsg.Op) {
-                case (uint)BMessageOps.UpdatePropertiesReq:
+                case (uint)BMessageOps.UpdatePropertiesReq: {
                     // TODO:
                     break;
-                default:
+                }
+                case (uint)BMessageOps.CloseSessionReq: {
+                    BMessage resp = BasilConnection.MakeResponse(pMsg);
+                    pProtocol.Send(resp);
+                    _ssContext.Shutdown();
+                    _ssContext.LogOffUser();
+                    break;
+                }
+                default: {
                     BMessage resp = BasilConnection.MakeResponse(pMsg);
                     resp.Exception = "Unsupported operation on SpaceServer" + _ssContext.LayerType;
                     pProtocol.Send(resp);
                     break;
+                }
             }
         }
     }
@@ -101,33 +110,36 @@ namespace org.herbal3d.Ragu {
 
         // Received an OpenSession from a Basil client.
         // Connect it to the other layers.
-        protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pLoginAuth) {
+        protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pLoginAuth, WaitingInfo pWaitingInfo) {
+
+            pConnection.SetOpProcessor(new ProcessCCIncomingMessages(this));
+
             _ = Task.Run( () => {
                 try {
                     // Create the Circuit and ScenePresence for the user
                     CreateOpenSimPresence(pLoginAuth);
 
-                    // Invite the client to connect to the interesting layers.
+                    // For each of the layers, set up the listeners to expect an OpenConnection
+                    //    and send a MakeConnection to the new client to send an OpenConnection
+                    //    to the listeners. The WaitingInfo saves the authentication information.
 
                     // Static
-                    WaitingInfo waiting = RememberWaitingForOpenSession();
-                    var pp = RContext.SpaceServerStaticService.ParamsForMakeConnection(
+                    WaitingInfo waiting = RememberWaitingForOpenSession(AgentUUID);
+                    var pp = RContext.SpaceServerListeners[SpaceServerStatic.StaticLayerType].ParamsForMakeConnection(
                                         RContext.HostnameForExternalAccess, waiting.incomingAuth);
                     _ = pConnection.MakeConnection(pp);
 
-                    /*
                     // Actors
-                    waiting = RememberWaitingForOpenSession();
-                    pp = RContext.SpaceServerActorsService.ParamsForMakeConnection(
+                    waiting = RememberWaitingForOpenSession(AgentUUID);
+                    pp = RContext.SpaceServerListeners[SpaceServerActors.StaticLayerType].ParamsForMakeConnection(
                                         RContext.HostnameForExternalAccess, waiting.incomingAuth);
                     _ = pConnection.MakeConnection(pp);
 
                     // Dynamic
-                    waiting = RememberWaitingForOpenSession();
-                    pp = RContext.SpaceServerDynamicService.ParamsForMakeConnection(
+                    waiting = RememberWaitingForOpenSession(AgentUUID);
+                    pp = RContext.SpaceServerListeners[SpaceServerDynamic.StaticLayerType].ParamsForMakeConnection(
                                         RContext.HostnameForExternalAccess, waiting.incomingAuth);
                     _ = pConnection.MakeConnection(pp);
-                    */
 
                 }
                 catch (Exception e) {
@@ -138,12 +150,13 @@ namespace org.herbal3d.Ragu {
 
         // The OpenSession request to the command/control SpaceServer has an authoriztion for the hosting
         // region. The OSAuthToken should contain a bunch of information from the user login.
-        protected override bool ValidateLoginAuth(OSAuthToken pUserAuth) {
+        protected override bool ValidateLoginAuth(OSAuthToken pUserAuth, out WaitingInfo pWaitingInfo) {
             bool isAuthorized = false;
-            if (RContext.parms.ShouldEnforceUserAuth) {
-                try {
-                    string agentId = pUserAuth.GetProperty("aId");
-                    OMV.UUID agentUUID = OMV.UUID.Parse(agentId);
+            WaitingInfo waiting = new WaitingInfo();
+            try {
+                string agentId = pUserAuth.GetProperty("aId");
+                OMV.UUID agentUUID = OMV.UUID.Parse(agentId);
+                if (RContext.parms.ShouldEnforceUserAuth) {
                     OMV.UUID sessionID = OMV.UUID.Parse(pUserAuth.GetProperty("sId"));
                     OMV.UUID secureSessionID = OMV.UUID.Parse(pUserAuth.GetProperty("SSID"));
                     uint circuitCode = UInt32.Parse(pUserAuth.GetProperty("CC"));
@@ -156,6 +169,8 @@ namespace org.herbal3d.Ragu {
                             if (acd.SessionID == sessionID) {
                                 if (acd.SecureSessionID == secureSessionID) {
                                     isAuthorized = true;
+                                    // Pass the agent UUID back out so other pieces can find it
+                                    waiting.agentUUID = agentUUID;
                                 }
                                 else {
                                     RContext.log.Debug("{0} ValidateUserAuth: Failed secureSessionID test. AgentId={1}",
@@ -173,15 +188,18 @@ namespace org.herbal3d.Ragu {
                         }
                     }
                 }
-                catch (Exception e) {
-                    RContext.log.Error("{0} ValidateUserAuth: exception authorizing: {1}",
-                                _logHeader, e);
-                    isAuthorized = false;
-                }
+                else {
+                    isAuthorized = true;
+                    // Pass the agent UUID back out so other pieces can find it
+                    waiting.agentUUID = agentUUID;
+                };
             }
-            else {
-                isAuthorized = true;
-            };
+            catch (Exception e) {
+                RContext.log.Error("{0} ValidateUserAuth: exception authorizing: {1}",
+                            _logHeader, e);
+                isAuthorized = false;
+            }
+            pWaitingInfo = waiting;
             return isAuthorized;
         }
 
@@ -191,6 +209,7 @@ namespace org.herbal3d.Ragu {
         //    and LoginService (LLLoginService.cs).
         // The user OSAuthToken contains extra login information needed for creating
         //    the circuit, etc.
+        // See code in OpenSim.Tests.Common.SceneHelpers.AddScenePresence() for steps needed
         private bool CreateOpenSimPresence(OSAuthToken pUserAuth) {
             bool ret = false;
 
@@ -208,23 +227,31 @@ namespace org.herbal3d.Ragu {
 
                 if (acd != null) {
                     if (acd.SessionID == sessionUUID) {
-                        IClientAPI thisPerson = new RaguAvatar(firstName, lastName,
+                        // The login operation has:
+                        //      called IPresenceService.LoginAgent()
+                        //      created the AgentCircuitData
+                        //      called IGridUserService.LoggedIn()
+                        // This code needs to create the IClientAPI and add it to the scene
+
+                        IClientAPI newClient = new RaguAvatar(firstName, lastName,
                                                         agentUUID,
                                                         acd.startpos,   /* initial position */
                                                         OMV.UUID.Zero,  /* owner */
                                                         true,           /* senseAsAgent */
                                                         RContext.scene,
-                                                        acd.circuitcode);
+                                                        acd.circuitcode,
+                                                        RContext);
+
                         // Start the client by adding it to the scene and doing event subscriptions
-                        thisPerson.Start();
+                        // This does a Scene.AddNewAgent() and CompleteMovementIntoRegion()
+                        newClient.Start();
 
                         // Get the ScenePresence just to make sure we can
                         if (RContext.scene.TryGetScenePresence(agentUUID, out ScenePresence sp)) {
                             RContext.log.Debug("{0} Successful login for {1} {2} ({3})",
                                         _logHeader, firstName, lastName, agentId);
-                            RContext.focusAvatarUUID = agentUUID;
-                            RContext.focusAvatarScenePresence = sp;
-                            RContext.focusRaguAvatar = thisPerson;
+                            AgentUUID = agentUUID;
+                            SessionUUID = sessionUUID;
                             ret = true;
                         }
                         else {
@@ -249,5 +276,17 @@ namespace org.herbal3d.Ragu {
 
             return ret;
         }
+
+        // The user has requested a disconnection. Undo the work of creating the presence.
+        public void LogOffUser() {
+
+            if (SessionUUID != null) {
+                RContext.scene.PresenceService.LogoutAgent(SessionUUID);
+            }
+
+            // Impl note: This removes the agent from the scene. What about the event manager?
+            RContext.scene.CloseAgent(AgentUUID, true);
+        }
+
     }
 }

@@ -36,17 +36,24 @@ namespace org.herbal3d.Ragu {
         public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
             switch (pMsg.Op) {
                 case (uint)BMessageOps.UpdatePropertiesReq:
-                    if (pMsg.IId == _ssContext.FocusPresence.InstanceId) {
-                        foreach (var kvp in pMsg.IProps) {
-                            switch (kvp.Key) {
-                                case "moveAction":
-                                    _ssContext.AvatarAction(kvp.Value);
-                                    break;
-                                default:
-                                    break;
+                    if (_ssContext.TryGetPresenceById(pMsg.IId, out PresenceInfo pi)) {
+                        if (pi.scenePresence.UUID == _ssContext.AgentUUID) {
+                            foreach (var kvp in pMsg.IProps) {
+                                switch (kvp.Key) {
+                                    case "moveAction":
+                                        _ssContext.AvatarAction(kvp.Value);
+                                        break;
+                                    default:
+                                        break;
+                                }
                             }
+                            pConnection.SendResponse(pMsg);
                         }
-                        pConnection.SendResponse(pMsg);
+                        else {
+                            BMessage notUsResp = BasilConnection.MakeResponse(pMsg);
+                            notUsResp.Exception = "Unauthorized: attempt to act on non-owned scene presence";
+                            pProtocol.Send(notUsResp);
+                        }
                     }
                     else {
                         BMessage notUsResp = BasilConnection.MakeResponse(pMsg);
@@ -68,8 +75,6 @@ namespace org.herbal3d.Ragu {
         private static readonly string _logHeader = "[SpaceServerActors]";
 
         public static readonly string StaticLayerType = "Actors";
-
-        public PresenceInfo FocusPresence { get; private set; }
 
         // Function called to start up the service listener.
         // THis starts listening for network connections and creates instances of the SpaceServer
@@ -109,7 +114,7 @@ namespace org.herbal3d.Ragu {
             _connection.Start();
         }
 
-        protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pServiceAuth) {
+        protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pServiceAuth, WaitingInfo pWaitingInfo) {
             // We also have a full command processor
             pConnection.SetOpProcessor(new ProcessActorsIncomingMessages(this));
 
@@ -118,6 +123,11 @@ namespace org.herbal3d.Ragu {
         }
 
         private void AddEventSubscriptions() {
+            // When new client (child or root) is added to scene, before OnClientLogin
+            // RContext.scene.EventManager.OnNewClient         += Event_OnNewClient;
+            // When client is added on login.
+            // RContext.scene.EventManager.OnClientLogin       += Event_OnClientLogin;
+            // New presence is added to scene. Child, root, and NPC. See Scene.AddNewAgent()
             RContext.scene.EventManager.OnNewPresence       += Event_OnNewPresence;
             RContext.scene.EventManager.OnRemovePresence    += Event_OnRemovePresence;
             // update to client position (either this or 'significant')
@@ -126,8 +136,16 @@ namespace org.herbal3d.Ragu {
             RContext.scene.EventManager.OnSignificantClientMovement += Event_OnSignificantClientMovement;
             // Gets called for most position/camera/action updates. Seems to be once a second.
             // RContext.scene.EventManager.OnScenePresenceUpdated      += Event_OnScenePresenceUpdated;
+
+            // RContext.scene.EventManager.OnIncomingInstantMessage += Event_OnIncomingInstantMessage;
+            // RContext.scene.EventManager.OnIncomingInstantMessage += Event_OnUnhandledInstantMessage;
+
+            //When scene is shutting down
+            // RContext.scene.EventManager.OnShutdown  += Event_OnShutdown;
         }
         private void RemoveEventSubscriptions() {
+            // RContext.scene.EventManager.OnNewClient         -= Event_OnNewClient;
+            // RContext.scene.EventManager.OnClientLogin       -= Event_OnClientLogin;
             RContext.scene.EventManager.OnNewPresence       -= Event_OnNewPresence;
             RContext.scene.EventManager.OnRemovePresence    -= Event_OnRemovePresence;
             // update to client position (either this or 'significant')
@@ -136,20 +154,22 @@ namespace org.herbal3d.Ragu {
             RContext.scene.EventManager.OnSignificantClientMovement -= Event_OnSignificantClientMovement;
             // Gets called for most position/camera/action updates
             // RContext.scene.EventManager.OnScenePresenceUpdated      -= Event_OnScenePresenceUpdated;
+
+            // RContext.scene.EventManager.OnIncomingInstantMessage -= Event_OnIncomingInstantMessage;
+            // RContext.scene.EventManager.OnIncomingInstantMessage -= Event_OnUnhandledInstantMessage;
+
+            // RContext.scene.EventManager.OnShutdown  -= Event_OnShutdown;
         }
         private void AddExistingPresences() {
             RContext.scene.GetScenePresences().ForEach(pres => {
                 PresenceInfo pi = new PresenceInfo(pres, _connection, this, RContext);
-                if (pi.IsFocusAvatar) {
-                    FocusPresence = pi;
-                }
                 AddPresence(pi);
                 pi.AddAppearanceInstance();
             });
         }
 
         private void Event_OnNewPresence(ScenePresence pPresence) {
-            // RContext.log.Debug("{0} Event_OnNewPresence", _logHeader);
+            RContext.log.Debug("{0} Event_OnNewPresence", _logHeader);
             PresenceInfo pi;
             if (TryFindPresence(pPresence.UUID, out pi)) {
                 RContext.log.Error("{0} Event_OnNewPresence: two events for the same presence", _logHeader);
@@ -161,13 +181,11 @@ namespace org.herbal3d.Ragu {
             }
         }
         private void Event_OnRemovePresence(OMV.UUID pPresenceUUID) {
-            // RContext.log.Debug("{0} Event_OnRemovePresence", _logHeader);
+            RContext.log.Debug("{0} Event_OnRemovePresence. presenceUUID={1}", _logHeader, pPresenceUUID);
             if (TryFindPresence(pPresenceUUID, out PresenceInfo pi)) {
-                if (pi.InstanceId == FocusPresence.InstanceId) {
-                    FocusPresence = null;
-                }
                 pi.RemoveAppearanceInstance();
                 RemovePresence(pi);
+                RContext.log.Debug("{0} Event_OnRemovePresence. removed presenceUUID={1}", _logHeader, pPresenceUUID);
             }
         }
         private void Event_OnClientMovement(ScenePresence pPresence) {
@@ -200,12 +218,23 @@ namespace org.herbal3d.Ragu {
         }
 
         private List<PresenceInfo> _presences = new List<PresenceInfo>();
+
+        public bool TryGetPresenceById(string pBItemId, out PresenceInfo pFound) {
+            bool ret = false;
+            lock (_presences) {
+                var pi = _presences.Find(p => p.InstanceId == pBItemId);
+                ret = pi != null;
+                pFound = pi;
+            }
+            return ret;
+        }
+
         // Find a presence based on it's ScenePresence instance
         private bool TryFindPresence(ScenePresence pScenePresence, out PresenceInfo pFound) {
             bool ret = false;
             lock (_presences) {
                 try {
-                    pFound = _presences.Where(p => p.presence == pScenePresence).First();
+                    pFound = _presences.Find(p => p.scenePresence == pScenePresence);
                     ret = true;
                 }
                 catch {
@@ -219,7 +248,7 @@ namespace org.herbal3d.Ragu {
             bool ret = false;
             lock (_presences) {
                 try {
-                    pFound = _presences.Where(p => p.presence.UUID == pPresenceId).First();
+                    pFound = _presences.Where(p => p.scenePresence.UUID == pPresenceId).First();
                     ret = true;
                 }
                 catch {
@@ -254,7 +283,7 @@ namespace org.herbal3d.Ragu {
     public class PresenceInfo {
         private static readonly string _logHeader = "[PresenceInfo]";
 
-        public ScenePresence presence;
+        public ScenePresence scenePresence;
         private RaguContext _context;
         private SpaceServerActors _spaceServer;
         private BasilConnection _connection;
@@ -262,15 +291,11 @@ namespace org.herbal3d.Ragu {
         // BItem.ID of the created 
         public string InstanceId { get; private set; }
 
-        // 'true' if the logged in/main avatar
-        public bool IsFocusAvatar { get; private set; }
-
         public PresenceInfo(ScenePresence pPresence, BasilConnection pConnection, SpaceServerActors pSpaceServer, RaguContext pContext) {
-            presence = pPresence;
+            scenePresence = pPresence;
             _context = pContext;
             _connection = pConnection;
             _spaceServer = pSpaceServer;
-            IsFocusAvatar = pPresence.UUID == _context.focusAvatarUUID;
         }
         public async void UpdatePosition() {
             if (InstanceId != null) {
@@ -298,6 +323,7 @@ namespace org.herbal3d.Ragu {
                     abilProps.Add(
                         new AbAssembly() {
                             AssetURL = tempAppearanceURL,
+                            AssetLoader = "gltf",
                             AssetAuth = RaguAssetService.Instance.AccessToken.Token,
                         }
                     );
@@ -307,13 +333,19 @@ namespace org.herbal3d.Ragu {
                             WorldRot = GetWorldRotation()
                         }
                     );
-                    if (IsFocusAvatar) {
+                    if (scenePresence.UUID == _spaceServer.AgentUUID) {
                         // If the main client avatar, set for user controlling its actions
                         abilProps.Add( new AbOSAvaMove() );
                     };
 
                     BMessage resp = await _connection.CreateItem(abilProps);
-                    InstanceId = AbBItem.GetId(resp);
+                    if (resp.Exception != null) {
+                        _context.log.Error("{0} AddAppearanceInstance: error creating avatar: {1}: {2}",
+                                    _logHeader, scenePresence.UUID, resp.Exception);
+                    }
+                    else {
+                        InstanceId = AbBItem.GetId(resp);
+                    }
                 }
                 catch (Exception e) {
                     _context.log.Error("{0} AddAppearanceInstance: exception adding appearance: {1}",
@@ -332,13 +364,13 @@ namespace org.herbal3d.Ragu {
         }
         // Return the Instance's position converted from OpenSim Zup to GLTF Yup
         public double[] GetWorldPosition() {
-            OMV.Vector3 thePos = CoordAxis.ConvertZupToYup(presence.AbsolutePosition);
+            OMV.Vector3 thePos = CoordAxis.ConvertZupToYup(scenePresence.AbsolutePosition);
             // OMV.Vector3 thePos = presence.AbsolutePosition;
             return new double[] { thePos.X, thePos.Y, thePos.Z };
         }
         // Return the Instance's rotation converted from OpenSim Zup to GLTF Yup
         public double[] GetWorldRotation() {
-            OMV.Quaternion theRot = presence.Rotation;
+            OMV.Quaternion theRot = scenePresence.Rotation;
             // OMV.Quaternion theRot = CoordAxis.ConvertZupToYup(presence.Rotation);
             return new double[] { theRot.X, theRot.Y, theRot.Z, theRot.W };
         }

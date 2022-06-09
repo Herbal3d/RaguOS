@@ -21,6 +21,8 @@ using org.herbal3d.transport;
 using org.herbal3d.b.protocol;
 using org.herbal3d.cs.CommonUtil;
 
+using OMV = OpenMetaverse;
+
 namespace org.herbal3d.Ragu {
 
     public abstract class SpaceServerBase {
@@ -29,6 +31,11 @@ namespace org.herbal3d.Ragu {
         public string LayerType = "XX";
 
         public readonly RaguContext RContext;
+
+        // The UUID of the logged in agent we're working as
+        public OMV.UUID AgentUUID;
+        public OMV.UUID SessionUUID;
+
         protected CancellationTokenSource _cancellerSource;
         protected BTransport _transport;
         protected BProtocol _protocol;
@@ -38,6 +45,15 @@ namespace org.herbal3d.Ragu {
             RContext = pContext;
             _cancellerSource = pCanceller;
             _transport = pTransport;
+            RContext.SpaceServers.Add(this);
+        }
+
+        public void Shutdown() {
+            _cancellerSource.Cancel();
+            if (_protocol != null) {
+                _protocol.Close();
+                _protocol = null;
+            }
         }
 
         // General OpenSession request processing.
@@ -62,8 +78,10 @@ namespace org.herbal3d.Ragu {
                     OSAuthToken outgoingAuth = clientAuth;
                     pConnection.SetAuthorizations(incomingAuth, outgoingAuth);
 
-                    // have the info. If CC will log user in otherwise checks for layer waiting for OpenSession
-                    if (ValidateLoginAuth(loginAuth)) {
+                    // Verify this initial incoming authorization.
+                    // If CC, this is a login and is overridden to check account parameters.
+                    // Other SpaceServers use the default validater that checks if waiting for OpenSession.
+                    if (ValidateLoginAuth(loginAuth, out WaitingInfo waitingInfo)) {
 
                         // The user checks out so construct the success response
                         var openSessionRespParams = new OpenSessionResp() {
@@ -71,9 +89,13 @@ namespace org.herbal3d.Ragu {
                             ServerAuth = incomingAuth.Token
                         };
                         pConnection.SendResponse(pMsg, openSessionRespParams);
+                        
+                        // The waiting info also holds the UUID of the scene presence this is associated with
+                        AgentUUID = waitingInfo.agentUUID;
+
 
                         // Call the over-ridable function to do any layer specific processing
-                        OpenSessionProcessing(pConnection, loginAuth);
+                        OpenSessionProcessing(pConnection, loginAuth, waitingInfo);
                     }
                     else {
                         errorReason = String.Format("Login credentials not valid ({0})", LayerType);
@@ -97,27 +119,35 @@ namespace org.herbal3d.Ragu {
 
         // Login auth check for OpenSessions that were started with a MakeConnection request.
         // SpaceServerCC overrides this function to do actual account login check.
-        protected virtual bool ValidateLoginAuth(OSAuthToken pUserAuth) {
+        protected virtual bool ValidateLoginAuth(OSAuthToken pUserAuth, out WaitingInfo pWaitingInfo) {
             bool ret = false;
+            WaitingInfo waitingInfo = null;
             string auth = pUserAuth.Token;
             lock (RContext.waitingForMakeConnection) {
-                if (RContext.waitingForMakeConnection.TryGetValue(auth, out WaitingInfo waitingInfo)) {
+                if (RContext.waitingForMakeConnection.TryGetValue(auth, out WaitingInfo foundInfo)) {
                     // RContext.log.Debug("{0}: login auth successful. Waited {1} seconds", _logHeader,
                     //     (DateTime.Now - waitingInfo.whenCreated).TotalSeconds);
+
+                    // Remove the found waiting info so clients can only connect once
                     RContext.waitingForMakeConnection.Remove(auth);
-                    ret = waitingInfo.incomingAuth.Equals(pUserAuth);
+
+                    // Return whether the authentication info matches (always true since the auth is the key)
+                    // ret = waitingInfo.incomingAuth.Equals(pUserAuth);
+                    waitingInfo = foundInfo;
+                    ret = true;
                 }
                 else {
-                    RContext.log.Debug("{0}: login auth unsuccessful. Token: {1}", _logHeader, auth);
+                    RContext.log.Error("{0}: OpenSession with unknown token. Token: {1}", _logHeader, auth);
                 }
             }
+            pWaitingInfo = waitingInfo;
             return ret;
         }
 
         // WHen sending an OpenSession, this remembers the credentials of the request
         //     so the response can be validated.
-        protected WaitingInfo RememberWaitingForOpenSession() {
-            WaitingInfo waiting = new WaitingInfo();
+        protected WaitingInfo RememberWaitingForOpenSession(OMV.UUID pAgentUUID) {
+            WaitingInfo waiting = new WaitingInfo(pAgentUUID);
             lock (RContext.waitingForMakeConnection) {
                 RContext.waitingForMakeConnection.Add(waiting.incomingAuth.Token, waiting);
                 // RContext.log.Debug("SpaceServerBase.RememberWaitingForOpenSession: itoken={0}", waiting.incomingAuth.Token);
@@ -126,7 +156,7 @@ namespace org.herbal3d.Ragu {
         }
 
         // Called when OpenSession is received to do any SpaceServer specific processing
-        protected abstract void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pLoginAuth);
+        protected abstract void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pLoginAuth, WaitingInfo pWaitingInfo);
 
     }
     // A message processor for SpaceServer's while they are waiting for an OpenConnection.
@@ -144,14 +174,21 @@ namespace org.herbal3d.Ragu {
                 case (uint)BMessageOps.OpenSessionReq:
                     _ssContext.ProcessOpenSessionReq(pMsg, pConnection, pProtocol);
                     break;
+                case (uint)BMessageOps.CloseSessionReq: {
+                    BMessage resp = BasilConnection.MakeResponse(pMsg);
+                    pProtocol.Send(resp);
+                    _ssContext.Shutdown();
+                    break;
+                }
                 case (uint)BMessageOps.MakeConnectionResp:
                     // We will get responses from our MakeConnections
                     break;
-                default:
+                default: {
                     BMessage resp = BasilConnection.MakeResponse(pMsg);
                     resp.Exception = "Session is not open. AA";
                     pProtocol.Send(resp);
                     break;
+                }
             }
         }
     }
