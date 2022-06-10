@@ -46,7 +46,6 @@ namespace org.herbal3d.Ragu {
                     BMessage resp = BasilConnection.MakeResponse(pMsg);
                     pProtocol.Send(resp);
                     _ssContext.Shutdown();
-                    _ssContext.LogOffUser();
                     break;
                 }
                 default: {
@@ -104,7 +103,7 @@ namespace org.herbal3d.Ragu {
 
             // Expect BMessages and set up messsage processor to handle initial OpenSession
             _connection = new BasilConnection(_protocol, RContext.log);
-            _connection.SetOpProcessor(new ProcessMessagesOpenConnection(this));
+            _connection.SetOpProcessor(new ProcessMessagesOpenConnection(this), ProcessConnectionStateChange);
             _connection.Start();
         }
 
@@ -112,7 +111,7 @@ namespace org.herbal3d.Ragu {
         // Connect it to the other layers.
         protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pLoginAuth, WaitingInfo pWaitingInfo) {
 
-            pConnection.SetOpProcessor(new ProcessCCIncomingMessages(this));
+            pConnection.SetOpProcessor(new ProcessCCIncomingMessages(this), ProcessConnectionStateChange);
 
             _ = Task.Run( () => {
                 try {
@@ -242,6 +241,9 @@ namespace org.herbal3d.Ragu {
                                                         acd.circuitcode,
                                                         RContext);
 
+                        // Remember to process things when the user logs out
+                        newClient.OnLogout += LogoutHandler;
+
                         // Start the client by adding it to the scene and doing event subscriptions
                         // This does a Scene.AddNewAgent() and CompleteMovementIntoRegion()
                         newClient.Start();
@@ -277,15 +279,26 @@ namespace org.herbal3d.Ragu {
             return ret;
         }
 
-        // The user has requested a disconnection. Undo the work of creating the presence.
-        public void LogOffUser() {
-
-            if (SessionUUID != null) {
-                RContext.scene.PresenceService.LogoutAgent(SessionUUID);
+        protected override void ShutdownUserAgent(string pReason) {
+            // Get RaguAvatar for user
+            if (AgentUUID != null) {
+                if (RContext.scene.TryGetScenePresence(AgentUUID, out ScenePresence sp)) {
+                    RaguAvatar rClient = sp.ControllingClient as RaguAvatar;
+                    if (rClient != null) {
+                        rClient.Kick(pReason);
+                    }
+                }
             }
+        }
 
-            // Impl note: This removes the agent from the scene. What about the event manager?
-            RContext.scene.CloseAgent(AgentUUID, true);
+        // The user has requested a disconnection. Undo the work of creating the presence.
+        public void LogoutHandler(IClientAPI pClient) {
+
+            RaguAvatar rClient = pClient as RaguAvatar;
+            if (rClient != null && !rClient.IsLoggingOut) {
+                rClient.IsLoggingOut = true;
+                rClient.Logout();
+            }
         }
 
     }

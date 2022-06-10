@@ -41,8 +41,11 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Threading;
+
 using OpenMetaverse;
 using OpenMetaverse.Packets;
+
 using OpenSim.Framework;
 using OpenSim.Framework.Client;
 using OpenSim.Region.Framework.Scenes;
@@ -76,6 +79,8 @@ namespace org.herbal3d.Ragu {
             m_ownerID = ownerID;
             m_hostGroupID = UUID.Zero;
             this.CircuitCode = circuitCode;
+
+            m_context = pContext;
         }
 
         public IScene Scene {
@@ -606,6 +611,7 @@ namespace org.herbal3d.Ragu {
 
         public virtual void Kick(string message)
         {
+            // TODO: Send a message to the user on why they were disconnected
         }
 
         public virtual void SendAvatarPickerReply(AvatarPickerReplyAgentDataArgs AgentData, List<AvatarPickerReplyDataArgs> Data)
@@ -957,19 +963,22 @@ namespace org.herbal3d.Ragu {
         }
         public void Disconnect(string reason)
         {
-            Disconnect(reason);
+            Kick(reason);
+            Thread.Sleep(1000);
+            Close(true, true);
         }
 
         public void Close(bool sendStop, bool force)
         {
             // Remove ourselves from the scene
-            m_scene.RemoveClient(AgentId, false);
+            m_scene.RemoveClient(AgentId, true);
         }
 
         public void Start()
         {
             // Start the client by adding it to the scene
             m_scene.AddNewAgent(this, PresenceType.User);
+            // In LLLP, the client sends a CompleteMovement. For Basil, just do it.
             OnCompleteMovementToRegion?.Invoke(this, true);
         }
 
@@ -1275,7 +1284,7 @@ namespace org.herbal3d.Ragu {
 
         // ===============================================================
         public void Logout() {
-            m_context.log.Info("[CLIENT]: Got a logout request for {0} in {1}", Name, Scene.RegionInfo.RegionName);
+            m_context.log.Info("[RaguAvatar]: Got a logout request for {0} in {1}", Name, Scene.RegionInfo.RegionName);
             OnLogout?.Invoke(this);
         }
 

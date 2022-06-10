@@ -86,13 +86,13 @@ namespace org.herbal3d.Ragu {
 
             // Expect BMessages and set up messsage processor to handle initial OpenSession
             _connection = new BasilConnection(_protocol, RContext.log);
-            _connection.SetOpProcessor(new ProcessMessagesOpenConnection(this));
+            _connection.SetOpProcessor(new ProcessMessagesOpenConnection(this), ProcessConnectionStateChange);
             _connection.Start();
         }
 
         protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken loginAuth, WaitingInfo pWaitingInfo) {
 
-            pConnection.SetOpProcessor(new ProcessStaticIncomingMessages(this));
+            pConnection.SetOpProcessor(new ProcessStaticIncomingMessages(this), ProcessConnectionStateChange);
 
             // Send the static region information to the user
             Task.Run(async () => {

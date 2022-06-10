@@ -48,12 +48,18 @@ namespace org.herbal3d.Ragu {
             RContext.SpaceServers.Add(this);
         }
 
-        public void Shutdown() {
+        public virtual void Shutdown() {
+            RContext.log.Info("{0} Shutdown {1} for user {2}", _logHeader, LayerType, AgentUUID);
+            // If there is a connected user, disconnect them
+            ShutdownUserAgent(LayerType + " shutdown");
+            // Tell everyone around that we're going down
             _cancellerSource.Cancel();
-            if (_protocol != null) {
-                _protocol.Close();
-                _protocol = null;
+            // Close and release the connection
+            if (_connection != null) {
+                _connection.Stop();
+                _connection = null;
             }
+            RContext.SpaceServers.Remove(this);
         }
 
         // General OpenSession request processing.
@@ -157,6 +163,39 @@ namespace org.herbal3d.Ragu {
 
         // Called when OpenSession is received to do any SpaceServer specific processing
         protected abstract void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pLoginAuth, WaitingInfo pWaitingInfo);
+
+        // Called when connection state changes.
+        // Called with the new state and a reference to the SpaceServer the connection is for
+        protected virtual void ProcessConnectionStateChange(BConnectionStates pConnectionState, BasilConnection pContext) {
+            switch (pConnectionState) {
+                case BConnectionStates.OPEN: {
+                    break;
+                }
+                case BConnectionStates.CLOSED: {
+                    RContext.log.Error("{0}: ProcessConnectionStateChange CLOSED for {1}. Shutting down",
+                                    _logHeader, LayerType);
+                    Shutdown();
+                    break;
+                }
+                case BConnectionStates.ERROR: {
+                    RContext.log.Error("{0}: ProcessConnectionStateChange ERROR for {1}. Shutting down",
+                                    _logHeader, LayerType);
+                    Shutdown();
+                    break;
+                }
+                case BConnectionStates.CLOSING: {
+                    Shutdown();
+                    break;
+                }
+                default: {
+                    break;
+                }
+            }
+        }
+
+        protected virtual void ShutdownUserAgent(string pReason) {
+            RContext.log.Info("{0}: {1} user shutdown", _logHeader, LayerType);
+        }
 
     }
     // A message processor for SpaceServer's while they are waiting for an OpenConnection.
