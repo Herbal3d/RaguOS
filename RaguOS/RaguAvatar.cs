@@ -61,7 +61,8 @@ namespace org.herbal3d.Ragu {
         private readonly UUID m_ownerID;
         private UUID m_hostGroupID;
         
-        private RaguContext m_context;
+        public RaguContext RContext;
+        public SpaceServerBase ConnectingSpaceServer;
 
         public List<uint> SelectedObjects {get; private set;}
 
@@ -70,7 +71,8 @@ namespace org.herbal3d.Ragu {
                 Vector3 position, UUID ownerID,
                 bool senseAsAgent, Scene scene,
                 uint circuitCode,
-                RaguContext pContext) {
+                RaguContext pContext,
+                SpaceServerBase pConnectingSpaceServer) {
             m_firstname = firstname;
             m_lastname = lastname;
             m_startPos = position;
@@ -80,7 +82,8 @@ namespace org.herbal3d.Ragu {
             m_hostGroupID = UUID.Zero;
             this.CircuitCode = circuitCode;
 
-            m_context = pContext;
+            RContext = pContext;
+            ConnectingSpaceServer = pConnectingSpaceServer;
         }
 
         public IScene Scene {
@@ -970,6 +973,9 @@ namespace org.herbal3d.Ragu {
 
         public void Close(bool sendStop, bool force)
         {
+            // tell people we're going down
+            OnConnectionClosed?.Invoke(this);
+
             // Remove ourselves from the scene
             m_scene.RemoveClient(AgentId, true);
         }
@@ -1283,9 +1289,11 @@ namespace org.herbal3d.Ragu {
         }
 
         // ===============================================================
-        public void Logout() {
-            m_context.log.Info("[RaguAvatar]: Got a logout request for {0} in {1}", Name, Scene.RegionInfo.RegionName);
-            OnLogout?.Invoke(this);
+        // Log the user out
+        // This is an request pushed up into the system to remove the user from the server
+        public void Logout(IClientAPI pClient) {
+            RContext.log.Info("[RaguAvatar]: Got a logout request for {0} in {1}", Name, Scene.RegionInfo.RegionName);
+            OnLogout?.Invoke(pClient);
         }
 
     }

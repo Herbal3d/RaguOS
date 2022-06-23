@@ -48,20 +48,6 @@ namespace org.herbal3d.Ragu {
             RContext.SpaceServers.Add(this);
         }
 
-        public virtual void Shutdown() {
-            RContext.log.Info("{0} Shutdown {1} for user {2}", _logHeader, LayerType, AgentUUID);
-            // If there is a connected user, disconnect them
-            ShutdownUserAgent(LayerType + " shutdown");
-            // Tell everyone around that we're going down
-            _cancellerSource.Cancel();
-            // Close and release the connection
-            if (_connection != null) {
-                _connection.Stop();
-                _connection = null;
-            }
-            RContext.SpaceServers.Remove(this);
-        }
-
         // General OpenSession request processing.
         // The message is parsed and it calls SpaceServerBase.ValidataLoginAuth to validate the session
         //     and, if successful, calls SpaceServerBase.OpenSessionProcessing to do the SpaceServer operations.
@@ -164,22 +150,43 @@ namespace org.herbal3d.Ragu {
         // Called when OpenSession is received to do any SpaceServer specific processing
         protected abstract void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pLoginAuth, WaitingInfo pWaitingInfo);
 
+        // Called when CloseSession is received
+        public virtual void CloseSessionProcessing(BasilConnection pConnection) {
+            Shutdown();
+        }
+        public virtual void Shutdown() {
+            RContext.log.Info("{0} Shutdown for SpaceServer {1} for user {2}", _logHeader, LayerType, AgentUUID);
+            // If there is a connected user, disconnect them
+            ShutdownUserAgent(LayerType + " shutdown");
+            // wait a little bit so shutdown messages can make it to the user
+            Thread.Sleep(1000);
+            // Tell everyone around that we're going down
+            _cancellerSource.Cancel();
+            // Close and release the connection
+            if (_connection != null) {
+                _connection.Stop();
+                _connection = null;
+            }
+            RContext.SpaceServers.Remove(this);
+        }
+
+
         // Called when connection state changes.
         // Called with the new state and a reference to the SpaceServer the connection is for
-        protected virtual void ProcessConnectionStateChange(BConnectionStates pConnectionState, BasilConnection pContext) {
+        protected virtual void ProcessConnectionStateChange(BConnectionStates pConnectionState, BasilConnection pConn) {
             switch (pConnectionState) {
                 case BConnectionStates.OPEN: {
                     break;
                 }
                 case BConnectionStates.CLOSED: {
-                    RContext.log.Error("{0}: ProcessConnectionStateChange CLOSED for {1}. Shutting down",
-                                    _logHeader, LayerType);
+                    // RContext.log.Debug("{0}: ProcessConnectionStateChange CLOSED for {1}. Shutting down",
+                    //                 _logHeader, LayerType);
                     Shutdown();
                     break;
                 }
                 case BConnectionStates.ERROR: {
-                    RContext.log.Error("{0}: ProcessConnectionStateChange ERROR for {1}. Shutting down",
-                                    _logHeader, LayerType);
+                    // RContext.log.Debug("{0}: ProcessConnectionStateChange ERROR for {1}. Shutting down",
+                    //                 _logHeader, LayerType);
                     Shutdown();
                     break;
                 }
@@ -193,8 +200,10 @@ namespace org.herbal3d.Ragu {
             }
         }
 
+        // Overridden to processes user account disconnection.
+        // Only used by SpaceServerCC.
         protected virtual void ShutdownUserAgent(string pReason) {
-            RContext.log.Info("{0}: {1} user shutdown", _logHeader, LayerType);
+            // RContext.log.Info("{0}: {1} user shutdown", _logHeader, LayerType);
         }
 
     }

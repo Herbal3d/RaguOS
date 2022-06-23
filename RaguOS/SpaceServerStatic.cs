@@ -23,6 +23,9 @@ using org.herbal3d.b.protocol;
 using org.herbal3d.Tiles;
 
 using org.herbal3d.Loden;
+using org.herbal3d.cs.CommonEntities;
+
+using OMV = OpenMetaverse;
 
 namespace org.herbal3d.Ragu {
 
@@ -153,8 +156,10 @@ namespace org.herbal3d.Ragu {
                             AssetAuth = RaguAssetService.Instance.AccessToken.Token,
                         }
                     );
+
+                    var worldPos = CoordAxis.ConvertZupToYup(new OMV.Vector3(0, 0, 0));
                     props.Add(new AbPlacement() {
-                            WorldPos = new double[] { 0, 0, 0 },
+                            WorldPos = new double[] { worldPos.X, worldPos.Y, worldPos.Z},
                             WorldRot = new double[] { 0, 0, 0, 1 }
                         }
                     );

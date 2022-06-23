@@ -41,7 +41,7 @@ namespace org.herbal3d.Ragu {
                             foreach (var kvp in pMsg.IProps) {
                                 switch (kvp.Key) {
                                     case "moveAction":
-                                        _ssContext.AvatarAction(kvp.Value);
+                                        _ssContext.AvatarAction(kvp.Value, pi, pMsg.IProps);
                                         break;
                                     default:
                                         break;
@@ -218,7 +218,7 @@ namespace org.herbal3d.Ragu {
             }
         }
 
-        public void AvatarAction(object pAction) {
+        public void AvatarAction(object pAction, PresenceInfo pPi, Dictionary<string,object> pIProps) {
 
         }
 
@@ -369,14 +369,17 @@ namespace org.herbal3d.Ragu {
         }
         // Return the Instance's position converted from OpenSim Zup to GLTF Yup
         public double[] GetWorldPosition() {
+            OMV.Vector3 absPos = scenePresence.AbsolutePosition;
             OMV.Vector3 thePos = CoordAxis.ConvertZupToYup(scenePresence.AbsolutePosition);
             // OMV.Vector3 thePos = presence.AbsolutePosition;
+            // _context.log.Debug("[PresenceInfo.GetWorldPosition]: <{0},{1},{2}> => <{3},{4},{5}>",
+            //         absPos.X, absPos.Y, absPos.Z, thePos.X, thePos.Y, thePos.Z);
             return new double[] { thePos.X, thePos.Y, thePos.Z };
         }
         // Return the Instance's rotation converted from OpenSim Zup to GLTF Yup
         public double[] GetWorldRotation() {
-            OMV.Quaternion theRot = scenePresence.Rotation;
-            // OMV.Quaternion theRot = CoordAxis.ConvertZupToYup(presence.Rotation);
+            // OMV.Quaternion theRot = scenePresence.Rotation;
+            OMV.Quaternion theRot = CoordAxis.ConvertZupToYup(scenePresence.Rotation);
             return new double[] { theRot.X, theRot.Y, theRot.Z, theRot.W };
         }
     }

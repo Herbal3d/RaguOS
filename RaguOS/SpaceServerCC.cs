@@ -45,7 +45,7 @@ namespace org.herbal3d.Ragu {
                 case (uint)BMessageOps.CloseSessionReq: {
                     BMessage resp = BasilConnection.MakeResponse(pMsg);
                     pProtocol.Send(resp);
-                    _ssContext.Shutdown();
+                    _ssContext.CloseSessionProcessing(pConnection);
                     break;
                 }
                 default: {
@@ -122,24 +122,14 @@ namespace org.herbal3d.Ragu {
                     //    and send a MakeConnection to the new client to send an OpenConnection
                     //    to the listeners. The WaitingInfo saves the authentication information.
 
-                    // Static
-                    WaitingInfo waiting = RememberWaitingForOpenSession(AgentUUID);
-                    var pp = RContext.SpaceServerListeners[SpaceServerStatic.StaticLayerType].ParamsForMakeConnection(
-                                        RContext.HostnameForExternalAccess, waiting.incomingAuth);
-                    _ = pConnection.MakeConnection(pp);
+                    var layers = new string[] {"Static", "Dynamic", "Actors"};
+                    foreach (string layer in layers) {
+                        WaitingInfo waiting = RememberWaitingForOpenSession(AgentUUID);
+                        var pp = RContext.SpaceServerListeners[layer].ParamsForMakeConnection(
+                                            RContext.HostnameForExternalAccess, waiting.incomingAuth);
+                        _ = pConnection.MakeConnection(pp);
 
-                    // Actors
-                    waiting = RememberWaitingForOpenSession(AgentUUID);
-                    pp = RContext.SpaceServerListeners[SpaceServerActors.StaticLayerType].ParamsForMakeConnection(
-                                        RContext.HostnameForExternalAccess, waiting.incomingAuth);
-                    _ = pConnection.MakeConnection(pp);
-
-                    // Dynamic
-                    waiting = RememberWaitingForOpenSession(AgentUUID);
-                    pp = RContext.SpaceServerListeners[SpaceServerDynamic.StaticLayerType].ParamsForMakeConnection(
-                                        RContext.HostnameForExternalAccess, waiting.incomingAuth);
-                    _ = pConnection.MakeConnection(pp);
-
+                    };
                 }
                 catch (Exception e) {
                     RContext.log.Error("{0} HandleBasilConnection. Exception connecting Basil to layers: {1}", _logHeader, e);
@@ -172,17 +162,17 @@ namespace org.herbal3d.Ragu {
                                     waiting.agentUUID = agentUUID;
                                 }
                                 else {
-                                    RContext.log.Debug("{0} ValidateUserAuth: Failed secureSessionID test. AgentId={1}",
+                                    RContext.log.Error("{0} ValidateUserAuth: Failed secureSessionID test. AgentId={1}",
                                                 _logHeader, agentId);
                                 }
                             }
                             else {
-                                RContext.log.Debug("{0} ValidateUserAuth: Failed sessionId test. AgentId={1}",
+                                RContext.log.Error("{0} ValidateUserAuth: Failed sessionId test. AgentId={1}",
                                             _logHeader, agentId);
                             }
                         }
                         else {
-                            RContext.log.Debug("{0} ValidateUserAuth: Failed circuitCode test. AgentId={1}",
+                            RContext.log.Error("{0} ValidateUserAuth: Failed circuitCode test. AgentId={1}",
                                         _logHeader, agentId);
                         }
                     }
@@ -239,7 +229,8 @@ namespace org.herbal3d.Ragu {
                                                         true,           /* senseAsAgent */
                                                         RContext.scene,
                                                         acd.circuitcode,
-                                                        RContext);
+                                                        RContext,
+                                                        this);
 
                         // Remember to process things when the user logs out
                         newClient.OnLogout += LogoutHandler;
@@ -250,7 +241,7 @@ namespace org.herbal3d.Ragu {
 
                         // Get the ScenePresence just to make sure we can
                         if (RContext.scene.TryGetScenePresence(agentUUID, out ScenePresence sp)) {
-                            RContext.log.Debug("{0} Successful login for {1} {2} ({3})",
+                            RContext.log.Info("{0} Successful login for {1} {2} ({3})",
                                         _logHeader, firstName, lastName, agentId);
                             AgentUUID = agentUUID;
                             SessionUUID = sessionUUID;
@@ -279,27 +270,33 @@ namespace org.herbal3d.Ragu {
             return ret;
         }
 
+        // 
+        // This is called before the connections are closed.
+        // Attempt is made to cause events to happen that clean up the
+        //    connection with the client (like removing the avatar from the scene, etc).
         protected override void ShutdownUserAgent(string pReason) {
-            // Get RaguAvatar for user
+            base.ShutdownUserAgent(pReason);
             if (AgentUUID != null) {
-                if (RContext.scene.TryGetScenePresence(AgentUUID, out ScenePresence sp)) {
-                    RaguAvatar rClient = sp.ControllingClient as RaguAvatar;
-                    if (rClient != null) {
-                        rClient.Kick(pReason);
-                    }
-                }
+                RContext.scene.CloseAgent(AgentUUID, false);
+            }
+            else {
+                RContext.log.Error("{0} ShutdownUserAgent: no AgentUUIT", _logHeader);
             }
         }
 
         // The user has requested a disconnection. Undo the work of creating the presence.
+        // This is attached to RaguAvatar.OnLogout to know when Logout operation is done
         public void LogoutHandler(IClientAPI pClient) {
-
+            // We are passed the connection
             RaguAvatar rClient = pClient as RaguAvatar;
             if (rClient != null && !rClient.IsLoggingOut) {
                 rClient.IsLoggingOut = true;
-                rClient.Logout();
+                // The connection has a pointer back to the SpaceServerCC that created the presence
+                SpaceServerCC handler = rClient.ConnectingSpaceServer as SpaceServerCC;
+                if (handler != null) {
+                    handler.ShutdownUserAgent("Logout");
+                }
             }
         }
-
     }
 }
