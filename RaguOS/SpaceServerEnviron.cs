@@ -25,9 +25,9 @@ using OMV = OpenMetaverse;
 namespace org.herbal3d.Ragu {
 
     // Processor of incoming messages after we're connected up
-    class ProcessDynamicIncomingMessages : IncomingMessageProcessor {
-        SpaceServerDynamic _ssContext;
-        public ProcessDynamicIncomingMessages(SpaceServerDynamic pContext) : base(pContext) {
+    class ProcessEnvironIncomingMessages : IncomingMessageProcessor {
+        SpaceServerEnviron _ssContext;
+        public ProcessEnvironIncomingMessages(SpaceServerEnviron pContext) : base(pContext) {
             _ssContext = pContext;
         }
         public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
@@ -44,23 +44,23 @@ namespace org.herbal3d.Ragu {
         }
     }
 
-    public class SpaceServerDynamic : SpaceServerBase {
-        private static readonly string _logHeader = "[SpaceServerDynamic]";
+    public class SpaceServerEnviron : SpaceServerBase {
+        private static readonly string _logHeader = "[SpaceServerEnviron]";
 
-        public static readonly string StaticLayerType = "Dynamic";
+        public static readonly string StaticLayerType = "Environ";
 
         // Function called to start up the service listener.
         // THis starts listening for network connections and creates instances of the SpaceServer
         //     for each of the incoming connections
-        public static SpaceServerListener SpaceServerDynamicService(RaguContext pRContext, CancellationTokenSource pCanceller) {
+        public static SpaceServerListener SpaceServerEnvironService(RaguContext pRContext, CancellationTokenSource pCanceller) {
             return new SpaceServerListener(
                 transportParams: new BTransportParams[] {
                     new BTransportWSParams() {
                         preferred       = true,
-                        isSecure        = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerDynamic.StaticLayerType, "WSIsSecure"),
-                        port            = pRContext.parms.GetConnectionParam<int>(pRContext, SpaceServerDynamic.StaticLayerType, "WSPort"),
-                        certificate     = pRContext.parms.GetConnectionParam<string>(pRContext, SpaceServerDynamic.StaticLayerType, "WSCertificate"),
-                        disableNaglesAlgorithm = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerDynamic.StaticLayerType, "DisableNaglesAlgorithm")
+                        isSecure        = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerEnviron.StaticLayerType, "WSIsSecure"),
+                        port            = pRContext.parms.GetConnectionParam<int>(pRContext, SpaceServerEnviron.StaticLayerType, "WSPort"),
+                        certificate     = pRContext.parms.GetConnectionParam<string>(pRContext, SpaceServerEnviron.StaticLayerType, "WSCertificate"),
+                        disableNaglesAlgorithm = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerEnviron.StaticLayerType, "DisableNaglesAlgorithm")
                     }
                 },
                 layer:                  SpaceServerActors.StaticLayerType,
@@ -69,12 +69,12 @@ namespace org.herbal3d.Ragu {
                 // This method is called when the listener receives a connection but before any
                 //     messsages have been exchanged.
                 processor:              (pTransport, pCancellerP) => {
-                                            return new SpaceServerDynamic(pRContext, pCancellerP, pTransport);
+                                            return new SpaceServerEnviron(pRContext, pCancellerP, pTransport);
                                         }
             );
         }
 
-        public SpaceServerDynamic(RaguContext pContext, CancellationTokenSource pCanceller, BTransport pTransport) 
+        public SpaceServerEnviron(RaguContext pContext, CancellationTokenSource pCanceller, BTransport pTransport) 
                         : base(pContext, pCanceller, pTransport) {
             LayerType = StaticLayerType;
 
@@ -89,8 +89,34 @@ namespace org.herbal3d.Ragu {
 
         protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pServiceAuth, WaitingInfo pWaitingInfo) {
             // We also have a full command processor
-            pConnection.SetOpProcessor(new ProcessDynamicIncomingMessages(this), ProcessConnectionStateChange);
+            pConnection.SetOpProcessor(new ProcessEnvironIncomingMessages(this), ProcessConnectionStateChange);
+
+            // Set up the UI
+            Task.Run(async () => {
+                await StartEnviron(pConnection);
+                await StartUI(pConnection);
+            });
             return;
+        }
+        private async Task StartEnviron(BasilConnection pConn) {
+        }
+        private async Task StartUI(BasilConnection pConn) {
+            // Create the first top menu
+            AbilityList abilProps = new AbilityList();
+            abilProps.Add(new AbDialog() {
+                DialogName = "topMenu",
+                DialogUrl = "./Dialogs/topMenu.html",
+                DialogPlacement = "menu"
+            });
+            // They get to see statistics
+            await pConn.CreateItem(abilProps);
+            abilProps = new AbilityList();
+            abilProps.Add(new AbDialog() {
+                DialogUrl = "./Dialogs/status.html",
+                DialogName = "Status",
+                DialogPlacement = "bottom right"
+            });
+            await pConn.CreateItem(abilProps);
         }
 
 

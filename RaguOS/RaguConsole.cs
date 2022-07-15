@@ -42,7 +42,7 @@ namespace org.herbal3d.Ragu {
         public void Initialise(IConfigSource pConfig)
         {
             var iniConfig = pConfig.Configs["Ragu"];
-            m_Enabled = iniConfig.GetBoolean("Enabled");
+            m_Enabled = iniConfig == null ? false : iniConfig.GetBoolean("Enabled");
         }
 
         public void PostInitialise()

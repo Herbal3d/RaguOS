@@ -1296,5 +1296,12 @@ namespace org.herbal3d.Ragu {
             OnLogout?.Invoke(pClient);
         }
 
+        public void FireOnPreAgentUpdate(IClientAPI pCi, AgentUpdateArgs pArgs) {
+            OnPreAgentUpdate?.Invoke(pCi, pArgs);
+        }
+        public void FireOnAgentUpdate(IClientAPI pCi, AgentUpdateArgs pArgs) {
+            OnAgentUpdate?.Invoke(pCi, pArgs);
+        }
+
     }
 }

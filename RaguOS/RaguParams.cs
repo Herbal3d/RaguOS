@@ -98,13 +98,15 @@ namespace org.herbal3d.Ragu {
          *    file, set the configuration file value.
          */
         public void SetParameterConfigurationValues(IConfig cfg) {
-            foreach (FieldInfo fi in this.GetType().GetFields()) {
-                foreach (Attribute attr in Attribute.GetCustomAttributes(fi)) {
-                    ConfigParam cp = attr as ConfigParam;
-                    if (cp != null) {
-                        if (cfg.Contains(cp.name)) {
-                            string configValue = cfg.GetString(cp.name);
-                            fi.SetValue(this, ParamBlock.ConvertToObj(cp.valueType, configValue));
+            if (cfg != null) {
+                foreach (FieldInfo fi in this.GetType().GetFields()) {
+                    foreach (Attribute attr in Attribute.GetCustomAttributes(fi)) {
+                        ConfigParam cp = attr as ConfigParam;
+                        if (cp != null) {
+                            if (cfg.Contains(cp.name)) {
+                                string configValue = cfg.GetString(cp.name);
+                                fi.SetValue(this, ParamBlock.ConvertToObj(cp.valueType, configValue));
+                            }
                         }
                     }
                 }
@@ -166,21 +168,11 @@ namespace org.herbal3d.Ragu {
             return ret;
         }
 
-        // If a new layer is dynamically created, add it here to allow connection parameter creation
-        public void AddParameterLayer(string pLayer, Type pValueType, string pDefault) {
-            LayerPortOffset.Add(pLayer, ++LayerPortOffsetLast);
-            ConnectionParameterTypes.Add(pLayer, pValueType);
-            ConnectionParameterDefaults.Add(pLayer, pDefault);
-        }
-
         // Each layer gets a different connection port. If only port base is given, this is offset from that
-        public readonly Dictionary<string, int> LayerPortOffset = new Dictionary<string, int>() {
-            { SpaceServerCC.StaticLayerType, 0 },
-            { SpaceServerStatic.StaticLayerType, 1 },
-            { SpaceServerActors.StaticLayerType, 2 },
-            { SpaceServerDynamic.StaticLayerType, 3 }
-        };
-        private int LayerPortOffsetLast = 3;
+        private int layerPortOffet = 0;
+        private int NextLayerPortOffset() {
+            return layerPortOffet++;
+        }
 
         // Parameter values are "string" unless specified there
         public readonly Dictionary<string, Type> ConnectionParameterTypes = new Dictionary<string, Type>() {
@@ -235,9 +227,8 @@ namespace org.herbal3d.Ragu {
                     case "WSPort":
                         val = FindConnectionParam(pContext, null, "BasePort");
                         if (val == null) {
-                            throw new Exception(String.Format("Could not find port parameter for SpaceServer {0}", pLayer));
                         }
-                        val = (Int32.Parse(val) + LayerPortOffset[pLayer]).ToString();
+                        val = (Int32.Parse(val) + NextLayerPortOffset()).ToString();
                         break;
                     case "WSConnectionUrl":
                         bool isSecure = GetConnectionParam<bool>(pContext, pLayer, "WSIsSecure");

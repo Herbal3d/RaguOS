@@ -19,11 +19,14 @@ using System.Threading.Tasks;
 using org.herbal3d.OSAuth;
 using org.herbal3d.transport;
 using org.herbal3d.b.protocol;
+using org.herbal3d.cs.CommonUtil;
 
+using OpenSim.Framework;
 using OpenSim.Region.Framework.Scenes;
 using org.herbal3d.cs.CommonEntities;
 
 using OMV = OpenMetaverse;
+using System.Collections;
 
 namespace org.herbal3d.Ragu {
 
@@ -34,14 +37,19 @@ namespace org.herbal3d.Ragu {
             _ssContext = pContext;
         }
         public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
+            // this._ssContext.RContext.log.Debug("ProcessActorsIncomingMessages.Process: {0}", pMsg);
             switch (pMsg.Op) {
                 case (uint)BMessageOps.UpdatePropertiesReq:
                     if (_ssContext.TryGetPresenceById(pMsg.IId, out PresenceInfo pi)) {
                         if (pi.scenePresence.UUID == _ssContext.AgentUUID) {
                             foreach (var kvp in pMsg.IProps) {
+                                // this._ssContext.RContext.log.Debug("ProcessActorsIncomingMessages.Process: key={0}", kvp.Key);
                                 switch (kvp.Key) {
-                                    case "moveAction":
-                                        _ssContext.AvatarAction(kvp.Value, pi, pMsg.IProps);
+                                    case AbOSAvaUpdate.MoveToProp:
+                                        _ssContext.AvatarMoveToAction(pi, pMsg);
+                                        break;
+                                    case AbOSAvaUpdate.ControlFlagProp:
+                                        _ssContext.AvatarAction(pi, pMsg);
                                         break;
                                     default:
                                         break;
@@ -52,22 +60,21 @@ namespace org.herbal3d.Ragu {
                         else {
                             BMessage notUsResp = BasilConnection.MakeResponse(pMsg);
                             notUsResp.Exception = "Unauthorized: attempt to act on non-owned scene presence";
-                            pProtocol.Send(notUsResp);
+                            pConnection.Send(notUsResp);
                         }
                     }
                     else {
                         BMessage notUsResp = BasilConnection.MakeResponse(pMsg);
                         notUsResp.Exception = "Unknown Id";
-                        pProtocol.Send(notUsResp);
+                        pConnection.Send(notUsResp);
                     }
                     break;
                 default:
                     BMessage resp = BasilConnection.MakeResponse(pMsg);
                     resp.Exception = "Unsupported operation on SpaceServer" + _ssContext.LayerType;
-                    pProtocol.Send(resp);
+                    pConnection.Send(resp);
                     break;
             }
-
         }
     }
 
@@ -217,9 +224,98 @@ namespace org.herbal3d.Ragu {
                 pi.UpdatePosition();
             }
         }
+        private OMV.Quaternion PackQuaternionFromProp(string pPropName, ParamBlock pProps, OMV.Quaternion pDefault) {
+            OMV.Quaternion ret = pDefault;
+            if (pProps.HasParam(pPropName)) {
+                object valObj = pProps.GetObjectValue(pPropName);
+                if (valObj != null && valObj.GetType().IsArray) {
+                    if (valObj.GetType().GetElementType() == typeof(double)) {
+                        var valArr = (double[])valObj;
+                        if (valArr.Length > 3) {
+                            ret = new OMV.Quaternion((float)valArr[0], (float)valArr[1], (float)valArr[2], (float)valArr[3]);
+                        }
+                    }
+                    // Not sure if this is necessary -- JSON should all be received as 'double's
+                    if (valObj.GetType().GetElementType() == typeof(float)) {
+                        var valArr = (float[])valObj;
+                        if (valArr.Length > 3) {
+                            ret = new OMV.Quaternion((float)valArr[0], (float)valArr[1], (float)valArr[2], (float)valArr[3]);
+                        }
+                    }
+                }
+                else {
+                    this.RContext.log.Debug("{0}: PackQuaternionFromProp: parm value no IEnumerable: {1}", _logHeader, valObj.GetType());
+                }
+                // float[] val = pProps.P<float[]>(pPropName);
+                // ret = new OMV.Quaternion(val[0], val[1], val[2], val[3]);
+            };
+            return ret;
+        }
 
-        public void AvatarAction(object pAction, PresenceInfo pPi, Dictionary<string,object> pIProps) {
+        // Received update to 'moveAction' property
+        private AgentUpdateArgs _agentUpdateArgs = new AgentUpdateArgs();
+        public void AvatarAction(PresenceInfo pPi, BMessage pMsg) {
+            ParamBlock props = new ParamBlock(pMsg.IProps);
+            RaguAvatar clientAPI = pPi.scenePresence.ControllingClient as RaguAvatar;
 
+            // This is called with the update args from last time
+            // No known modules subscribe to this event
+            clientAPI.FireOnPreAgentUpdate(clientAPI, this._agentUpdateArgs);
+
+            uint cFlags = props.P<uint>(AbOSAvaUpdate.ControlFlagProp);
+            float camFar = props.P<float>(AbOSAvaUpdate.FarProp);
+            OMV.Quaternion bodyRot = this.PackQuaternionFromProp(AbOSAvaUpdate.BodyRotProp, props, OMV.Quaternion.Identity);
+            OMV.Quaternion headRot = this.PackQuaternionFromProp(AbOSAvaUpdate.HeadRotProp, props, bodyRot);
+
+            // Build AgentUpdateArgs
+            AgentUpdateArgs updateArgs = new AgentUpdateArgs() {
+                BodyRotation = bodyRot,
+                HeadRotation = headRot,
+                ControlFlags = cFlags,
+                Far = camFar,
+                Flags = 0,
+                State = 0
+            };
+
+            // === IMPLEMENTATION NOTES ================================
+            /* code from LLClientView
+            m_thisAgentUpdateArgs.BodyRotation = x.BodyRotation;
+            m_thisAgentUpdateArgs.ControlFlags = x.ControlFlags;
+            m_thisAgentUpdateArgs.Far = x.Far;
+            m_thisAgentUpdateArgs.Flags = x.Flags;
+            m_thisAgentUpdateArgs.HeadRotation = x.HeadRotation;
+            m_thisAgentUpdateArgs.State = x.State;
+
+            m_thisAgentUpdateArgs.NeedsCameraCollision = !camera;
+
+            OnAgentUpdate?.Invoke(this, m_thisAgentUpdateArgs);
+            */
+            // ControlFlags are OpenMetaverse.AgentManager.ControlFlags
+            //    The mouse info is passed through to the scripts
+            // Needs ClientAgentPosition if UseClientAgentPosition is true
+            // ScenePresence.HandleAgentUpdate does not use Flags
+            // Flags contains HideTitle, CliAutoPilot, MuteCollisions
+            //      OpenSim.Region.Framework.Scenes.AgentUpdateFlags
+            // State is OpenSimulator.AgentState which includes None, Typing, Editing
+            // === END IMPLEMENTATION NOTES ================================
+
+            // This usually just calls ScenePresence.HandleAgentUpdate
+            clientAPI.FireOnAgentUpdate(clientAPI, updateArgs);
+
+            this._agentUpdateArgs = updateArgs;
+
+        }
+
+        // Received update to 'moreTo' property
+        public void AvatarMoveToAction(PresenceInfo pPi, BMessage pBMsg) {
+            if (pBMsg.IProps.TryGetValue(AbOSAvaUpdate.MoveToProp, out object ObjmvTo)) {
+                if (ObjmvTo is float[]) {
+                    var mvTo = (float[])ObjmvTo;
+                    var target = new OMV.Vector3(mvTo[0], mvTo[1], mvTo[2]);
+                    pPi.scenePresence.MoveToTarget(target, false, true, false);
+
+                }
+            }
         }
 
         private List<PresenceInfo> _presences = new List<PresenceInfo>();
@@ -334,13 +430,19 @@ namespace org.herbal3d.Ragu {
                     );
                     abilProps.Add(
                         new AbPlacement() {
-                            WorldPos = GetWorldPosition(),
-                            WorldRot = GetWorldRotation()
+                            ToWorldPos = GetWorldPosition(),
+                            ToWorldRot = GetWorldRotation()
+                        }
+                    );
+                    abilProps.Add(
+                        new AbOSCamera() {
+                            OSCameraMode = AbOSCamera.OSCameraModes.Third,
+                            OSCameraDisplacement = new double[] { 0, 3.0, -6 }
                         }
                     );
                     if (scenePresence.UUID == _spaceServer.AgentUUID) {
                         // If the main client avatar, set for user controlling its actions
-                        abilProps.Add( new AbOSAvaMove() );
+                        abilProps.Add( new AbOSAvaUpdate() );
                     };
 
                     BMessage resp = await _connection.CreateItem(abilProps);

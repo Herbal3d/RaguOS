@@ -224,7 +224,7 @@ namespace org.herbal3d.Ragu {
                     break;
                 case (uint)BMessageOps.CloseSessionReq: {
                     BMessage resp = BasilConnection.MakeResponse(pMsg);
-                    pProtocol.Send(resp);
+                    pConnection.Send(resp);
                     _ssContext.Shutdown();
                     break;
                 }
@@ -234,7 +234,7 @@ namespace org.herbal3d.Ragu {
                 default: {
                     BMessage resp = BasilConnection.MakeResponse(pMsg);
                     resp.Exception = "Session is not open. AA";
-                    pProtocol.Send(resp);
+                    pConnection.Send(resp);
                     break;
                 }
             }

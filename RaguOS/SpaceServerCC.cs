@@ -44,14 +44,14 @@ namespace org.herbal3d.Ragu {
                 }
                 case (uint)BMessageOps.CloseSessionReq: {
                     BMessage resp = BasilConnection.MakeResponse(pMsg);
-                    pProtocol.Send(resp);
+                    pConnection.Send(resp);
                     _ssContext.CloseSessionProcessing(pConnection);
                     break;
                 }
                 default: {
                     BMessage resp = BasilConnection.MakeResponse(pMsg);
                     resp.Exception = "Unsupported operation on SpaceServer" + _ssContext.LayerType;
-                    pProtocol.Send(resp);
+                    pConnection.Send(resp);
                     break;
                 }
             }
@@ -122,7 +122,8 @@ namespace org.herbal3d.Ragu {
                     //    and send a MakeConnection to the new client to send an OpenConnection
                     //    to the listeners. The WaitingInfo saves the authentication information.
 
-                    var layers = new string[] {"Static", "Dynamic", "Actors"};
+                    // listeners are created in RaguRegion
+                    var layers = new string[] {"Static", "Dynamic", "Actors", "Environ"};
                     foreach (string layer in layers) {
                         WaitingInfo waiting = RememberWaitingForOpenSession(AgentUUID);
                         var pp = RContext.SpaceServerListeners[layer].ParamsForMakeConnection(

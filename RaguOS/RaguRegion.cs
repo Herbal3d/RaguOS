@@ -75,6 +75,8 @@ namespace org.herbal3d.Ragu {
                             SpaceServerActors.SpaceServerActorsService(RContext, _canceller));
                 RContext.SpaceServerListeners.Add(SpaceServerDynamic.StaticLayerType,
                             SpaceServerDynamic.SpaceServerDynamicService(RContext, _canceller));
+                RContext.SpaceServerListeners.Add(SpaceServerEnviron.StaticLayerType,
+                            SpaceServerEnviron.SpaceServerEnvironService(RContext, _canceller));
             }
             catch (Exception e) {
                 RContext.log.Error("{0} Failed creation of SpaceServerCC: {1}", _logHeader, e);
