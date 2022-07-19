@@ -48,6 +48,7 @@ using OpenMetaverse.Packets;
 
 using OpenSim.Framework;
 using OpenSim.Framework.Client;
+using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
 
 namespace org.herbal3d.Ragu {
@@ -55,7 +56,8 @@ namespace org.herbal3d.Ragu {
         private readonly string m_firstname;
         private readonly string m_lastname;
         private readonly Vector3 m_startPos;
-        private UUID m_uuid = UUID.Random();
+        private UUID m_agentId = UUID.Random();
+        private UUID m_sessionId;
         private readonly Scene m_scene;
         private readonly UUID m_scopeID;
         private readonly UUID m_ownerID;
@@ -67,7 +69,9 @@ namespace org.herbal3d.Ragu {
         public List<uint> SelectedObjects {get; private set;}
 
         public RaguAvatar(
-                string firstname, string lastname, UUID agentID,
+                string firstname, string lastname,
+                UUID agentID,
+                UUID sessionID,
                 Vector3 position, UUID ownerID,
                 bool senseAsAgent, Scene scene,
                 uint circuitCode,
@@ -76,7 +80,8 @@ namespace org.herbal3d.Ragu {
             m_firstname = firstname;
             m_lastname = lastname;
             m_startPos = position;
-            m_uuid = agentID;
+            m_agentId = agentID;
+            m_sessionId = sessionID;
             m_scene = scene;
             m_ownerID = ownerID;
             m_hostGroupID = UUID.Zero;
@@ -123,7 +128,7 @@ namespace org.herbal3d.Ragu {
         }
 
         public void GiveMoney(UUID target, int amount) {
-            OnMoneyTransferRequest(m_uuid, target, amount, 1, "Payment");
+            OnMoneyTransferRequest(m_agentId, target, amount, 1, "Payment");
         }
 
         public bool Touch(UUID target) {
@@ -165,7 +170,7 @@ namespace org.herbal3d.Ragu {
 
         public void InstantMessage(UUID target, string message) {
             OnInstantMessage(this, new GridInstantMessage(m_scene,
-                    m_uuid, m_firstname + " " + m_lastname,
+                    m_agentId, m_firstname + " " + m_lastname,
                     target, 0, false, message,
                     UUID.Zero, false, Position, new byte[0], true));
         }
@@ -197,8 +202,8 @@ namespace org.herbal3d.Ragu {
         }
 
         public Vector3 Position {
-            get { return m_scene.Entities[m_uuid].AbsolutePosition; }
-            set { m_scene.Entities[m_uuid].AbsolutePosition = value; }
+            get { return m_scene.Entities[m_agentId].AbsolutePosition; }
+            set { m_scene.Entities[m_agentId].AbsolutePosition = value; }
         }
 
         public bool SendLogoutPacketWhenClosing {
@@ -518,8 +523,8 @@ namespace org.herbal3d.Ragu {
 
         public virtual UUID AgentId
         {
-            get { return m_uuid; }
-            set { m_uuid = value; }
+            get { return m_agentId; }
+            set { m_agentId = value; }
         }
 
         public UUID SessionId
@@ -701,7 +706,25 @@ namespace org.herbal3d.Ragu {
 
         public virtual AgentCircuitData RequestClientInfo()
         {
-            return new AgentCircuitData();
+            var agentData = new AgentCircuitData() {
+                AgentID = m_agentId,
+                SessionID = m_sessionId,
+                SecureSessionID = SecureSessionId,
+                circuitcode = m_circuitCode,
+                child = false,
+                firstname = m_firstname,
+                lastname = m_lastname,
+            };
+
+            ICapabilitiesModule capsModule = m_scene.RequestModuleInterface<ICapabilitiesModule>();
+
+            if (capsModule == null) // can happen when shutting down.
+                return agentData;
+
+            agentData.CapsPath = capsModule.GetCapsPath(m_agentId);
+            agentData.ChildrenCapSeeds = new Dictionary<ulong, string>(capsModule.GetChildrenSeeds(m_agentId));
+
+            return agentData;
         }
 
         public virtual void CrossRegion(ulong newRegionHandle, Vector3 pos, Vector3 lookAt,

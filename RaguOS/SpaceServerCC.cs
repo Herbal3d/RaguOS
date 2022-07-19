@@ -225,6 +225,7 @@ namespace org.herbal3d.Ragu {
 
                         IClientAPI newClient = new RaguAvatar(firstName, lastName,
                                                         agentUUID,
+                                                        sessionUUID,
                                                         acd.startpos,   /* initial position */
                                                         OMV.UUID.Zero,  /* owner */
                                                         true,           /* senseAsAgent */
@@ -246,6 +247,10 @@ namespace org.herbal3d.Ragu {
                                         _logHeader, firstName, lastName, agentId);
                             AgentUUID = agentUUID;
                             SessionUUID = sessionUUID;
+
+                            sp.SendAvatarDataToAllAgents();
+
+                            // Let the other agents know about us
                             ret = true;
                         }
                         else {

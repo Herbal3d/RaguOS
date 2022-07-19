@@ -421,6 +421,7 @@ namespace org.herbal3d.Ragu {
                     string tempAppearanceURL = "https://files.misterblue.com/BasilTest/gltf/Duck/glTF/Duck.gltf";
 
                     AbilityList abilProps = new AbilityList();
+                    // Avatar has appearance
                     abilProps.Add(
                         new AbAssembly() {
                             AssetURL = tempAppearanceURL,
@@ -428,21 +429,23 @@ namespace org.herbal3d.Ragu {
                             AssetAuth = RaguAssetService.Instance.AccessToken.Token,
                         }
                     );
+                    // Avatar appears in the world
                     abilProps.Add(
                         new AbPlacement() {
                             ToWorldPos = GetWorldPosition(),
                             ToWorldRot = GetWorldRotation()
                         }
                     );
-                    abilProps.Add(
-                        new AbOSCamera() {
-                            OSCameraMode = AbOSCamera.OSCameraModes.Third,
-                            OSCameraDisplacement = new double[] { 0, 3.0, -6 }
-                        }
-                    );
                     if (scenePresence.UUID == _spaceServer.AgentUUID) {
                         // If the main client avatar, set for user controlling its actions
                         abilProps.Add( new AbOSAvaUpdate() );
+                        // Avatar has control of the camera
+                        abilProps.Add(
+                            new AbOSCamera() {
+                                OSCameraMode = AbOSCamera.OSCameraModes.Third,
+                                OSCameraDisplacement = new double[] { 0, 3.0, -6 }
+                            }
+                        );
                     };
 
                     BMessage resp = await _connection.CreateItem(abilProps);
