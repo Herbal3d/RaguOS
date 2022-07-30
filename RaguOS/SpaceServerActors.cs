@@ -224,6 +224,10 @@ namespace org.herbal3d.Ragu {
                 pi.UpdatePosition();
             }
         }
+        // Build a quaternion from a property.
+        // If the property exists, it can be either a string that needs parsing or an array of numbers.
+        // If it is an array of numbers, because of how NewtonSoft parses things, the array could be
+        //     either doubles or floats. We have to check for that and do the proper conversions.
         private OMV.Quaternion PackQuaternionFromProp(string pPropName, ParamBlock pProps, OMV.Quaternion pDefault) {
             OMV.Quaternion ret = pDefault;
             if (pProps.HasParam(pPropName)) {
@@ -244,7 +248,12 @@ namespace org.herbal3d.Ragu {
                     }
                 }
                 else {
-                    this.RContext.log.Debug("{0}: PackQuaternionFromProp: parm value no IEnumerable: {1}", _logHeader, valObj.GetType());
+                    if (valObj.GetType() == typeof(string)) {
+
+                    }
+                    else {
+                        this.RContext.log.Debug("{0}: PackQuaternionFromProp: parm value is not parseable: {1}", _logHeader, valObj.GetType());
+                    }
                 }
                 // float[] val = pProps.P<float[]>(pPropName);
                 // ret = new OMV.Quaternion(val[0], val[1], val[2], val[3]);
@@ -253,7 +262,14 @@ namespace org.herbal3d.Ragu {
         }
 
         // Received update to 'moveAction' property
+        // The client tells us what action to do and this code does its best to
+        //    fake out OpenSimulator to perform that action. Most actions go through
+        //    the "AgentUpdate" action as, in the LL protocol, that packet is sent
+        //    often to update the avatar's position and view.
+        // Other actions use the "move to" or "auto pilot" feature to move the avatar.
         private AgentUpdateArgs _agentUpdateArgs = new AgentUpdateArgs();
+        private static float degreesToRads = (float)(Math.PI / 180.0);
+        private static float turnRads = 5 * degreesToRads;
         public void AvatarAction(PresenceInfo pPi, BMessage pMsg) {
             ParamBlock props = new ParamBlock(pMsg.IProps);
             RaguAvatar clientAPI = pPi.scenePresence.ControllingClient as RaguAvatar;
@@ -267,17 +283,37 @@ namespace org.herbal3d.Ragu {
             OMV.Quaternion bodyRot = this.PackQuaternionFromProp(AbOSAvaUpdate.BodyRotProp, props, OMV.Quaternion.Identity);
             OMV.Quaternion headRot = this.PackQuaternionFromProp(AbOSAvaUpdate.HeadRotProp, props, bodyRot);
 
+            uint controlFlags = (uint)OMV.AgentManager.ControlFlags.NONE;
+
+            if ((cFlags & (uint)AbOSAvaUpdate.OSAvaUpdateMoveAction.WalkForward) != 0) {
+                controlFlags |= (uint)OMV.AgentManager.ControlFlags.AGENT_CONTROL_AT_POS;
+            }
+            if ((cFlags & (uint)AbOSAvaUpdate.OSAvaUpdateMoveAction.WalkBackward) != 0) {
+                controlFlags |= (uint)OMV.AgentManager.ControlFlags.AGENT_CONTROL_AT_NEG;
+            }
+            if ((cFlags & (uint)AbOSAvaUpdate.OSAvaUpdateMoveAction.TurnLeft) != 0) {
+                var rotate = OMV.Quaternion.CreateFromAxisAngle(0, 0, 1, turnRads);
+                bodyRot += rotate;
+                headRot = bodyRot;
+            }
+            if ((cFlags & (uint)AbOSAvaUpdate.OSAvaUpdateMoveAction.TurnRight) != 0) {
+                var rotate = OMV.Quaternion.CreateFromAxisAngle(0, 0, 1, -turnRads);
+                bodyRot += rotate;
+                headRot = bodyRot;
+            }
+
             // Build AgentUpdateArgs
             AgentUpdateArgs updateArgs = new AgentUpdateArgs() {
                 BodyRotation = bodyRot,
                 HeadRotation = headRot,
-                ControlFlags = cFlags,
+                ControlFlags = controlFlags,
                 Far = camFar,
-                Flags = 0,
-                State = 0
+                Flags = 0,      // None, HideTitle, CliAutoPilot, MuteCollisions (OMV.AgentUpdateFlags)
+                State = 0       // None, Typing, Editing (OMV.AgentState)
             };
 
             // === IMPLEMENTATION NOTES ================================
+            // LLClientView remembers the last update packet and passes it on if there are changes
             /* code from LLClientView
             m_thisAgentUpdateArgs.BodyRotation = x.BodyRotation;
             m_thisAgentUpdateArgs.ControlFlags = x.ControlFlags;
@@ -297,6 +333,12 @@ namespace org.herbal3d.Ragu {
             // Flags contains HideTitle, CliAutoPilot, MuteCollisions
             //      OpenSim.Region.Framework.Scenes.AgentUpdateFlags
             // State is OpenSimulator.AgentState which includes None, Typing, Editing
+            //
+            // If UseClientAgentPosition is 'true', ScenePresence.Position <= agentData.ClientAgentPosition
+            //
+            // Some of the states are very independent:
+            //  AGENT_CONTROL_STAND_UP
+            //  AGENT_CONTROL_SIT_ON_GROUND
             // === END IMPLEMENTATION NOTES ================================
 
             // This usually just calls ScenePresence.HandleAgentUpdate

@@ -1308,7 +1308,12 @@ namespace org.herbal3d.Ragu {
         }
 
         public uint GetViewerCaps() {
-            return 0;
+            // 0x1000 = sent seeds
+            // 0x2000 = supports object animations
+            // 0x4000 = windlight env
+            // 0x8000 = advanced environment
+            // This needs to return "sent seeds" so region initialization completes
+            return 0x1000 | 0x2000 | 0x8000;
         }
 
         // ===============================================================
@@ -1324,6 +1329,11 @@ namespace org.herbal3d.Ragu {
         }
         public void FireOnAgentUpdate(IClientAPI pCi, AgentUpdateArgs pArgs) {
             OnAgentUpdate?.Invoke(pCi, pArgs);
+        }
+
+        // LLClientView does (pos, false, true) for handling 'autopilot' request
+        public void FireOnAutoPilotGo(IClientAPI pCi, Vector3 pPos, bool pNoFly, bool pLandAtTarget) {
+            OnAutoPilotGo?.Invoke(pPos, pNoFly, pLandAtTarget);
         }
 
     }

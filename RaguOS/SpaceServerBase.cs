@@ -45,7 +45,7 @@ namespace org.herbal3d.Ragu {
             RContext = pContext;
             _cancellerSource = pCanceller;
             _transport = pTransport;
-            RContext.SpaceServers.Add(this);
+            lock (RContext.SpaceServers) RContext.SpaceServers.Add(this);
         }
 
         // General OpenSession request processing.
@@ -167,7 +167,7 @@ namespace org.herbal3d.Ragu {
                 _connection.Stop();
                 _connection = null;
             }
-            RContext.SpaceServers.Remove(this);
+            lock (RContext.SpaceServers) RContext.SpaceServers.Remove(this);
         }
 
 
