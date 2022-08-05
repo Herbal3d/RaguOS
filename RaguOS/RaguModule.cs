@@ -66,9 +66,11 @@ namespace org.herbal3d.Ragu {
 
         public RaguParams parms;    // assume it's readonly
         public readonly RaguStats stats;
-        public Scene scene;
         public BLogger log;
         public readonly string sessionKey;
+
+        public Scene scene;
+        public BFrameOfRef frameOfRef;
 
         // The following are the layer listeners for this region.
         // Instances of each SpaceServer is created when incoming connections are received.

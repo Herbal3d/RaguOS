@@ -157,12 +157,10 @@ namespace org.herbal3d.Ragu {
                         }
                     );
 
-                    var worldPos = CoordAxis.ConvertZupToYup(new OMV.Vector3(0, 0, 0));
                     props.Add(new AbPlacement() {
-                            WorldPos = new double[] { worldPos.X, worldPos.Y, worldPos.Z},
-                            WorldRot = new double[] { 0, 0, 0, 1 }
-                        }
-                    );
+                        WorldPos = BCoord.ToPlanetCoord(RContext.frameOfRef, OMV.Vector3.Zero),
+                        WorldRot = BCoord.ToPlanetRot(RContext.frameOfRef, OMV.Quaternion.Identity)
+                    } );
                     BMessage resp = await pConnection.CreateItem(props);
                     string instanceId = AbBItem.GetId(resp);
 

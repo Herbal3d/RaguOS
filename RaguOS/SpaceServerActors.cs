@@ -203,7 +203,7 @@ namespace org.herbal3d.Ragu {
         private void Event_OnClientMovement(ScenePresence pPresence) {
             // RContext.log.Debug("{0} Event_OnClientMovement", _logHeader);
             if (TryFindPresence(pPresence, out PresenceInfo pi)) {
-                pi.UpdatePosition();
+                pi.UpdatePosition(false);
             }
             else {
                 RContext.log.Error("{0} Event_OnClientMovement: did not find presence", _logHeader);
@@ -212,7 +212,7 @@ namespace org.herbal3d.Ragu {
         private void Event_OnSignificantClientMovement(ScenePresence pPresence) {
             // RContext.log.Debug("{0} Event_OnSignificantClientMovement", _logHeader);
             if (TryFindPresence(pPresence, out PresenceInfo pi)) {
-                pi.UpdatePosition();
+                pi.UpdatePosition(false);
             }
             else {
                 RContext.log.Error("{0} Event_OnSignificantClientMovement. Did not find presence", _logHeader);
@@ -221,43 +221,38 @@ namespace org.herbal3d.Ragu {
         private void Event_OnScenePresenceUpdated(ScenePresence pPresence) {
             // RContext.log.Debug("{0} Event_OnScenePresenceUpdated", _logHeader);
             if (TryFindPresence(pPresence, out PresenceInfo pi)) {
-                pi.UpdatePosition();
+                pi.UpdatePosition(true);
             }
         }
-        // Build a quaternion from a property.
-        // If the property exists, it can be either a string that needs parsing or an array of numbers.
-        // If it is an array of numbers, because of how NewtonSoft parses things, the array could be
-        //     either doubles or floats. We have to check for that and do the proper conversions.
-        private OMV.Quaternion PackQuaternionFromProp(string pPropName, ParamBlock pProps, OMV.Quaternion pDefault) {
-            OMV.Quaternion ret = pDefault;
+        private double[] UnpackArrayFromProp(string pPropName, ParamBlock pProps, double[] pDefault) {
+            double[] ret = pDefault;
             if (pProps.HasParam(pPropName)) {
                 object valObj = pProps.GetObjectValue(pPropName);
                 if (valObj != null && valObj.GetType().IsArray) {
                     if (valObj.GetType().GetElementType() == typeof(double)) {
-                        var valArr = (double[])valObj;
-                        if (valArr.Length > 3) {
-                            ret = new OMV.Quaternion((float)valArr[0], (float)valArr[1], (float)valArr[2], (float)valArr[3]);
-                        }
+                        ret = (double[])valObj;
                     }
-                    // Not sure if this is necessary -- JSON should all be received as 'double's
+                    // Not sure if this is necessary -- JSON should all be received as doubles
                     if (valObj.GetType().GetElementType() == typeof(float)) {
                         var valArr = (float[])valObj;
-                        if (valArr.Length > 3) {
-                            ret = new OMV.Quaternion((float)valArr[0], (float)valArr[1], (float)valArr[2], (float)valArr[3]);
+                        ret = new double[valArr.Length];
+                        for (int i = 0; i < valArr.Length; i++) {
+                            ret[i] = (double)valArr[i];
                         }
                     }
                 }
                 else {
                     if (valObj.GetType() == typeof(string)) {
-
+                        // If it's a string, we could parse a JSON value.
+                        // In this case is shouldn't be a string but that might be added for futures.
+                        this.RContext.log.Debug("{0}: PackQuaternionFromProp: parm value is string: {1}", _logHeader, valObj);
+                        ret = new double[] { 0, 0, 0, 1 };
                     }
                     else {
                         this.RContext.log.Debug("{0}: PackQuaternionFromProp: parm value is not parseable: {1}", _logHeader, valObj.GetType());
                     }
                 }
-                // float[] val = pProps.P<float[]>(pPropName);
-                // ret = new OMV.Quaternion(val[0], val[1], val[2], val[3]);
-            };
+            }
             return ret;
         }
 
@@ -269,7 +264,8 @@ namespace org.herbal3d.Ragu {
         // Other actions use the "move to" or "auto pilot" feature to move the avatar.
         private AgentUpdateArgs _agentUpdateArgs = new AgentUpdateArgs();
         private static float degreesToRads = (float)(Math.PI / 180.0);
-        private static float turnRads = 5 * degreesToRads;
+        private static float turnRads = 10 * degreesToRads;
+        private static double[] doubleDefault = new double[] { 0, 0, 0, 1 };
         public void AvatarAction(PresenceInfo pPi, BMessage pMsg) {
             ParamBlock props = new ParamBlock(pMsg.IProps);
             RaguAvatar clientAPI = pPi.scenePresence.ControllingClient as RaguAvatar;
@@ -280,8 +276,10 @@ namespace org.herbal3d.Ragu {
 
             uint cFlags = props.P<uint>(AbOSAvaUpdate.ControlFlagProp);
             float camFar = props.P<float>(AbOSAvaUpdate.FarProp);
-            OMV.Quaternion bodyRot = this.PackQuaternionFromProp(AbOSAvaUpdate.BodyRotProp, props, OMV.Quaternion.Identity);
-            OMV.Quaternion headRot = this.PackQuaternionFromProp(AbOSAvaUpdate.HeadRotProp, props, bodyRot);
+            double[] dBodyRot = this.UnpackArrayFromProp(AbOSAvaUpdate.BodyRotProp, props, doubleDefault);
+            double[] dHeadRot = this.UnpackArrayFromProp(AbOSAvaUpdate.HeadRotProp, props, doubleDefault);
+            OMV.Quaternion bodyRot = BCoord.FromPlanetRot(RContext.frameOfRef, dBodyRot);
+            OMV.Quaternion headRot = BCoord.FromPlanetRot(RContext.frameOfRef, dBodyRot);
 
             uint controlFlags = (uint)OMV.AgentManager.ControlFlags.NONE;
 
@@ -292,13 +290,17 @@ namespace org.herbal3d.Ragu {
                 controlFlags |= (uint)OMV.AgentManager.ControlFlags.AGENT_CONTROL_AT_NEG;
             }
             if ((cFlags & (uint)AbOSAvaUpdate.OSAvaUpdateMoveAction.TurnLeft) != 0) {
+                controlFlags |= (uint)OMV.AgentManager.ControlFlags.AGENT_CONTROL_NUDGE_AT_POS;
                 var rotate = OMV.Quaternion.CreateFromAxisAngle(0, 0, 1, turnRads);
-                bodyRot += rotate;
+                // this.RContext.log.Debug("{0}: AvatarAction.TurnLeft: rot={1}, bRot={2}, after={3}", _logHeader, rotate, bodyRot, bodyRot * rotate);
+                bodyRot *= rotate;
                 headRot = bodyRot;
             }
             if ((cFlags & (uint)AbOSAvaUpdate.OSAvaUpdateMoveAction.TurnRight) != 0) {
+                controlFlags |= (uint)OMV.AgentManager.ControlFlags.AGENT_CONTROL_NUDGE_AT_POS;
                 var rotate = OMV.Quaternion.CreateFromAxisAngle(0, 0, 1, -turnRads);
-                bodyRot += rotate;
+                // this.RContext.log.Debug("{0}: AvatarAction.TurnRight: rot={1}, bRot={2}, after={3}", _logHeader, rotate, bodyRot, bodyRot * rotate);
+                bodyRot *= rotate;
                 headRot = bodyRot;
             }
 
@@ -350,14 +352,13 @@ namespace org.herbal3d.Ragu {
 
         // Received update to 'moreTo' property
         public void AvatarMoveToAction(PresenceInfo pPi, BMessage pBMsg) {
-            if (pBMsg.IProps.TryGetValue(AbOSAvaUpdate.MoveToProp, out object ObjmvTo)) {
-                if (ObjmvTo is float[]) {
-                    var mvTo = (float[])ObjmvTo;
-                    var target = new OMV.Vector3(mvTo[0], mvTo[1], mvTo[2]);
-                    pPi.scenePresence.MoveToTarget(target, false, true, false);
+            ParamBlock props = new ParamBlock(pBMsg.IProps);
+            RaguAvatar clientAPI = pPi.scenePresence.ControllingClient as RaguAvatar;
 
-                }
-            }
+            double[] dTargetPos = this.UnpackArrayFromProp(AbOSAvaUpdate.MoveToProp, props, doubleDefault);
+            OMV.Vector3 targetPos = BCoord.FromPlanetCoord(RContext.frameOfRef, dTargetPos);
+
+            clientAPI.FireOnAutoPilotGo(clientAPI, targetPos, false, true);
         }
 
         private List<PresenceInfo> _presences = new List<PresenceInfo>();
@@ -440,12 +441,21 @@ namespace org.herbal3d.Ragu {
             _connection = pConnection;
             _spaceServer = pSpaceServer;
         }
-        public async void UpdatePosition() {
+        public async void UpdatePosition(bool pForce = false) {
             if (InstanceId != null) {
-                var coordParams = new AbPlacement() {
-                    WorldPos = GetWorldPosition(),
-                    WorldRot = GetWorldRotation()
-                };
+                AbPlacement coordParams;
+                if (pForce) {
+                    coordParams = new AbPlacement() {
+                        WorldPos = BCoord.ToPlanetCoord(_context.frameOfRef, scenePresence.AbsolutePosition),
+                        WorldRot = BCoord.ToPlanetRot(_context.frameOfRef, scenePresence.Rotation)
+                    };
+                }
+                else {
+                    coordParams = new AbPlacement() {
+                        ToWorldPos = BCoord.ToPlanetCoord(_context.frameOfRef, scenePresence.AbsolutePosition),
+                        ToWorldRot = BCoord.ToPlanetRot(_context.frameOfRef, scenePresence.Rotation)
+                    };
+                }
                 await _connection.UpdateProperties(InstanceId, coordParams);
                 // _context.log.Debug("{0} UpdatePosition: p={1}, r={2}",
                 //             _logHeader, presence.AbsolutePosition, presence.Rotation);
@@ -474,8 +484,8 @@ namespace org.herbal3d.Ragu {
                     // Avatar appears in the world
                     abilProps.Add(
                         new AbPlacement() {
-                            ToWorldPos = GetWorldPosition(),
-                            ToWorldRot = GetWorldRotation()
+                            ToWorldPos = BCoord.ToPlanetCoord(_context.frameOfRef, scenePresence.AbsolutePosition),
+                            ToWorldRot = BCoord.ToPlanetRot(_context.frameOfRef, scenePresence.Rotation)
                         }
                     );
                     if (scenePresence.UUID == _spaceServer.AgentUUID) {
@@ -513,21 +523,6 @@ namespace org.herbal3d.Ragu {
                     InstanceId = null;
                 };
             });
-        }
-        // Return the Instance's position converted from OpenSim Zup to GLTF Yup
-        public double[] GetWorldPosition() {
-            OMV.Vector3 absPos = scenePresence.AbsolutePosition;
-            OMV.Vector3 thePos = CoordAxis.ConvertZupToYup(scenePresence.AbsolutePosition);
-            // OMV.Vector3 thePos = presence.AbsolutePosition;
-            // _context.log.Debug("[PresenceInfo.GetWorldPosition]: <{0},{1},{2}> => <{3},{4},{5}>",
-            //         absPos.X, absPos.Y, absPos.Z, thePos.X, thePos.Y, thePos.Z);
-            return new double[] { thePos.X, thePos.Y, thePos.Z };
-        }
-        // Return the Instance's rotation converted from OpenSim Zup to GLTF Yup
-        public double[] GetWorldRotation() {
-            // OMV.Quaternion theRot = scenePresence.Rotation;
-            OMV.Quaternion theRot = CoordAxis.ConvertZupToYup(scenePresence.Rotation);
-            return new double[] { theRot.X, theRot.Y, theRot.Z, theRot.W };
         }
     }
 }
