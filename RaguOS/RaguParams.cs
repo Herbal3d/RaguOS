@@ -62,20 +62,8 @@ namespace org.herbal3d.Ragu {
         // Layers are this WSPort + LayerPortOffset[LayerName]
         [ConfigParam(name: "SpaceServer_BasePort", valueType: typeof(int), desc: "Base port number for incoming WS connection")]
         public int SpaceServer_BasePort = 11440;
-        [ConfigParam(name: "SpaceServer_IsSecure", valueType: typeof(bool), desc: "Port for incoming WS connection")]
-        public bool SpaceServer_IsSecure = false;
-
-        [ConfigParam(name: "SpaceServer_CC_WSCertificate", valueType: typeof(string), desc: "Certificate to accept for secure inbound connection")]
-        public string SpaceServer_CC_WSCertificate = null;
-
-        [ConfigParam(name: "SpaceServer_Static_WSCertificate", valueType: typeof(string), desc: "Certificate to accept for secure inbound connection")]
-        public string SpaceServer_Static_WSCertificate = null;
-
-        [ConfigParam(name: "SpaceServer_Actors_WSCertificate", valueType: typeof(string), desc: "Certificate to accept for secure inbound connection")]
-        public string SpaceServer_Actors_WSCertificate = null;
-
-        [ConfigParam(name: "SpaceServer_Dynamic_WSCertificate", valueType: typeof(string), desc: "Certificate to accept for secure inbound connection")]
-        public string SpaceServer_Dynamic_WSCertificate = null;
+        [ConfigParam(name: "SpaceServer_WSIsSecure", valueType: typeof(bool), desc: "Whether WebSocket connections are secure")]
+        public bool SpaceServer_WSIsSecure = false;
 
         [ConfigParam(name: "OutputDir", valueType: typeof(string), desc: "Base directory for Loden asset storage")]
         public string OutputDir = "./LodenAssets";
@@ -195,15 +183,15 @@ namespace org.herbal3d.Ragu {
         ///     the RaguOS.ini file. If specific port numbers are not specified, they are
         ///     computed based on a base port number given in one if the INI files.
         /// To find a value, this looks for value in order:
-        ///     "SpaceServer.LAYER.PARAM" in RegionInfo
-        ///     "SpaceServer.LAYER.PARAM" in RaguOS.ini
-        ///     "SpaceServer.PARAM" in RegionInfo (if found, builds value based on LAYER)
-        ///     "SpaceServer.PARAM" in RaguOS.ini (if found, builds value based on LAYER)
+        ///     "SpaceServer_LAYER_PARAM" in RegionInfo
+        ///     "SpaceServer_LAYER_PARAM" in RaguOS.ini
+        ///     "SpaceServer_PARAM" in RegionInfo (if found, builds value based on LAYER)
+        ///     "SpaceServer_PARAM" in RaguOS.ini (if found, builds value based on LAYER)
         /// For ports, if the above tests don't find anything, it looks for:
-        ///     "SpaceServer.LAYER.BasePort" in RegionInfo
-        ///     "SpaceServer.LAYER.BasePort" in RaguOS.ini
-        ///     "SpaceServer.BasePort" in RegionInfo
-        ///     "SpaceServer.BasePort" in RaguOS.ini
+        ///     "SpaceServer_LAYER_BasePort" in RegionInfo
+        ///     "SpaceServer_LAYER_BasePort" in RaguOS.ini
+        ///     "SpaceServer_BasePort" in RegionInfo
+        ///     "SpaceServer_BasePort" in RaguOS.ini
         /// If any of these are found, the port number is computed using that number and
         ///     the value in LayerPortOffset.
         /// </summary>
@@ -251,7 +239,7 @@ namespace org.herbal3d.Ragu {
         // Looks for "SpaceServer_LAYER_PARAM" and then "SPACESERVER_PARAM"
         private string FindConnectionParam(RaguContext pContext, string pLayer, string pParam) {
             string val = null;
-            string parm = "SpaceServer_" + (pLayer == null ? "" : pLayer + "_") + pParam;
+            string parm = "SpaceServer_" + (pLayer == null ? "" : (pLayer + "_")) + pParam;
             val = GetRegionInfoParam(pContext, parm);
             if (val == null) {
                 // No explicit value in the RegionInfo file. One in the Ragu.ini file?

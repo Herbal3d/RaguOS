@@ -3,8 +3,8 @@
 using System;
 namespace org.herbal3d.Ragu {
     public class VersionInfo {
-        public static string appVersion = "2.1.1";
-        public static string longVersion = "2.1.1-20220805-4f5a1d69";
-        public static string buildDate = "20220805";
+        public static string appVersion = "2.1.2";
+        public static string longVersion = "2.1.2-20220816-8769d960";
+        public static string buildDate = "20220816";
     }
 }
