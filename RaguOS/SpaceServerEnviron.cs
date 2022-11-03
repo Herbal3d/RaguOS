@@ -47,57 +47,51 @@ namespace org.herbal3d.Ragu {
     public class SpaceServerEnviron : SpaceServerBase {
         private static readonly string _logHeader = "[SpaceServerEnviron]";
 
-        public static readonly string StaticLayerType = "Environ";
+        public static readonly string SpaceServerType = "Environ";
 
-        // Function called to start up the service listener.
-        // THis starts listening for network connections and creates instances of the SpaceServer
-        //     for each of the incoming connections
-        public static SpaceServerListener SpaceServerEnvironService(RaguContext pRContext, CancellationTokenSource pCanceller) {
-            return new SpaceServerListener(
-                transportParams: new BTransportParams[] {
-                    new BTransportWSParams() {
-                        preferred       = true,
-                        isSecure        = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerEnviron.StaticLayerType, "WSIsSecure"),
-                        port            = pRContext.parms.GetConnectionParam<int>(pRContext, SpaceServerEnviron.StaticLayerType, "WSPort"),
-                        certificate     = pRContext.parms.GetConnectionParam<string>(pRContext, SpaceServerEnviron.StaticLayerType, "WSCertificate"),
-                        disableNaglesAlgorithm = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerEnviron.StaticLayerType, "DisableNaglesAlgorithm")
-                    }
-                },
-                layer:                  SpaceServerActors.StaticLayerType,
-                canceller:              pCanceller,
-                logger:                 pRContext.log,
-                // This method is called when the listener receives a connection but before any
-                //     messsages have been exchanged.
-                processor:              (pTransport, pCancellerP) => {
-                                            return new SpaceServerEnviron(pRContext, pCancellerP, pTransport);
-                                        }
-            );
-        }
+        public SpaceServerEnviron(RaguContext pContext,
+                                CancellationTokenSource pCanceller,
+                                WaitingInfo pWaitingInfo,
+                                BasilConnection pConnection,
+                                BMessage pMsg) 
+                        : base(pContext, pCanceller, pConnection) {
+            LayerType = SpaceServerType;
 
-        public SpaceServerEnviron(RaguContext pContext, CancellationTokenSource pCanceller, BTransport pTransport) 
-                        : base(pContext, pCanceller, pTransport) {
-            LayerType = StaticLayerType;
-
-            // The protocol for the initial OpenSession is always JSON
-            _protocol = new BProtocolJSON(null, _transport, RContext.log);
-
-            // Expect BMessages and set up messsage processor to handle initial OpenSession
-            _connection = new BasilConnection(_protocol, RContext.log);
-            _connection.SetOpProcessor(new ProcessMessagesOpenConnection(this), ProcessConnectionStateChange);
-            _connection.Start();
-        }
-
-        protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pServiceAuth, WaitingInfo pWaitingInfo) {
-            // We also have a full command processor
             pConnection.SetOpProcessor(new ProcessEnvironIncomingMessages(this), ProcessConnectionStateChange);
+        }
 
+        public override void Start() {
             // Set up the UI
             Task.Run(async () => {
-                await StartEnviron(pConnection);
-                await StartUI(pConnection);
+                await StartEnviron(_connection);
+                await StartUI(_connection);
             });
-            return;
         }
+
+        // Send a MakeConnection for connecting to a SpaceServer of this type.
+        public static void MakeConnectionToSpaceServer(BasilConnection pConn,
+                                                    OMV.UUID pAgentUUID,
+                                                    RaguContext pRContext) {
+
+            // The authentication token that the client will send with the OpenSession
+            OSAuthToken incomingAuth = new OSAuthToken();
+
+            // Information that will be used to process the incoming OpenSession
+            var wInfo = new WaitingInfo() {
+                agentUUID = pAgentUUID,
+                incomingAuth = incomingAuth,
+                spaceServerType = SpaceServerEnviron.SpaceServerType,
+                createSpaceServer = (pC, pW, pConn, pMsgX, pCan) => {
+                    return new SpaceServerEnviron(pC, pCan, pW, pConn, pMsgX);
+                }
+            };
+            pRContext.RememberWaitingForOpenSession(wInfo);
+
+            // Create the MakeConnection and send it
+            var pBlock = pRContext.Listener.ParamsForMakeConnection(pRContext.HostnameForExternalAccess, incomingAuth);
+            _ = pConn.MakeConnection(pBlock);
+        }
+
         private async Task StartEnviron(BasilConnection pConn) {
         }
         private async Task StartUI(BasilConnection pConn) {
@@ -118,7 +112,5 @@ namespace org.herbal3d.Ragu {
             });
             await pConn.CreateItem(abilProps);
         }
-
-
     }
 }

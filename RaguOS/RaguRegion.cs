@@ -20,6 +20,8 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using OpenSim.Region.Framework.Scenes;
+
+using org.herbal3d.transport;
 using org.herbal3d.cs.CommonUtil;
 
 
@@ -61,22 +63,24 @@ namespace org.herbal3d.Ragu {
         // All prims have been loaded into the region.
         // Start the 'command and control' SpaceServer.
         private void Event_OnPrimsLoaded(Scene pScene) {
-            RContext.log.Debug("{0} Prims loaded. Starting command-and-control SpaceServer", _logHeader);
+            RContext.log.Debug("{0} Prims loaded. Starting listener for inbound connections", _logHeader);
             try {
-                // Start listening for any connection to the base port and start the Command
-                //     and Control space server for that new client
-                RContext.SpaceServerListeners.Add(SpaceServerCC.StaticLayerType,
-                            SpaceServerCC.SpaceServerCCService(RContext, _canceller));
-
-                // Start the other layer services.
-                RContext.SpaceServerListeners.Add(SpaceServerStatic.StaticLayerType,
-                            SpaceServerStatic.SpaceServerStaticService(RContext, _canceller));
-                RContext.SpaceServerListeners.Add(SpaceServerActors.StaticLayerType,
-                            SpaceServerActors.SpaceServerActorsService(RContext, _canceller));
-                RContext.SpaceServerListeners.Add(SpaceServerDynamic.StaticLayerType,
-                            SpaceServerDynamic.SpaceServerDynamicService(RContext, _canceller));
-                RContext.SpaceServerListeners.Add(SpaceServerEnviron.StaticLayerType,
-                            SpaceServerEnviron.SpaceServerEnvironService(RContext, _canceller));
+                // Start the listener for this region.
+                // This will receive all the connections and OpenSession's and create the
+                //     space servers for same.
+                RContext.Listener = new SpaceServerListener(
+                    context: RContext,
+                    transportParams: new BTransportParams[] {
+                        new BTransportWSParams() {
+                            preferred       = true,
+                            isSecure        = RContext.parms.GetConnectionParam<bool>(RContext, null, "WSIsSecure"),
+                            port            = RContext.parms.GetConnectionParam<int>(RContext, null, "WSPort"),
+                            certificate     = RContext.parms.GetConnectionParam<string>(RContext, null, "WSCertificate"),
+                            disableNaglesAlgorithm = RContext.parms.GetConnectionParam<bool>(RContext, null, "DisableNaglesAlgorithm")
+                        }
+                    },
+                    canceller: _canceller
+                ) ;
             }
             catch (Exception e) {
                 RContext.log.Error("{0} Failed creation of SpaceServerCC: {1}", _logHeader, e);

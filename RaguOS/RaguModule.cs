@@ -30,7 +30,7 @@ using log4net;
 
 namespace org.herbal3d.Ragu {
 
-    // When a SpaceServer sends a MakeConnection, it puts the expeced authentication here
+    // When a SpaceServer sends a MakeConnection, it puts the expected authentication here
     //     so, when the OpenSession is received, the passed authentication can be verified.
     // These are periodically expired.
     // This is also used as a way to pass information from the sending of the MakeConnection
@@ -38,23 +38,19 @@ namespace org.herbal3d.Ragu {
     //     but more will be added in the future.
     public class WaitingInfo {
         public OSAuthToken incomingAuth;
-        public OSAuthToken outgoingAuth;
         public DateTime whenCreated;
         public OMV.UUID agentUUID;
+        public string spaceServerType;  // the type of the SpaceServer that is to be created
+        public CreateSpaceServerProcessor createSpaceServer;
 
         public WaitingInfo() {
             // incomingAuth = new OSAuthToken();
             // outgoingAuth = new OSAuthToken();
             // Using shorter auth tokens
             incomingAuth = OSAuthToken.SimpleToken();
-            outgoingAuth = OSAuthToken.SimpleToken();
             whenCreated = new DateTime();
         }
         public WaitingInfo(OMV.UUID pAgentUUID): this() {
-            agentUUID = pAgentUUID;
-        }
-        public WaitingInfo(OSAuthToken pIncomingAuth, OMV.UUID pAgentUUID): this() {
-            incomingAuth = pIncomingAuth;
             agentUUID = pAgentUUID;
         }
     }
@@ -72,9 +68,8 @@ namespace org.herbal3d.Ragu {
         public Scene scene;
         public BFrameOfRef frameOfRef;
 
-        // The following are the layer listeners for this region.
-        // Instances of each SpaceServer is created when incoming connections are received.
-        public Dictionary<string, SpaceServerListener> SpaceServerListeners = new Dictionary<string, SpaceServerListener>();
+        // Listener for this region
+        public SpaceServerListener Listener;
         // All of the SpaceServers created for connections in this region.
         public List<SpaceServerBase> SpaceServers = new List<SpaceServerBase>();
         // When a client is sent a MakeConnection, the OpenSession auth info is added here
@@ -85,6 +80,32 @@ namespace org.herbal3d.Ragu {
 
         public RaguContext() {
             sessionKey = org.herbal3d.cs.CommonUtil.Util.RandomString(8);
+        }
+        public void addSpaceServer(SpaceServerBase pSS) {
+            lock (this.SpaceServers) {
+                this.SpaceServers.Add(pSS);
+            }
+        }
+        // WHen sending an OpenSession, this remembers the credentials of the request
+        //     so the response can be validated.
+        public WaitingInfo RememberWaitingForOpenSession(WaitingInfo pWInfo) {
+            lock (waitingForMakeConnection) {
+                waitingForMakeConnection.Add(pWInfo.incomingAuth.Token, pWInfo);
+                log.Debug("SpaceServerBase.RememberWaitingForOpenSession: itoken={0}", pWInfo.incomingAuth.Token);
+            }
+            return pWInfo;
+        }
+        // Look for the WaitingInfo indexed by the passed auth. Return the found WaitingInfo
+        //    or null if not found.
+        // This also removes the WaitingInfo from the list of waiting infos.
+        public WaitingInfo GetWaitingForOpenSession(string pAuth) {
+            lock (waitingForMakeConnection) {
+                if (waitingForMakeConnection.TryGetValue(pAuth, out WaitingInfo foundInfo)) {
+                    waitingForMakeConnection.Remove(pAuth);
+                    return foundInfo;
+                }
+            }
+            return null;
         }
     }
 

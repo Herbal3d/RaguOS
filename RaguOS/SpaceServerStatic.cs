@@ -21,6 +21,7 @@ using org.herbal3d.OSAuth;
 using org.herbal3d.transport;
 using org.herbal3d.b.protocol;
 using org.herbal3d.Tiles;
+using org.herbal3d.cs.CommonUtil;
 
 using org.herbal3d.Loden;
 using org.herbal3d.cs.CommonEntities;
@@ -49,69 +50,28 @@ namespace org.herbal3d.Ragu {
     }
 
     public class SpaceServerStatic : SpaceServerBase {
-
         private static readonly string _logHeader = "[SpaceServerStatic]";
 
-        public static readonly string StaticLayerType = "Static";
+        public static readonly string SpaceServerType = "Static";
 
-        // Fuction called to start up the service listener.
-        // THis starts listening for network connections and creates instances of the SpaceServer
-        //     for each of the incoming connections
-        public static SpaceServerListener SpaceServerStaticService(RaguContext pRContext, CancellationTokenSource pCanceller) {
-            return new SpaceServerListener(
-                transportParams: new BTransportParams[] {
-                    new BTransportWSParams() {
-                        preferred       = true,
-                        isSecure        = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerStatic.StaticLayerType, "WSIsSecure"),
-                        port            = pRContext.parms.GetConnectionParam<int>(pRContext, SpaceServerStatic.StaticLayerType, "WSPort"),
-                        certificate     = pRContext.parms.GetConnectionParam<string>(pRContext, SpaceServerStatic.StaticLayerType, "WSCertificate"),
-                        disableNaglesAlgorithm = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerStatic.StaticLayerType, "DisableNaglesAlgorithm")
-                    }
-                },
-                layer: SpaceServerStatic.StaticLayerType,
-                canceller: pCanceller,
-                logger: pRContext.log,
-                // This method is called when the listener receives a connection but before any
-                //     messsages have been exchanged.
-                processor: (pTransport, pCancellerP) => {
-                    // pRContext.log.Debug("SpaceServerStaticService: creating new SpaceServerStatic");
-                    return new SpaceServerStatic(pRContext, pCancellerP, pTransport);
-                }
-            );
-        }
+        public SpaceServerStatic(RaguContext pContext,
+                            CancellationTokenSource pCanceller,
+                            WaitingInfo pWaitingInfo,
+                            BasilConnection pConnection,
+                            BMessage pMsg) 
+                        : base(pContext, pCanceller, pConnection) {
 
-        public SpaceServerStatic(RaguContext pContext, CancellationTokenSource pCanceller, BTransport pTransport) 
-                        : base(pContext, pCanceller, pTransport) {
-            LayerType = StaticLayerType;
-
-            // The protocol for the initial OpenSession is always JSON
-            _protocol = new BProtocolJSON(null, _transport, RContext.log);
-
-            // Expect BMessages and set up messsage processor to handle initial OpenSession
-            _connection = new BasilConnection(_protocol, RContext.log);
-            _connection.SetOpProcessor(new ProcessMessagesOpenConnection(this), ProcessConnectionStateChange);
-            _connection.Start();
-        }
-
-        protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken loginAuth, WaitingInfo pWaitingInfo) {
+            LayerType = SpaceServerType;
 
             pConnection.SetOpProcessor(new ProcessStaticIncomingMessages(this), ProcessConnectionStateChange);
-
-            // Send the static region information to the user
-            Task.Run(async () => {
-                await StartConnection(pConnection, loginAuth);
-            });
         }
 
-        // Received an OpenSession from a Basil client.
-        // Send the fellow some content.
-#pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
-        private async Task StartConnection(BasilConnection pConnection, OSAuthToken pUserAuth) {
-#pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
+        public override void Start() {
+            // Send the fellow some content.
             try {
 
                 // Get region tile definition
-                LodenRegion lodenRegion = RContext.scene.RequestModuleInterface<LodenRegion>();
+                LodenRegion lodenRegion = _RContext.scene.RequestModuleInterface<LodenRegion>();
                 string regionSpecURL = RaguAssetService.Instance.CreateAccessURL(lodenRegion.RegionTopLevelSpecURL);
 
                 // Get the top level description of the region
@@ -125,13 +85,13 @@ namespace org.herbal3d.Ragu {
                     }
                 }
                 catch (Exception e) {
-                    RContext.log.Error("{0} HandleBasilConnection: Failure reading region spec '{1}': {2}",
+                    _RContext.log.Error("{0} HandleBasilConnection: Failure reading region spec '{1}': {2}",
                                     _logHeader, regionSpecURL, e);
                     // There is nothing more we can do
                     return;
                 }
                 if (regionSpec == null) {
-                    RContext.log.Error("{0} HandleBasilConnection: Could not read regionSpec", _logHeader);
+                    _RContext.log.Error("{0} HandleBasilConnection: Could not read regionSpec", _logHeader);
                     return;
                 }
 
@@ -158,19 +118,45 @@ namespace org.herbal3d.Ragu {
                     );
 
                     props.Add(new AbPlacement() {
-                        WorldPos = BCoord.ToPlanetCoord(RContext.frameOfRef, OMV.Vector3.Zero),
-                        WorldRot = BCoord.ToPlanetRot(RContext.frameOfRef, OMV.Quaternion.Identity)
+                        WorldPos = BCoord.ToPlanetCoord(_RContext.frameOfRef, OMV.Vector3.Zero),
+                        WorldRot = BCoord.ToPlanetRot(_RContext.frameOfRef, OMV.Quaternion.Identity)
                     } );
-                    BMessage resp = await pConnection.CreateItem(props);
+                    BMessage resp = await _connection.CreateItem(props);
                     string instanceId = AbBItem.GetId(resp);
 
-                    RContext.log.Debug("{0} HandleBasilConnection: Created instance {1}",
+                    _RContext.log.Debug("{0} HandleBasilConnection: Created instance {1}",
                                     _logHeader, instanceId);
                 });
             }
             catch (Exception e) {
-                RContext.log.Error("{0} HandleBasilConnection. Exception connecting Basil to layers: {1}", _logHeader, e);
+                _RContext.log.Error("{0} HandleBasilConnection. Exception connecting Basil to layers: {1}", _logHeader, e);
             }
         }
+
+        // Send a MakeConnection for connecting to a SpaceServer of this type.
+        public static void MakeConnectionToSpaceServer(BasilConnection pConn,
+                                                    OMV.UUID pAgentUUID,
+                                                    RaguContext pRContext) {
+
+            // The authentication token that the client will send with the OpenSession
+            // OSAuthToken incomingAuth = new OSAuthToken();
+            OSAuthToken incomingAuth = OSAuthToken.SimpleToken();
+
+            // Information that will be used to process the incoming OpenSession
+            var wInfo = new WaitingInfo() {
+                agentUUID = pAgentUUID,
+                incomingAuth = incomingAuth,
+                spaceServerType = SpaceServerStatic.SpaceServerType,
+                createSpaceServer = (pC, pW, pConn, pMsgX, pCan) => {
+                    return new SpaceServerStatic(pC, pCan, pW, pConn, pMsgX);
+                }
+            };
+            pRContext.RememberWaitingForOpenSession(wInfo);
+
+            // Create the MakeConnection and send it
+            var pBlock = pRContext.Listener.ParamsForMakeConnection(pRContext.HostnameForExternalAccess, incomingAuth);
+            _ = pConn.MakeConnection(pBlock);
+        }
+
     }
 }

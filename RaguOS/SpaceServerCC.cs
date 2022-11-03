@@ -28,8 +28,6 @@ using OpenSim.Region.Framework.Scenes;
 
 namespace org.herbal3d.Ragu {
 
-    
-
     // Processor of incoming messages after OpenSession -- regular messages
     class ProcessCCIncomingMessages : IncomingMessageProcessor {
         SpaceServerCC _ssContext;
@@ -61,136 +59,63 @@ namespace org.herbal3d.Ragu {
     public class SpaceServerCC : SpaceServerBase {
         private static readonly string _logHeader = "[SpaceServerCC]";
 
-        public static readonly string StaticLayerType = "CC";
+        public static readonly string SpaceServerType = "CC";
 
-        // Function called to start up the service listener.
-        // THis starts listening for network connections and creates instances of the SpaceServer
-        //     for each of the incoming connections
-        public static SpaceServerListener SpaceServerCCService(RaguContext pRContext, CancellationTokenSource pCanceller) {
-            return new SpaceServerListener(
-                transportParams: new BTransportParams[] {
-                    new BTransportWSParams() {
-                        preferred       = true,
-                        isSecure        = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerCC.StaticLayerType, "WSIsSecure"),
-                        port            = pRContext.parms.GetConnectionParam<int>(pRContext, SpaceServerCC.StaticLayerType, "WSPort"),
-                        certificate     = pRContext.parms.GetConnectionParam<string>(pRContext, SpaceServerCC.StaticLayerType, "WSCertificate"),
-                        disableNaglesAlgorithm = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerCC.StaticLayerType, "DisableNaglesAlgorithm")
-                    }
-                },
-                layer: SpaceServerCC.StaticLayerType,
-                canceller: pCanceller,
-                logger: pRContext.log,
-                // This method is called when the listener receives a connection but before any
-                //     messsages have been exchanged.
-                processor: (pTransport, pCancellerP) => {
-                    return new SpaceServerCC(pRContext, pCancellerP, pTransport);
-                }
-            ) ;
-        }
+        // When initialized, an OSAuthToken is passed that has all the encoded user login info
+        OSAuthToken userInfo;
+        // Token for incoming connection to this instance
+        OSAuthToken incomingAuth;
 
-        // Creation of an instance for a specific client.
-        // This instance is created when someone connects to the  transport so we're passed the
-        //     initial transport. This code needs to set up the transport stack to receive
-        //    the initial OpenSession message. If that is successful, we'll set up the
-        //    whole message processing stack and thereafter be the instance for the client.
-        // Note: this canceller is for the individual session.
-        public SpaceServerCC(RaguContext pContext, CancellationTokenSource pCanceller, BTransport pTransport) 
-                        : base(pContext, pCanceller, pTransport) {
-            LayerType = StaticLayerType;
+        // SpaceServer created on the initial, authorized OpenSession from a user
+        // Handles the in-world presence of the world and causes the other SpaceServers to be connected
+        //    to the client.
+        public SpaceServerCC(RaguContext pContext,
+                            CancellationTokenSource pCanceller,
+                            WaitingInfo pWaitingInfo,
+                            BasilConnection pConnection,
+                            BMessage pMsg) 
+                        : base(pContext, pCanceller, pConnection) {
+            LayerType = SpaceServerType;
 
-            // The protocol for the initial OpenSession is always JSON
-            _protocol = new BProtocolJSON(null, _transport, RContext.log);
-
-            // Expect BMessages and set up messsage processor to handle initial OpenSession
-            _connection = new BasilConnection(_protocol, RContext.log);
-            _connection.SetOpProcessor(new ProcessMessagesOpenConnection(this), ProcessConnectionStateChange);
-            _connection.Start();
-        }
-
-        // Received an OpenSession from a Basil client.
-        // Connect it to the other layers.
-        protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pLoginAuth, WaitingInfo pWaitingInfo) {
+            // Save some connection parameters for use by Start()
+            userInfo = pWaitingInfo.incomingAuth;
+            incomingAuth = pWaitingInfo.incomingAuth;
 
             pConnection.SetOpProcessor(new ProcessCCIncomingMessages(this), ProcessConnectionStateChange);
-
-            _ = Task.Run( () => {
-                try {
-                    // Create the Circuit and ScenePresence for the user
-                    CreateOpenSimPresence(pLoginAuth);
-
-                    // For each of the layers, set up the listeners to expect an OpenConnection
-                    //    and send a MakeConnection to the new client to send an OpenConnection
-                    //    to the listeners. The WaitingInfo saves the authentication information.
-
-                    // listeners are created in RaguRegion
-                    var layers = new string[] {"Static", "Dynamic", "Actors", "Environ"};
-                    foreach (string layer in layers) {
-                        WaitingInfo waiting = RememberWaitingForOpenSession(AgentUUID);
-                        var pp = RContext.SpaceServerListeners[layer].ParamsForMakeConnection(
-                                            RContext.HostnameForExternalAccess, waiting.incomingAuth);
-                        _ = pConnection.MakeConnection(pp);
-
-                    };
-                }
-                catch (Exception e) {
-                    RContext.log.Error("{0} HandleBasilConnection. Exception connecting Basil to layers: {1}", _logHeader, e);
-                }
-            });
         }
 
-        // The OpenSession request to the command/control SpaceServer has an authoriztion for the hosting
-        // region. The OSAuthToken should contain a bunch of information from the user login.
-        protected override bool ValidateLoginAuth(OSAuthToken pUserAuth, out WaitingInfo pWaitingInfo) {
-            bool isAuthorized = false;
-            WaitingInfo waiting = new WaitingInfo();
+        public override void Start() {
             try {
-                string agentId = pUserAuth.GetProperty("aId");
-                OMV.UUID agentUUID = OMV.UUID.Parse(agentId);
-                if (RContext.parms.ShouldEnforceUserAuth) {
-                    OMV.UUID sessionID = OMV.UUID.Parse(pUserAuth.GetProperty("sId"));
-                    OMV.UUID secureSessionID = OMV.UUID.Parse(pUserAuth.GetProperty("SSID"));
-                    uint circuitCode = UInt32.Parse(pUserAuth.GetProperty("CC"));
-                    // RContext.log.Debug("{0} ValidateLoginAuth: agentUUID={1}, sessionID={2}, secureSessionID={3}, circuitCode={4}",
-                    //             _logHeader, agentUUID, sessionID, secureSessionID, circuitCode);
+                // Create the Circuit and ScenePresence for the user
+                CreateOpenSimPresence(userInfo);
 
-                    AgentCircuitData acd = RContext.scene.AuthenticateHandler.GetAgentCircuitData(agentUUID);
-                    if (acd != null) {
-                        if (acd.circuitcode == circuitCode) {
-                            if (acd.SessionID == sessionID) {
-                                if (acd.SecureSessionID == secureSessionID) {
-                                    isAuthorized = true;
-                                    // Pass the agent UUID back out so other pieces can find it
-                                    waiting.agentUUID = agentUUID;
-                                }
-                                else {
-                                    RContext.log.Error("{0} ValidateUserAuth: Failed secureSessionID test. AgentId={1}",
-                                                _logHeader, agentId);
-                                }
-                            }
-                            else {
-                                RContext.log.Error("{0} ValidateUserAuth: Failed sessionId test. AgentId={1}",
-                                            _logHeader, agentId);
-                            }
-                        }
-                        else {
-                            RContext.log.Error("{0} ValidateUserAuth: Failed circuitCode test. AgentId={1}",
-                                        _logHeader, agentId);
-                        }
-                    }
-                }
-                else {
-                    isAuthorized = true;
-                    // Pass the agent UUID back out so other pieces can find it
-                    waiting.agentUUID = agentUUID;
-                };
+                // For each of the layers, set up the listeners to expect an OpenConnection
+                //    and send a MakeConnection to the new client to send an OpenConnection
+                //    to the listeners. The WaitingInfo saves the authentication information.
+
+                SpaceServerStatic.MakeConnectionToSpaceServer(_connection, AgentUUID, _RContext);
+
+                SpaceServerActors.MakeConnectionToSpaceServer(_connection, AgentUUID, _RContext);
+
+                SpaceServerDynamic.MakeConnectionToSpaceServer(_connection, AgentUUID, _RContext);
+
+                SpaceServerEnviron.MakeConnectionToSpaceServer(_connection, AgentUUID, _RContext);
+
             }
             catch (Exception e) {
-                RContext.log.Error("{0} ValidateUserAuth: exception authorizing: {1}",
-                            _logHeader, e);
-                isAuthorized = false;
+                _RContext.log.Error("{0} HandleBasilConnection. Exception connecting Basil to layers: {1}", _logHeader, e);
             }
-            pWaitingInfo = waiting;
-            return isAuthorized;
+        }
+
+        public static WaitingInfo CreateWaitingInfo(OMV.UUID pAgentUUID, OSAuthToken pIncomingAuth) {
+            return new WaitingInfo() {
+                agentUUID = pAgentUUID,
+                incomingAuth = pIncomingAuth,
+                spaceServerType = SpaceServerCC.SpaceServerType,
+                createSpaceServer = (pC, pW, pConn, pMsgX, pCan) => {
+                    return new SpaceServerCC(pC, pCan, pW, pConn, pMsgX);
+                }
+            };
         }
 
         // Create  the OpenSimulator ScenePResence and the associated structures
@@ -213,7 +138,7 @@ namespace org.herbal3d.Ragu {
                 uint circuitCode = UInt32.Parse(pUserAuth.GetProperty("CC"));
 
                 // The login operation created the initial circuit
-                AgentCircuitData acd = RContext.scene.AuthenticateHandler.GetAgentCircuitData(agentUUID);
+                AgentCircuitData acd = _RContext.scene.AuthenticateHandler.GetAgentCircuitData(agentUUID);
 
                 if (acd != null) {
                     if (acd.SessionID == sessionUUID) {
@@ -229,9 +154,9 @@ namespace org.herbal3d.Ragu {
                                                         acd.startpos,   /* initial position */
                                                         OMV.UUID.Zero,  /* owner */
                                                         true,           /* senseAsAgent */
-                                                        RContext.scene,
+                                                        _RContext.scene,
                                                         acd.circuitcode,
-                                                        RContext,
+                                                        _RContext,
                                                         this);
 
                         // Remember to process things when the user logs out
@@ -242,8 +167,8 @@ namespace org.herbal3d.Ragu {
                         newClient.Start();
 
                         // Get the ScenePresence just to make sure we can
-                        if (RContext.scene.TryGetScenePresence(agentUUID, out ScenePresence sp)) {
-                            RContext.log.Info("{0} Successful login for {1} {2} ({3})",
+                        if (_RContext.scene.TryGetScenePresence(agentUUID, out ScenePresence sp)) {
+                            _RContext.log.Info("{0} Successful login for {1} {2} ({3})",
                                         _logHeader, firstName, lastName, agentId);
                             AgentUUID = agentUUID;
                             SessionUUID = sessionUUID;
@@ -254,22 +179,22 @@ namespace org.herbal3d.Ragu {
                             ret = true;
                         }
                         else {
-                            RContext.log.Error("{0} Failed to create ScenePresence for {1} {2} ({3})",
+                            _RContext.log.Error("{0} Failed to create ScenePresence for {1} {2} ({3})",
                                         _logHeader, firstName, lastName, agentId);
                         }
                     }
                     else {
-                        RContext.log.Error("{0} CreateOpenSimPresence: AgentCircuitData does not match SessionID. AgentID={1}",
+                        _RContext.log.Error("{0} CreateOpenSimPresence: AgentCircuitData does not match SessionID. AgentID={1}",
                                 _logHeader, agentId);
                     }
                 }
                 else {
-                    RContext.log.Error("{0} CreateOpenSimPresence: presence was not created. AgentID={1}",
+                    _RContext.log.Error("{0} CreateOpenSimPresence: presence was not created. AgentID={1}",
                                 _logHeader, agentId);
                 }
             }
             catch (Exception e) {
-                RContext.log.Error("{0} Exception creating presence: {1}", _logHeader, e);
+                _RContext.log.Error("{0} Exception creating presence: {1}", _logHeader, e);
                 ret = false;
             }
 
@@ -283,10 +208,10 @@ namespace org.herbal3d.Ragu {
         protected override void ShutdownUserAgent(string pReason) {
             base.ShutdownUserAgent(pReason);
             if (AgentUUID != null) {
-                RContext.scene.CloseAgent(AgentUUID, false);
+                _RContext.scene.CloseAgent(AgentUUID, false);
             }
             else {
-                RContext.log.Error("{0} ShutdownUserAgent: no AgentUUIT", _logHeader);
+                _RContext.log.Error("{0} ShutdownUserAgent: no AgentUUIT", _logHeader);
             }
         }
 

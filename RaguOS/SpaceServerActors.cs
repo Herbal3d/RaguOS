@@ -81,50 +81,20 @@ namespace org.herbal3d.Ragu {
     public class SpaceServerActors : SpaceServerBase {
         private static readonly string _logHeader = "[SpaceServerActors]";
 
-        public static readonly string StaticLayerType = "Actors";
+        public static readonly string SpaceServerType = "Actors";
 
-        // Function called to start up the service listener.
-        // THis starts listening for network connections and creates instances of the SpaceServer
-        //     for each of the incoming connections
-        public static SpaceServerListener SpaceServerActorsService(RaguContext pRContext, CancellationTokenSource pCanceller) {
-            return new SpaceServerListener(
-                transportParams: new BTransportParams[] {
-                    new BTransportWSParams() {
-                        preferred       = true,
-                        isSecure        = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerActors.StaticLayerType, "WSIsSecure"),
-                        port            = pRContext.parms.GetConnectionParam<int>(pRContext, SpaceServerActors.StaticLayerType, "WSPort"),
-                        certificate     = pRContext.parms.GetConnectionParam<string>(pRContext, SpaceServerActors.StaticLayerType, "WSCertificate"),
-                        disableNaglesAlgorithm = pRContext.parms.GetConnectionParam<bool>(pRContext, SpaceServerActors.StaticLayerType, "DisableNaglesAlgorithm")
-                    }
-                },
-                layer: SpaceServerActors.StaticLayerType,
-                canceller: pCanceller,
-                logger: pRContext.log,
-                // This method is called when the listener receives a connection but before any
-                //     messsages have been exchanged.
-                processor: (pTransport, pCancellerP) => {
-                    return new SpaceServerActors(pRContext, pCancellerP, pTransport);
-                }
-            );
-        }
+        public SpaceServerActors(RaguContext pContext,
+                                CancellationTokenSource pCanceller,
+                                WaitingInfo pWaitingInfo,
+                                BasilConnection pConnection,
+                                BMessage pMsg) 
+                        : base(pContext, pCanceller, pConnection) {
+            LayerType = SpaceServerType;
 
-        public SpaceServerActors(RaguContext pContext, CancellationTokenSource pCanceller, BTransport pTransport)
-                        : base(pContext, pCanceller, pTransport) {
-            LayerType = StaticLayerType;
-
-            // The protocol for the initial OpenSession is always JSON
-            _protocol = new BProtocolJSON(null, _transport, RContext.log);
-
-            // Expect BMessages and set up messsage processor to handle initial OpenSession
-            _connection = new BasilConnection(_protocol, RContext.log);
-            _connection.SetOpProcessor(new ProcessMessagesOpenConnection(this), ProcessConnectionStateChange);
-            _connection.Start();
-        }
-
-        protected override void OpenSessionProcessing(BasilConnection pConnection, OSAuthToken pServiceAuth, WaitingInfo pWaitingInfo) {
-            // We also have a full command processor
             pConnection.SetOpProcessor(new ProcessActorsIncomingMessages(this), ProcessConnectionStateChange);
+        }
 
+        public override void Start() {
             AddEventSubscriptions();
             AddExistingPresences();
         }
@@ -134,18 +104,42 @@ namespace org.herbal3d.Ragu {
             base.Shutdown();
         }
 
+        // Send a MakeConnection for connecting to a SpaceServer of this type.
+        public static void MakeConnectionToSpaceServer(BasilConnection pConn,
+                                                    OMV.UUID pAgentUUID,
+                                                    RaguContext pRContext) {
+
+            // The authentication token that the client will send with the OpenSession
+            OSAuthToken incomingAuth = new OSAuthToken();
+
+            // Information that will be used to process the incoming OpenSession
+            var wInfo = new WaitingInfo() {
+                agentUUID = pAgentUUID,
+                incomingAuth = incomingAuth,
+                spaceServerType = SpaceServerDynamic.SpaceServerType,
+                createSpaceServer = (pC, pW, pConn, pMsgX, pCan) => {
+                    return new SpaceServerActors(pC, pCan, pW, pConn, pMsgX);
+                }
+            };
+            pRContext.RememberWaitingForOpenSession(wInfo);
+
+            // Create the MakeConnection and send it
+            var pBlock = pRContext.Listener.ParamsForMakeConnection(pRContext.HostnameForExternalAccess, incomingAuth);
+            _ = pConn.MakeConnection(pBlock);
+        }
+
         private void AddEventSubscriptions() {
             // When new client (child or root) is added to scene, before OnClientLogin
             // RContext.scene.EventManager.OnNewClient         += Event_OnNewClient;
             // When client is added on login.
             // RContext.scene.EventManager.OnClientLogin       += Event_OnClientLogin;
             // New presence is added to scene. Child, root, and NPC. See Scene.AddNewAgent()
-            RContext.scene.EventManager.OnNewPresence       += Event_OnNewPresence;
-            RContext.scene.EventManager.OnRemovePresence    += Event_OnRemovePresence;
+            _RContext.scene.EventManager.OnNewPresence       += Event_OnNewPresence;
+            _RContext.scene.EventManager.OnRemovePresence    += Event_OnRemovePresence;
             // update to client position (either this or 'significant')
-            RContext.scene.EventManager.OnClientMovement    += Event_OnClientMovement;
+            _RContext.scene.EventManager.OnClientMovement    += Event_OnClientMovement;
             // "significant" update to client position
-            RContext.scene.EventManager.OnSignificantClientMovement += Event_OnSignificantClientMovement;
+            _RContext.scene.EventManager.OnSignificantClientMovement += Event_OnSignificantClientMovement;
             // Gets called for most position/camera/action updates. Seems to be once a second.
             // RContext.scene.EventManager.OnScenePresenceUpdated      += Event_OnScenePresenceUpdated;
 
@@ -158,12 +152,12 @@ namespace org.herbal3d.Ragu {
         private void RemoveEventSubscriptions() {
             // RContext.scene.EventManager.OnNewClient         -= Event_OnNewClient;
             // RContext.scene.EventManager.OnClientLogin       -= Event_OnClientLogin;
-            RContext.scene.EventManager.OnNewPresence       -= Event_OnNewPresence;
-            RContext.scene.EventManager.OnRemovePresence    -= Event_OnRemovePresence;
+            _RContext.scene.EventManager.OnNewPresence       -= Event_OnNewPresence;
+            _RContext.scene.EventManager.OnRemovePresence    -= Event_OnRemovePresence;
             // update to client position (either this or 'significant')
-            RContext.scene.EventManager.OnClientMovement    -= Event_OnClientMovement;
+            _RContext.scene.EventManager.OnClientMovement    -= Event_OnClientMovement;
             // "significant" update to client position
-            RContext.scene.EventManager.OnSignificantClientMovement -= Event_OnSignificantClientMovement;
+            _RContext.scene.EventManager.OnSignificantClientMovement -= Event_OnSignificantClientMovement;
             // Gets called for most position/camera/action updates
             // RContext.scene.EventManager.OnScenePresenceUpdated      -= Event_OnScenePresenceUpdated;
 
@@ -173,31 +167,31 @@ namespace org.herbal3d.Ragu {
             // RContext.scene.EventManager.OnShutdown  -= Event_OnShutdown;
         }
         private void AddExistingPresences() {
-            RContext.scene.GetScenePresences().ForEach(pres => {
-                PresenceInfo pi = new PresenceInfo(pres, _connection, this, RContext);
+            _RContext.scene.GetScenePresences().ForEach(pres => {
+                PresenceInfo pi = new PresenceInfo(pres, _connection, this, _RContext);
                 AddPresence(pi);
                 pi.AddAppearanceInstance();
             });
         }
 
         private void Event_OnNewPresence(ScenePresence pPresence) {
-            RContext.log.Debug("{0} Event_OnNewPresence", _logHeader);
+            _RContext.log.Debug("{0} Event_OnNewPresence", _logHeader);
             PresenceInfo pi;
             if (TryFindPresence(pPresence.UUID, out pi)) {
-                RContext.log.Error("{0} Event_OnNewPresence: two events for the same presence", _logHeader);
+                _RContext.log.Error("{0} Event_OnNewPresence: two events for the same presence", _logHeader);
             }
             else {
-                pi = new PresenceInfo(pPresence, _connection, this, RContext);
+                pi = new PresenceInfo(pPresence, _connection, this, _RContext);
                 AddPresence(pi);
                 pi.AddAppearanceInstance();
             }
         }
         private void Event_OnRemovePresence(OMV.UUID pPresenceUUID) {
-            RContext.log.Debug("{0} Event_OnRemovePresence. presenceUUID={1}", _logHeader, pPresenceUUID);
+            _RContext.log.Debug("{0} Event_OnRemovePresence. presenceUUID={1}", _logHeader, pPresenceUUID);
             if (TryFindPresence(pPresenceUUID, out PresenceInfo pi)) {
                 pi.RemoveAppearanceInstance();
                 RemovePresence(pi);
-                RContext.log.Debug("{0} Event_OnRemovePresence. removed presenceUUID={1}", _logHeader, pPresenceUUID);
+                _RContext.log.Debug("{0} Event_OnRemovePresence. removed presenceUUID={1}", _logHeader, pPresenceUUID);
             }
         }
         private void Event_OnClientMovement(ScenePresence pPresence) {
@@ -206,7 +200,7 @@ namespace org.herbal3d.Ragu {
                 pi.UpdatePosition(false);
             }
             else {
-                RContext.log.Error("{0} Event_OnClientMovement: did not find presence", _logHeader);
+                _RContext.log.Error("{0} Event_OnClientMovement: did not find presence", _logHeader);
             }
         }
         private void Event_OnSignificantClientMovement(ScenePresence pPresence) {
@@ -215,7 +209,7 @@ namespace org.herbal3d.Ragu {
                 pi.UpdatePosition(false);
             }
             else {
-                RContext.log.Error("{0} Event_OnSignificantClientMovement. Did not find presence", _logHeader);
+                _RContext.log.Error("{0} Event_OnSignificantClientMovement. Did not find presence", _logHeader);
             }
         }
         private void Event_OnScenePresenceUpdated(ScenePresence pPresence) {
@@ -245,11 +239,11 @@ namespace org.herbal3d.Ragu {
                     if (valObj.GetType() == typeof(string)) {
                         // If it's a string, we could parse a JSON value.
                         // In this case is shouldn't be a string but that might be added for futures.
-                        this.RContext.log.Debug("{0}: PackQuaternionFromProp: parm value is string: {1}", _logHeader, valObj);
+                        this._RContext.log.Debug("{0}: PackQuaternionFromProp: parm value is string: {1}", _logHeader, valObj);
                         ret = new double[] { 0, 0, 0, 1 };
                     }
                     else {
-                        this.RContext.log.Debug("{0}: PackQuaternionFromProp: parm value is not parseable: {1}", _logHeader, valObj.GetType());
+                        this._RContext.log.Debug("{0}: PackQuaternionFromProp: parm value is not parseable: {1}", _logHeader, valObj.GetType());
                     }
                 }
             }
@@ -278,8 +272,8 @@ namespace org.herbal3d.Ragu {
             float camFar = props.P<float>(AbOSAvaUpdate.FarProp);
             double[] dBodyRot = this.UnpackArrayFromProp(AbOSAvaUpdate.BodyRotProp, props, doubleDefault);
             double[] dHeadRot = this.UnpackArrayFromProp(AbOSAvaUpdate.HeadRotProp, props, doubleDefault);
-            OMV.Quaternion bodyRot = BCoord.FromPlanetRot(RContext.frameOfRef, dBodyRot);
-            OMV.Quaternion headRot = BCoord.FromPlanetRot(RContext.frameOfRef, dBodyRot);
+            OMV.Quaternion bodyRot = BCoord.FromPlanetRot(_RContext.frameOfRef, dBodyRot);
+            OMV.Quaternion headRot = BCoord.FromPlanetRot(_RContext.frameOfRef, dBodyRot);
 
             uint controlFlags = (uint)OMV.AgentManager.ControlFlags.NONE;
 
@@ -356,7 +350,7 @@ namespace org.herbal3d.Ragu {
             RaguAvatar clientAPI = pPi.scenePresence.ControllingClient as RaguAvatar;
 
             double[] dTargetPos = this.UnpackArrayFromProp(AbOSAvaUpdate.MoveToProp, props, doubleDefault);
-            OMV.Vector3 targetPos = BCoord.FromPlanetCoord(RContext.frameOfRef, dTargetPos);
+            OMV.Vector3 targetPos = BCoord.FromPlanetCoord(_RContext.frameOfRef, dTargetPos);
 
             clientAPI.FireOnAutoPilotGo(clientAPI, targetPos, false, true);
         }
