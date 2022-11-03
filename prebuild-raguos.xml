@@ -1,4 +1,8 @@
-    <Project frameworkVersion="v4_8" name="Herbal3d.RaguOS" path="addon-modules/RaguOS/RaguOS" type="Library">
+    <Project frameworkVersion="net6_0"
+            name="Herbal3d.RaguOS"
+            path="addon-modules/RaguOS/RaguOS"
+            type="Library">
+
       <Configuration name="Debug">
         <Options>
           <OutputPath>../../../bin/</OutputPath>
@@ -13,11 +17,7 @@
       </Configuration>
 
       <ReferencePath>../../../bin/</ReferencePath>
-      <Reference name="System"/>
-      <Reference name="System.Drawing"/>
-      <Reference name="System.IO"/>
-      <Reference name="System.Reflection"/>
-      <Reference name="System.Web"/>
+
       <Reference name="Mono.Addins"/>
 
       <Reference name="OpenMetaverse"/>
