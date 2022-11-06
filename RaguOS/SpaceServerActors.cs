@@ -41,6 +41,7 @@ namespace org.herbal3d.Ragu {
             switch (pMsg.Op) {
                 case (uint)BMessageOps.UpdatePropertiesReq:
                     if (_ssContext.TryGetPresenceById(pMsg.IId, out PresenceInfo pi)) {
+                        // Allow operations only on my avatar
                         if (pi.scenePresence.UUID == _ssContext.AgentUUID) {
                             foreach (var kvp in pMsg.IProps) {
                                 // this._ssContext.RContext.log.Debug("ProcessActorsIncomingMessages.Process: key={0}", kvp.Key);
@@ -91,6 +92,11 @@ namespace org.herbal3d.Ragu {
                         : base(pContext, pCanceller, pConnection) {
             LayerType = SpaceServerType;
 
+            // Remember the UUID of the logged-in/controlling actor
+            AgentUUID = pWaitingInfo.agentUUID;
+
+            // Set up processor for received messages.
+            // Mostly movement operations for my avatar
             pConnection.SetOpProcessor(new ProcessActorsIncomingMessages(this), ProcessConnectionStateChange);
         }
 
@@ -110,13 +116,13 @@ namespace org.herbal3d.Ragu {
                                                     RaguContext pRContext) {
 
             // The authentication token that the client will send with the OpenSession
-            OSAuthToken incomingAuth = new OSAuthToken();
+            OSAuthToken incomingAuth = OSAuthToken.SimpleToken();
 
             // Information that will be used to process the incoming OpenSession
             var wInfo = new WaitingInfo() {
                 agentUUID = pAgentUUID,
                 incomingAuth = incomingAuth,
-                spaceServerType = SpaceServerDynamic.SpaceServerType,
+                spaceServerType = SpaceServerActors.SpaceServerType,
                 createSpaceServer = (pC, pW, pConn, pMsgX, pCan) => {
                     return new SpaceServerActors(pC, pCan, pW, pConn, pMsgX);
                 }

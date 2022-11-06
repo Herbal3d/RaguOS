@@ -229,7 +229,7 @@ namespace org.herbal3d.Ragu {
             }
             else {
                 // There is no WaitingInfo. Maybe this is a login rather than a MakeConnection
-                _RContext.log.Error("{0}: OpenSession with unknown token. Token: {1}", _logHeader, auth);
+                // _RContext.log.Error("{0}: OpenSession with unknown token. Token: {1}", _logHeader, auth);
                 waitingInfo = SpaceServerCC.CreateWaitingInfo(OMV.UUID.Zero, pUserAuth);
                 try {
                     string agentId = pUserAuth.GetProperty("aId");

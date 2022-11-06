@@ -91,7 +91,7 @@ namespace org.herbal3d.Ragu {
         public WaitingInfo RememberWaitingForOpenSession(WaitingInfo pWInfo) {
             lock (waitingForMakeConnection) {
                 waitingForMakeConnection.Add(pWInfo.incomingAuth.Token, pWInfo);
-                log.Debug("SpaceServerBase.RememberWaitingForOpenSession: itoken={0}", pWInfo.incomingAuth.Token);
+                // log.Debug("SpaceServerBase.RememberWaitingForOpenSession: itoken={0}", pWInfo.incomingAuth.Token);
             }
             return pWInfo;
         }

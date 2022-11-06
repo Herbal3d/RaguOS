@@ -70,7 +70,7 @@ namespace org.herbal3d.Ragu {
                                                     RaguContext pRContext) {
 
             // The authentication token that the client will send with the OpenSession
-            OSAuthToken incomingAuth = new OSAuthToken();
+            OSAuthToken incomingAuth = OSAuthToken.SimpleToken();
 
             // Information that will be used to process the incoming OpenSession
             var wInfo = new WaitingInfo() {

@@ -214,8 +214,6 @@ namespace org.herbal3d.Ragu {
                 switch (pParam) {
                     case "WSPort":
                         val = FindConnectionParam(pContext, null, "BasePort");
-                        if (val == null) {
-                        }
                         val = (Int32.Parse(val) + NextLayerPortOffset()).ToString();
                         break;
                     case "WSConnectionUrl":
