@@ -1,6 +1,9 @@
 #! /bin/bash
 
-BUILDVERSION=${1:-./BuildVersion/BuildVersion.exe}
+if [[ ! -z "$1" ]] ; then
+    export BUILDVERSION=${1}
+fi
+export BUILDVERSION=${BUILDVERSION:-./BuildVersion/BuildVersion.exe}
 
 $BUILDVERSION \
         --verbose \
