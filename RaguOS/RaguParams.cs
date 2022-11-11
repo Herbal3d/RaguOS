@@ -174,7 +174,8 @@ namespace org.herbal3d.Ragu {
             { "WSIsSecure", "false"},
             { "WSConnectionHost", "0.0.0.0"},
             { "WSCertificate", ""},
-            { "DisableNaglesAlgorithm", "true" }
+            { "WSExternalUrlTemplate", "ws://{0}:{1}/"},
+            { "WSDisableNaglesAlgorithm", "true" }
         };
         
         /// <summary>
@@ -199,8 +200,8 @@ namespace org.herbal3d.Ragu {
         /// A connection is defined by the parameters:
         ///     WSConnectionHost: host to specify in URL. Default is "0.0.0.0"
         ///     WSPort
-        ///     WSIsSecure: whether "ws:" or "wss:"
-        ///     WSConnectionUrl: can be built from 'IsSecure', 'ConnectionHost', and 'Port'
+        ///     WSIsSecure: whether WebSocket reader is set for secure handshake or not
+        ///     WSExternalUrlTemplate: default: "wss://{0}:{1}/wss/". Host and port replaced.
         ///     DisableNaglesAlgorithm
         /// </remarks>
         /// <param name="pContext"></param>
@@ -216,6 +217,7 @@ namespace org.herbal3d.Ragu {
                         val = FindConnectionParam(pContext, null, "BasePort");
                         val = (Int32.Parse(val) + NextLayerPortOffset()).ToString();
                         break;
+                    /* This is deprecated and not used by anyone
                     case "WSConnectionUrl":
                         bool isSecure = GetConnectionParam<bool>(pContext, pLayer, "WSIsSecure");
                         val = isSecure ? "wss://" : "ws://"
@@ -223,6 +225,7 @@ namespace org.herbal3d.Ragu {
                             + ":"
                             + GetConnectionParam<string>(pContext, pLayer, "WSPort");
                         break;
+                    */
                     default:
                         if (ConnectionParameterDefaults.ContainsKey(pParam)) {
                             val = ConnectionParameterDefaults[pParam];

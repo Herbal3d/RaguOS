@@ -76,7 +76,8 @@ namespace org.herbal3d.Ragu {
                             isSecure        = RContext.parms.GetConnectionParam<bool>(RContext, null, "WSIsSecure"),
                             port            = RContext.parms.GetConnectionParam<int>(RContext, null, "WSPort"),
                             certificate     = RContext.parms.GetConnectionParam<string>(RContext, null, "WSCertificate"),
-                            disableNaglesAlgorithm = RContext.parms.GetConnectionParam<bool>(RContext, null, "DisableNaglesAlgorithm")
+                            externalURLTemplate = RContext.parms.GetConnectionParam<string>(RContext, null, "WSExternalUrlTemplate"),
+                            disableNaglesAlgorithm = RContext.parms.GetConnectionParam<bool>(RContext, null, "WSDisableNaglesAlgorithm")
                         }
                     },
                     canceller: _canceller
