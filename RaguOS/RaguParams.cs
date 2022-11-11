@@ -64,7 +64,11 @@ namespace org.herbal3d.Ragu {
         public int SpaceServer_BasePort = 11440;
         [ConfigParam(name: "SpaceServer_WSIsSecure", valueType: typeof(bool), desc: "Whether WebSocket connections are secure")]
         public bool SpaceServer_WSIsSecure = false;
+        [ConfigParam(name: "SpaceServer_WSExternalUrlTemplate", valueType: typeof(string), desc: "Template for external client access to WS services")]
+        public string SpaceServer_WSExternalUrlTemplate = "ws://{0}:{1}/";
 
+        [ConfigParam(name: "AssetUrlTemplate", valueType: typeof(string), desc: "Base of URL for external access to assets")]
+        public string AssetUrlTemplate = "http://{0}:{1}{2}";
         [ConfigParam(name: "OutputDir", valueType: typeof(string), desc: "Base directory for Loden asset storage")]
         public string OutputDir = "./LodenAssets";
         [ConfigParam(name: "UseDeepFilenames", valueType: typeof(bool), desc: "Reference Loden assets in multi-directory deep file storage")]
@@ -214,8 +218,8 @@ namespace org.herbal3d.Ragu {
                 // Couldn't find the value so see if it's one we can build or default
                 switch (pParam) {
                     case "WSPort":
-                        val = FindConnectionParam(pContext, null, "BasePort");
-                        val = (Int32.Parse(val) + NextLayerPortOffset()).ToString();
+                        var basePort = FindConnectionParam(pContext, null, "BasePort");
+                        val = (Int32.Parse(basePort) + NextLayerPortOffset()).ToString();
                         break;
                     /* This is deprecated and not used by anyone
                     case "WSConnectionUrl":

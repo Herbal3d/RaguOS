@@ -76,13 +76,16 @@ namespace org.herbal3d.Ragu {
             _context = pContext;
             HandlerPath = "/Ragu/Assets";
 
+            // External access to assets could be through a proxy (like if using nginx to do
+            //     https or load balancing) so there is the URL to access this server and there
+            //     is the external URL that clients access.
+            // AssetServiceURL is the URL sent to clients so it is the external access URL.
+            // If there is a proxy, specify an AssetURLTemplate in RaguOS.ini.
+            //     The proxy config must know the port numbers so that is a configuration problem.
+            string assetUrlTemplate = _context.parms.AssetUrlTemplate;
             string hostAddress = _context.HostnameForExternalAccess;
-            if (MainServer.Instance.UseSSL) {
-                AssetServiceURL = new UriBuilder("https", hostAddress, (int)MainServer.Instance.Port, HandlerPath).Uri.ToString();
-            }
-            else {
-                AssetServiceURL = new UriBuilder("http", hostAddress, (int)MainServer.Instance.Port, HandlerPath).Uri.ToString();
-            }
+            AssetServiceURL = String.Format(assetUrlTemplate, hostAddress, (int)MainServer.Instance.Port, HandlerPath);
+            // Note that, if the MainServer is using SSL, AssetUrlTemplate must also be https: if not using a proxy
 
             // If there is not already an asset server, start one.
             // TODO: someday move this asset server into its own shared region module.
