@@ -49,6 +49,10 @@ namespace org.herbal3d.Ragu {
 
         public static readonly string SpaceServerType = "Environ";
 
+        public string TopMenuId;
+        public string StatusDialogId;
+        public string ChatDialogId;
+
         public SpaceServerEnviron(RaguContext pContext,
                                 CancellationTokenSource pCanceller,
                                 WaitingInfo pWaitingInfo,
@@ -92,25 +96,38 @@ namespace org.herbal3d.Ragu {
             _ = pConn.MakeConnection(pBlock);
         }
 
+        // Start the sun, moon, and sky
         private async Task StartEnviron(BasilConnection pConn) {
         }
+        // Setup and initialize the user interface
         private async Task StartUI(BasilConnection pConn) {
             // Create the first top menu
+            TopMenuId = await CreateUIItem(pConn, "topMenu", "./Dialogs/topMenu.html", "menu");
+
+            // Floating dialog with rendering statistics
+            StatusDialogId = await CreateUIItem(pConn, "Status", "./Dialogs/status.html", "bottom right");
+
+            // Floating dialog with chat
+            ChatDialogId = await CreateUIItem(pConn, "chat", "./Dialogs/chatDialog.html", "bottom left");
+        }
+
+        private async Task<string> CreateUIItem(BasilConnection pConn, string pName, string pUrl, string pPlacement) {
+            string dialogId = "";
             AbilityList abilProps = new AbilityList();
             abilProps.Add(new AbDialog() {
-                DialogName = "topMenu",
-                DialogUrl = "./Dialogs/topMenu.html",
-                DialogPlacement = "menu"
+                DialogUrl = pUrl,
+                DialogName = pName,
+                DialogPlacement = pPlacement
             });
-            // They get to see statistics
-            await pConn.CreateItem(abilProps);
-            abilProps = new AbilityList();
-            abilProps.Add(new AbDialog() {
-                DialogUrl = "./Dialogs/status.html",
-                DialogName = "Status",
-                DialogPlacement = "bottom right"
-            });
-            await pConn.CreateItem(abilProps);
+            BMessage resp = await pConn.CreateItem(abilProps);
+            if (String.IsNullOrEmpty(resp.Exception)) {
+                dialogId = resp.IId;
+                _RContext.log.Debug("{0} created {1}. Id={2}", _logHeader, pName, StatusDialogId);
+            }
+            else {
+                _RContext.log.Error("{0} Error creating {1}: {2}", _logHeader, pName, resp.Exception);
+            }
+            return dialogId;
         }
     }
 }

@@ -122,7 +122,7 @@ namespace org.herbal3d.Ragu {
         //    that fake out the simulator so it thinks it is connected to a viewer.
         // Code cribbed from NPC (INPCModule.cs), DSG (http://github.com/intelvwi/DSG),
         //    and LoginService (LLLoginService.cs).
-        // The user OSAuthToken contains extra login information needed for creating
+        // The user's OSAuthToken contains extra login information needed for creating
         //    the circuit, etc.
         // See code in OpenSim.Tests.Common.SceneHelpers.AddScenePresence() for steps needed
         private bool CreateOpenSimPresence(OSAuthToken pUserAuth) {

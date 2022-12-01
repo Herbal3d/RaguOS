@@ -86,6 +86,22 @@ namespace org.herbal3d.Ragu {
                 this.SpaceServers.Add(pSS);
             }
         }
+        public void removeSpaceServer(SpaceServerBase pSS) {
+            lock (this.SpaceServers) {
+                this.SpaceServers.Remove(pSS);
+            }
+        }
+        // Get the allocated SpaceServer of a particular type
+        public T getSpaceServer<T>() where T : SpaceServerBase {
+            lock (this.SpaceServers) {
+                foreach (SpaceServerBase ss in this.SpaceServers) {
+                    if (ss is T) {
+                        return (T)ss;
+                    }
+                }
+            }
+            return null;
+        }
         // WHen sending an OpenSession, this remembers the credentials of the request
         //     so the response can be validated.
         public WaitingInfo RememberWaitingForOpenSession(WaitingInfo pWInfo) {

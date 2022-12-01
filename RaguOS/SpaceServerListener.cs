@@ -100,6 +100,10 @@ namespace org.herbal3d.Ragu {
                                             CancellationTokenSource pCanceller) {
 
             // The protocol for the initial OpenSession is always JSON
+            ParamBlock pb = new ParamBlock(new Dictionary<string, object>() {
+                { "logMsgSent", pRContext.parms.LogProtocolMsgSent },
+                { "logMsgRcvd", pRContext.parms.LogProtocolMsgRcvd }
+            });
             BProtocolJSON protocol = new BProtocolJSON(null, pTrans, pRContext.log);
 
             // Expect BMessages and set up messsage processor to handle initial OpenSession
@@ -174,7 +178,6 @@ namespace org.herbal3d.Ragu {
                         // Create SpaceServer for this OpenSession
                         try {
                             SpaceServerBase ss = waitingInfo.createSpaceServer(_RContext, waitingInfo, pConnection, pMsg, _canceller);
-                            _RContext.addSpaceServer(ss);
 
                             // Construct the success response
                             var openSessionRespParams = new OpenSessionResp() {

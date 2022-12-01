@@ -84,6 +84,10 @@ namespace org.herbal3d.Ragu {
         public bool LogBuilding = true;
         [ConfigParam(name: "LogGltfBuilding", valueType: typeof(bool), desc: "output detailed gltf construction details")]
         public bool LogGltfBuilding = false;
+        [ConfigParam(name: "LogProtocolMsgSent", valueType: typeof(bool), desc: "output messages sent at protocol layer")]
+        public bool LogProtocolMsgSent = false;
+        [ConfigParam(name: "LogProtocolMsgRcvd", valueType: typeof(bool), desc: "output messages received at protocol layer")]
+        public bool LogProtocolMsgRcvd = false;
 
         /*
          * Loop through all the ConfigParam attributes and, if the parameter exists in the configuration

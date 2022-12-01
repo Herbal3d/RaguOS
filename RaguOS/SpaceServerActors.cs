@@ -149,8 +149,15 @@ namespace org.herbal3d.Ragu {
             // Gets called for most position/camera/action updates. Seems to be once a second.
             // RContext.scene.EventManager.OnScenePresenceUpdated      += Event_OnScenePresenceUpdated;
 
-            // RContext.scene.EventManager.OnIncomingInstantMessage += Event_OnIncomingInstantMessage;
-            // RContext.scene.EventManager.OnIncomingInstantMessage += Event_OnUnhandledInstantMessage;
+            _RContext.scene.EventManager.OnIncomingInstantMessage += Event_OnIncomingInstantMessage;
+            _RContext.scene.EventManager.OnUnhandledInstantMessage += Event_OnUnhandledInstantMessage;
+
+            // RContext.scene.EventManager.OnIncomingSceneObject += Event_OnIncomingSceneObject;
+            // RContext.scene.EventManager.OnObjectAddedToScene += Event_OnObjectAddedToScene;
+            // RContext.scene.EventManager.OnDeRezRequested += Event_OnDeRezRequested;
+            // RContext.scene.EventManager.OnObjectBeingRemovedFromScene += Event_OnObjectBeingRemovedFromScene;
+            // RContext.scene.EventManager.OnObjectAddedToPhysicalScene += Event_OnObjectAddedToPhysicalScene;
+            // RContext.scene.EventManager.OnObjectRemovedToPhysicalScene += Event_OnObjectRemovedToPhysicalScene;
 
             //When scene is shutting down
             // RContext.scene.EventManager.OnShutdown  += Event_OnShutdown;
@@ -167,8 +174,8 @@ namespace org.herbal3d.Ragu {
             // Gets called for most position/camera/action updates
             // RContext.scene.EventManager.OnScenePresenceUpdated      -= Event_OnScenePresenceUpdated;
 
-            // RContext.scene.EventManager.OnIncomingInstantMessage -= Event_OnIncomingInstantMessage;
-            // RContext.scene.EventManager.OnIncomingInstantMessage -= Event_OnUnhandledInstantMessage;
+            _RContext.scene.EventManager.OnIncomingInstantMessage -= Event_OnIncomingInstantMessage;
+            _RContext.scene.EventManager.OnUnhandledInstantMessage -= Event_OnUnhandledInstantMessage;
 
             // RContext.scene.EventManager.OnShutdown  -= Event_OnShutdown;
         }
@@ -224,6 +231,44 @@ namespace org.herbal3d.Ragu {
                 pi.UpdatePosition(true);
             }
         }
+        
+        private void Event_OnIncomingInstantMessage(GridInstantMessage pGMsg) {
+            SendInstantMessage(pGMsg, false);
+        }
+        private void Event_OnUnhandledInstantMessage(GridInstantMessage pGMsg) {
+            SendInstantMessage(pGMsg, true);
+        }
+        // The user has received an instant message. Send it to the client.
+        private void SendInstantMessage(GridInstantMessage pGMsg, bool pUnhandled) {
+            _RContext.log.Debug("{0} SendInstantMessage. from={1} to={2} message={3}", _logHeader, pGMsg.fromAgentID, pGMsg.toAgentID, pGMsg.message);
+            AbilityList abilProps = new AbilityList();
+            abilProps.Add(new AbOSGridChat() {
+                OSChatFromAgentId = pGMsg.fromAgentID.ToString(),
+                OSChatFromAgentName = pGMsg.fromAgentName,
+                OSChatToAgentId = pGMsg.toAgentID.ToString(),
+                OSChatDialog = pGMsg.dialog,
+                OSChatFromGroup = pGMsg.fromGroup,
+                OSChatMessage = pGMsg.message,
+                OSChatImSessionId = pGMsg.imSessionID.ToString(),
+                OSChatOffline = pGMsg.offline,
+                OSChatPosition = pGMsg.Position.ToString(),
+                OSChatParentEstateId = pGMsg.ParentEstateID.ToString(),
+                OSChatRegionId = pGMsg.RegionID.ToString(),
+                OSChatTimestamp = pGMsg.timestamp,
+                OSChatUnhandled = pUnhandled 
+            });
+            BMessage bim = new BMessage(BMessageOps.UpdatePropertiesReq);
+            SpaceServerEnviron eenv = _RContext.getSpaceServer<SpaceServerEnviron>();
+            if (eenv.ChatDialogId != null) {
+                bim.IId = eenv.ChatDialogId;
+                _connection.Send(bim, abilProps);
+            }
+        }
+        
+        // Some of the parameters for Abilities are an array of doubles.
+        // This converts a property out of a ParamBlock into that array of doubles.
+        // THis looks for an array of doubles or an array of floats.
+        //     Code is also here for checking if passed value is a string but doesn't yet try to parse.
         private double[] UnpackArrayFromProp(string pPropName, ParamBlock pProps, double[] pDefault) {
             double[] ret = pDefault;
             if (pProps.HasParam(pPropName)) {
@@ -350,7 +395,7 @@ namespace org.herbal3d.Ragu {
 
         }
 
-        // Received update to 'moreTo' property
+        // Received update to 'moveTo' property
         public void AvatarMoveToAction(PresenceInfo pPi, BMessage pBMsg) {
             ParamBlock props = new ParamBlock(pBMsg.IProps);
             RaguAvatar clientAPI = pPi.scenePresence.ControllingClient as RaguAvatar;
@@ -447,13 +492,13 @@ namespace org.herbal3d.Ragu {
                 if (pForce) {
                     coordParams = new AbPlacement() {
                         WorldPos = BCoord.ToPlanetCoord(_context.frameOfRef, scenePresence.AbsolutePosition),
-                        WorldRot = BCoord.ToPlanetRot(_context.frameOfRef, scenePresence.Rotation)
+                        WorldRot = BCoord.ToPlanetRot(_context.frameOfRef, scenePresence.GetWorldRotation())
                     };
                 }
                 else {
                     coordParams = new AbPlacement() {
                         ToWorldPos = BCoord.ToPlanetCoord(_context.frameOfRef, scenePresence.AbsolutePosition),
-                        ToWorldRot = BCoord.ToPlanetRot(_context.frameOfRef, scenePresence.Rotation)
+                        ToWorldRot = BCoord.ToPlanetRot(_context.frameOfRef, scenePresence.GetWorldRotation())
                     };
                 }
                 await _connection.UpdateProperties(InstanceId, coordParams);

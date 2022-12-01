@@ -45,7 +45,7 @@ namespace org.herbal3d.Ragu {
             _RContext = pContext;
             _cancellerSource = pCanceller;
             _connection = pConnection;
-            lock (_RContext.SpaceServers) _RContext.SpaceServers.Add(this);
+            _RContext.addSpaceServer(this);
         }
 
         // Called after connection is made and things are ready for the SpaceServer to start talking
@@ -78,7 +78,7 @@ namespace org.herbal3d.Ragu {
                 _connection.Stop();
                 _connection = null;
             }
-            lock (_RContext.SpaceServers) _RContext.SpaceServers.Remove(this);
+            _RContext.removeSpaceServer(this);
         }
 
         // Called when connection state changes.
