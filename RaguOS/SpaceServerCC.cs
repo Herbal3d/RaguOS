@@ -107,6 +107,7 @@ namespace org.herbal3d.Ragu {
             }
         }
 
+        // Create the waiting info for waiting for an incoming connection to this SpaceServer
         public static WaitingInfo CreateWaitingInfo(OMV.UUID pAgentUUID, OSAuthToken pIncomingAuth) {
             return new WaitingInfo() {
                 agentUUID = pAgentUUID,
@@ -140,7 +141,7 @@ namespace org.herbal3d.Ragu {
                 // The login operation created the initial circuit
                 AgentCircuitData acd = _RContext.scene.AuthenticateHandler.GetAgentCircuitData(agentUUID);
 
-                if (acd != null) {
+                if (acd is not null) {
                     if (acd.SessionID == sessionUUID) {
                         // The login operation has:
                         //      called IPresenceService.LoginAgent()

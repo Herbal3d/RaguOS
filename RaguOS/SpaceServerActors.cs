@@ -20,13 +20,12 @@ using org.herbal3d.OSAuth;
 using org.herbal3d.transport;
 using org.herbal3d.b.protocol;
 using org.herbal3d.cs.CommonUtil;
+using org.herbal3d.cs.CommonEntities;
 
 using OpenSim.Framework;
 using OpenSim.Region.Framework.Scenes;
-using org.herbal3d.cs.CommonEntities;
 
 using OMV = OpenMetaverse;
-using System.Collections;
 
 namespace org.herbal3d.Ragu {
 
@@ -149,9 +148,6 @@ namespace org.herbal3d.Ragu {
             // Gets called for most position/camera/action updates. Seems to be once a second.
             // RContext.scene.EventManager.OnScenePresenceUpdated      += Event_OnScenePresenceUpdated;
 
-            _RContext.scene.EventManager.OnIncomingInstantMessage += Event_OnIncomingInstantMessage;
-            _RContext.scene.EventManager.OnUnhandledInstantMessage += Event_OnUnhandledInstantMessage;
-
             // RContext.scene.EventManager.OnIncomingSceneObject += Event_OnIncomingSceneObject;
             // RContext.scene.EventManager.OnObjectAddedToScene += Event_OnObjectAddedToScene;
             // RContext.scene.EventManager.OnDeRezRequested += Event_OnDeRezRequested;
@@ -173,9 +169,6 @@ namespace org.herbal3d.Ragu {
             _RContext.scene.EventManager.OnSignificantClientMovement -= Event_OnSignificantClientMovement;
             // Gets called for most position/camera/action updates
             // RContext.scene.EventManager.OnScenePresenceUpdated      -= Event_OnScenePresenceUpdated;
-
-            _RContext.scene.EventManager.OnIncomingInstantMessage -= Event_OnIncomingInstantMessage;
-            _RContext.scene.EventManager.OnUnhandledInstantMessage -= Event_OnUnhandledInstantMessage;
 
             // RContext.scene.EventManager.OnShutdown  -= Event_OnShutdown;
         }
@@ -229,39 +222,6 @@ namespace org.herbal3d.Ragu {
             // RContext.log.Debug("{0} Event_OnScenePresenceUpdated", _logHeader);
             if (TryFindPresence(pPresence, out PresenceInfo pi)) {
                 pi.UpdatePosition(true);
-            }
-        }
-        
-        private void Event_OnIncomingInstantMessage(GridInstantMessage pGMsg) {
-            SendInstantMessage(pGMsg, false);
-        }
-        private void Event_OnUnhandledInstantMessage(GridInstantMessage pGMsg) {
-            SendInstantMessage(pGMsg, true);
-        }
-        // The user has received an instant message. Send it to the client.
-        private void SendInstantMessage(GridInstantMessage pGMsg, bool pUnhandled) {
-            _RContext.log.Debug("{0} SendInstantMessage. from={1} to={2} message={3}", _logHeader, pGMsg.fromAgentID, pGMsg.toAgentID, pGMsg.message);
-            AbilityList abilProps = new AbilityList();
-            abilProps.Add(new AbOSGridChat() {
-                OSChatFromAgentId = pGMsg.fromAgentID.ToString(),
-                OSChatFromAgentName = pGMsg.fromAgentName,
-                OSChatToAgentId = pGMsg.toAgentID.ToString(),
-                OSChatDialog = pGMsg.dialog,
-                OSChatFromGroup = pGMsg.fromGroup,
-                OSChatMessage = pGMsg.message,
-                OSChatImSessionId = pGMsg.imSessionID.ToString(),
-                OSChatOffline = pGMsg.offline,
-                OSChatPosition = pGMsg.Position.ToString(),
-                OSChatParentEstateId = pGMsg.ParentEstateID.ToString(),
-                OSChatRegionId = pGMsg.RegionID.ToString(),
-                OSChatTimestamp = pGMsg.timestamp,
-                OSChatUnhandled = pUnhandled 
-            });
-            BMessage bim = new BMessage(BMessageOps.UpdatePropertiesReq);
-            SpaceServerEnviron eenv = _RContext.getSpaceServer<SpaceServerEnviron>();
-            if (eenv.ChatDialogId != null) {
-                bim.IId = eenv.ChatDialogId;
-                _connection.Send(bim, abilProps);
             }
         }
         
@@ -530,7 +490,7 @@ namespace org.herbal3d.Ragu {
                     abilProps.Add(
                         new AbPlacement() {
                             ToWorldPos = BCoord.ToPlanetCoord(_context.frameOfRef, scenePresence.AbsolutePosition),
-                            ToWorldRot = BCoord.ToPlanetRot(_context.frameOfRef, scenePresence.Rotation)
+                            ToWorldRot = BCoord.ToPlanetRot(_context.frameOfRef, scenePresence.GetWorldRotation())
                         }
                     );
                     if (scenePresence.UUID == _spaceServer.AgentUUID) {
@@ -540,7 +500,7 @@ namespace org.herbal3d.Ragu {
                         abilProps.Add(
                             new AbOSCamera() {
                                 OSCameraMode = AbOSCamera.OSCameraModes.Third,
-                                OSCameraDisplacement = new double[] { 0, 3.0, -6 }
+                                OSCameraDisplacement = new double[] { 0, 7.0, -3.0 }
                             }
                         );
                     };

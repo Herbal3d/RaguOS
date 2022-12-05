@@ -10,15 +10,14 @@
 // limitations under the License.
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 using org.herbal3d.transport;
 using org.herbal3d.b.protocol;
 using org.herbal3d.OSAuth;
+
+using OpenSim.Framework;
 
 using OMV = OpenMetaverse;
 
@@ -98,7 +97,22 @@ namespace org.herbal3d.Ragu {
 
         // Start the sun, moon, and sky
         private async Task StartEnviron(BasilConnection pConn) {
+            var em = _RContext.scene.EventManager;
+            em.OnChatFromWorld += Event_OnChatFromWorld;
+            em.OnChatFromClient += Event_OnChatFromClient;
+            em.OnChatBroadcast += Event_OnChatBroadcast;
+            em.OnIncomingInstantMessage += Event_OnIncomingInstantMessage;
+            em.OnUnhandledInstantMessage += Event_OnUnhandledInstantMessage;
         }
+        private async Task StopEnviron(BasilConnection pConn) {
+            var em = _RContext.scene.EventManager;
+            em.OnChatFromWorld -= Event_OnChatFromWorld;
+            em.OnChatFromClient -= Event_OnChatFromClient;
+            em.OnChatBroadcast -= Event_OnChatBroadcast;
+            em.OnIncomingInstantMessage -= Event_OnIncomingInstantMessage;
+            em.OnUnhandledInstantMessage -= Event_OnUnhandledInstantMessage;
+        }
+
         // Setup and initialize the user interface
         private async Task StartUI(BasilConnection pConn) {
             // Create the first top menu
@@ -129,5 +143,89 @@ namespace org.herbal3d.Ragu {
             }
             return dialogId;
         }
+        private void Event_OnChatFromWorld(Object pSender, OSChatMessage pChatMessage) {
+            _RContext.log.Debug("{0} Event_OnChatFromWorld", _logHeader);
+            SendInstantMessage("World", pSender, pChatMessage);
+        }
+        private void Event_OnChatFromClient(Object pSender, OSChatMessage pChatMessage) {
+            _RContext.log.Debug("{0} Event_OnChatFromClient", _logHeader);
+            SendInstantMessage("Client", pSender, pChatMessage);
+        }
+        private void Event_OnChatBroadcast(Object pSender, OSChatMessage pChatMessage) {
+            _RContext.log.Debug("{0} Event_OnChatBroadcast", _logHeader);
+            SendInstantMessage("Broadcast", pSender, pChatMessage);
+        }
+        private void Event_OnIncomingInstantMessage(GridInstantMessage pGMsg) {
+            SendInstantMessage(pGMsg, false);
+        }
+        private void Event_OnUnhandledInstantMessage(GridInstantMessage pGMsg) {
+            SendInstantMessage(pGMsg, true);
+        }
+        // The user has received an instant message. Send it to the client.
+        private void SendInstantMessage(string pSource, Object pSender, OSChatMessage pCMsg) {
+            _RContext.log.Debug("{0} SendInstantMessage. from={1}({2}) to={3} message={4}",
+                            _logHeader, pCMsg.SenderUUID, pCMsg.From, pCMsg.Destination, pCMsg.Message);
+            IClientAPI client = pSender as IClientAPI;
+            string senderName = pCMsg.From;
+            string senderUUID = pCMsg.SenderUUID.ToString();
+            if (client != null) {
+                if (senderName == null || senderName.Length == 0) {
+                    senderName = client.Name;
+                    senderUUID = client.AgentId.ToString();
+                }
+            }
+            AbilityList abilProps = new AbilityList();
+            abilProps.Add(new AbOSChat() {
+                OSChatType = AbOSChat.OSChatTypeCodeToString[(uint)pCMsg.Type], 
+                OSChatSource = pSource,
+                OSChatChannel = pCMsg.Channel,
+                OSChatFromAgentName = senderName,
+                OSChatFromAgentId = pCMsg.SenderUUID.ToString(),
+                OSChatMessage = pCMsg.Message,
+                OSChatPosition = new float[] { pCMsg.Position.X, pCMsg.Position.Y, pCMsg.Position.Z },
+                OSChatToAgentId = pCMsg.Destination.ToString(),
+
+                OSChatImSessionId = pCMsg.Sender.SessionId.ToString(),
+
+                OSChatTimestamp = (uint)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                OSChatUnhandled = false 
+            });
+            BMessage bim = new BMessage(BMessageOps.UpdatePropertiesReq);
+            SpaceServerEnviron eenv = _RContext.getSpaceServer<SpaceServerEnviron>();
+            if (eenv.ChatDialogId != null) {
+                bim.IId = eenv.ChatDialogId;
+                _connection.Send(bim, abilProps);
+            }
+        }
+        private void SendInstantMessage(GridInstantMessage pGMsg, bool pUnhandled) {
+            _RContext.log.Debug("{0} SendInstantMessage. from={1} to={2} message={3}", _logHeader, pGMsg.fromAgentID, pGMsg.toAgentID, pGMsg.message);
+            AbilityList abilProps = new AbilityList();
+            abilProps.Add(new AbOSChat() {
+                OSChatType = "Say",
+                OSChatSource = "Grid",
+                OSChatChannel = 0,
+                OSChatFromAgentName = pGMsg.fromAgentName,
+                OSChatFromAgentId = pGMsg.fromAgentID.ToString(),
+                OSChatMessage = pGMsg.message,
+                OSChatPosition = new float[] { pGMsg.Position.X, pGMsg.Position.Y, pGMsg.Position.Z },
+                OSChatToAgentId = pGMsg.toAgentID.ToString(),
+
+                OSChatDialog = pGMsg.dialog,
+                OSChatFromGroup = pGMsg.fromGroup,
+                OSChatImSessionId = pGMsg.imSessionID.ToString(),
+                OSChatOffline = pGMsg.offline,
+                OSChatParentEstateId = pGMsg.ParentEstateID.ToString(),
+                OSChatRegionId = pGMsg.RegionID.ToString(),
+                OSChatTimestamp = pGMsg.timestamp,
+                OSChatUnhandled = pUnhandled 
+            });
+            BMessage bim = new BMessage(BMessageOps.UpdatePropertiesReq);
+            SpaceServerEnviron eenv = _RContext.getSpaceServer<SpaceServerEnviron>();
+            if (eenv.ChatDialogId != null) {
+                bim.IId = eenv.ChatDialogId;
+                _connection.Send(bim, abilProps);
+            }
+        }
+        
     }
 }
