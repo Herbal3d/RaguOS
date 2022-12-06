@@ -500,7 +500,8 @@ namespace org.herbal3d.Ragu {
                         abilProps.Add(
                             new AbOSCamera() {
                                 OSCameraMode = AbOSCamera.OSCameraModes.Third,
-                                OSCameraDisplacement = new double[] { 0, 7.0, -3.0 }
+                                // If we don't pass a displacement, the value in Config.ts on the client is used
+                                // OSCameraDisplacement = new double[] { 0, 7.0, -3.0 }
                             }
                         );
                     };
