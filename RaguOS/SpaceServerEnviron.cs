@@ -66,10 +66,15 @@ namespace org.herbal3d.Ragu {
         public override void Start() {
             // Set up the UI
             Task.Run(async () => {
-                await StartEnviron(_connection);
+                StartEnviron(_connection);
                 await StartUI(_connection);
             });
         }
+        public override void Stop() {
+            StopEnviron(this._connection);
+            base.Stop();
+        }
+
 
         // Send a MakeConnection for connecting to a SpaceServer of this type.
         public static void MakeConnectionToSpaceServer(BasilConnection pConn,
@@ -96,7 +101,7 @@ namespace org.herbal3d.Ragu {
         }
 
         // Start the sun, moon, and sky
-        private async Task StartEnviron(BasilConnection pConn) {
+        private void StartEnviron(BasilConnection pConn) {
             var em = _RContext.scene.EventManager;
             em.OnChatFromWorld += Event_OnChatFromWorld;
             em.OnChatFromClient += Event_OnChatFromClient;
@@ -104,7 +109,7 @@ namespace org.herbal3d.Ragu {
             em.OnIncomingInstantMessage += Event_OnIncomingInstantMessage;
             em.OnUnhandledInstantMessage += Event_OnUnhandledInstantMessage;
         }
-        private async Task StopEnviron(BasilConnection pConn) {
+        private void StopEnviron(BasilConnection pConn) {
             var em = _RContext.scene.EventManager;
             em.OnChatFromWorld -= Event_OnChatFromWorld;
             em.OnChatFromClient -= Event_OnChatFromClient;
@@ -136,7 +141,7 @@ namespace org.herbal3d.Ragu {
             BMessage resp = await pConn.CreateItem(abilProps);
             if (String.IsNullOrEmpty(resp.Exception)) {
                 dialogId = resp.IId;
-                _RContext.log.Debug("{0} created {1}. Id={2}", _logHeader, pName, StatusDialogId);
+                _RContext.log.Debug("{0} created {1}. Id={2}", _logHeader, pName, dialogId);
             }
             else {
                 _RContext.log.Error("{0} Error creating {1}: {2}", _logHeader, pName, resp.Exception);
@@ -221,7 +226,7 @@ namespace org.herbal3d.Ragu {
             });
             BMessage bim = new BMessage(BMessageOps.UpdatePropertiesReq);
             SpaceServerEnviron eenv = _RContext.getSpaceServer<SpaceServerEnviron>();
-            if (eenv.ChatDialogId != null) {
+            if (eenv is not null && eenv.ChatDialogId != null) {
                 bim.IId = eenv.ChatDialogId;
                 _connection.Send(bim, abilProps);
             }

@@ -52,6 +52,12 @@ namespace org.herbal3d.Ragu {
         // Run on its own thread so this can take as long as it wants.
         public abstract void Start();
 
+        // Called when going down
+        public virtual void Stop() {
+            _RContext.log.Info("{0} Stop for SpaceServer {1} for user {2}", _logHeader, LayerType, AgentUUID);
+            this.ShutdownConnection();
+        }
+
         // When a MakeConnection is sent, the information on what to do with the incoming
         //    OpenSession is received is saved in a WaitingInfo block.
         // Create and return a block of information for the creation of this SpaceServer
@@ -63,12 +69,11 @@ namespace org.herbal3d.Ragu {
 
         // Called when CloseSession is received
         public virtual void CloseSessionProcessing(BasilConnection pConnection) {
-            Shutdown();
+            this.Stop();
         }
-        public virtual void Shutdown() {
+
+        public void ShutdownConnection() {
             _RContext.log.Info("{0} Shutdown for SpaceServer {1} for user {2}", _logHeader, LayerType, AgentUUID);
-            // If there is a connected user, disconnect them
-            ShutdownUserAgent(LayerType + " shutdown");
             // wait a little bit so shutdown messages can make it to the user
             Thread.Sleep(1000);
             // Tell everyone around that we're going down
@@ -89,19 +94,19 @@ namespace org.herbal3d.Ragu {
                     break;
                 }
                 case BConnectionStates.CLOSED: {
-                    // RContext.log.Debug("{0}: ProcessConnectionStateChange CLOSED for {1}. Shutting down",
-                    //                 _logHeader, LayerType);
-                    Shutdown();
+                    _RContext.log.Debug("{0}: ProcessConnectionStateChange CLOSED for {1}. Shutting down",
+                                    _logHeader, LayerType);
+                    Stop();
                     break;
                 }
                 case BConnectionStates.ERROR: {
-                    // RContext.log.Debug("{0}: ProcessConnectionStateChange ERROR for {1}. Shutting down",
-                    //                 _logHeader, LayerType);
-                    Shutdown();
+                    _RContext.log.Debug("{0}: ProcessConnectionStateChange ERROR for {1}. Shutting down",
+                                    _logHeader, LayerType);
+                    Stop();
                     break;
                 }
                 case BConnectionStates.CLOSING: {
-                    Shutdown();
+                    Stop();
                     break;
                 }
                 default: {
@@ -110,11 +115,6 @@ namespace org.herbal3d.Ragu {
             }
         }
 
-        // Overridden to processes user account disconnection.
-        // Only used by SpaceServerCC.
-        protected virtual void ShutdownUserAgent(string pReason) {
-            // RContext.log.Info("{0}: {1} user shutdown", _logHeader, LayerType);
-        }
 
     }
 }

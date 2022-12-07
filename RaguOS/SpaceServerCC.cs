@@ -107,6 +107,11 @@ namespace org.herbal3d.Ragu {
             }
         }
 
+        public override void Stop() {
+            ShutdownUserAgent("stop");
+            base.Stop();
+        }
+
         // Create the waiting info for waiting for an incoming connection to this SpaceServer
         public static WaitingInfo CreateWaitingInfo(OMV.UUID pAgentUUID, OSAuthToken pIncomingAuth) {
             return new WaitingInfo() {
@@ -206,8 +211,7 @@ namespace org.herbal3d.Ragu {
         // This is called before the connections are closed.
         // Attempt is made to cause events to happen that clean up the
         //    connection with the client (like removing the avatar from the scene, etc).
-        protected override void ShutdownUserAgent(string pReason) {
-            base.ShutdownUserAgent(pReason);
+        protected void ShutdownUserAgent(string pReason) {
             if (AgentUUID != null) {
                 _RContext.scene.CloseAgent(AgentUUID, false);
             }

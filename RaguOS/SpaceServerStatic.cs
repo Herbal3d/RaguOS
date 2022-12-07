@@ -133,6 +133,10 @@ namespace org.herbal3d.Ragu {
             }
         }
 
+        public override void Stop() {
+            base.Stop();
+        }
+
         // Send a MakeConnection for connecting to a SpaceServer of this type.
         public static void MakeConnectionToSpaceServer(BasilConnection pConn,
                                                     OMV.UUID pAgentUUID,

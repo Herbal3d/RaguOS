@@ -104,9 +104,9 @@ namespace org.herbal3d.Ragu {
             AddExistingPresences();
         }
 
-        public override void Shutdown() {
+        public override void Stop() {
             RemoveEventSubscriptions();
-            base.Shutdown();
+            base.Stop();
         }
 
         // Send a MakeConnection for connecting to a SpaceServer of this type.
