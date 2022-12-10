@@ -70,8 +70,9 @@ namespace org.herbal3d.Ragu {
                 await StartUI(_connection);
             });
         }
-        public override void Stop() {
+        public override async void Stop() {
             StopEnviron(this._connection);
+            await StopUI(this._connection);
             base.Stop();
         }
 
@@ -102,6 +103,10 @@ namespace org.herbal3d.Ragu {
 
         // Start the sun, moon, and sky
         private void StartEnviron(BasilConnection pConn) {
+        }
+        private void StopEnviron(BasilConnection pConn) {
+        }
+        private void StartChatDialog(BasilConnection pConn) {
             var em = _RContext.scene.EventManager;
             em.OnChatFromWorld += Event_OnChatFromWorld;
             em.OnChatFromClient += Event_OnChatFromClient;
@@ -109,7 +114,7 @@ namespace org.herbal3d.Ragu {
             em.OnIncomingInstantMessage += Event_OnIncomingInstantMessage;
             em.OnUnhandledInstantMessage += Event_OnUnhandledInstantMessage;
         }
-        private void StopEnviron(BasilConnection pConn) {
+        private void StopChatDialog(BasilConnection pConn) {
             var em = _RContext.scene.EventManager;
             em.OnChatFromWorld -= Event_OnChatFromWorld;
             em.OnChatFromClient -= Event_OnChatFromClient;
@@ -124,10 +129,26 @@ namespace org.herbal3d.Ragu {
             TopMenuId = await CreateUIItem(pConn, "topMenu", "./Dialogs/topMenu.html", "menu");
 
             // Floating dialog with rendering statistics
-            StatusDialogId = await CreateUIItem(pConn, "Status", "./Dialogs/status.html", "bottom right");
+            if (_RContext.parms.UIStatusDialog) {
+                StatusDialogId = await CreateUIItem(pConn, "Status", "./Dialogs/status.html", "bottom right");
+            };
 
             // Floating dialog with chat
-            ChatDialogId = await CreateUIItem(pConn, "chat", "./Dialogs/chatDialog.html", "bottom left");
+            if (_RContext.parms.UIChatDialog) {
+                StartChatDialog(pConn);
+                ChatDialogId = await CreateUIItem(pConn, "chat", "./Dialogs/chatDialog.html", "bottom left");
+            }
+        }
+
+        private async Task StopUI(BasilConnection pConn) {
+            if (ChatDialogId is not null) {
+                StopChatDialog(pConn);
+                await pConn.DeleteItem(ChatDialogId);
+            }
+            if (StatusDialogId is not null) {
+                await pConn.DeleteItem(StatusDialogId);
+            }
+            await pConn.DeleteItem(TopMenuId);
         }
 
         private async Task<string> CreateUIItem(BasilConnection pConn, string pName, string pUrl, string pPlacement) {

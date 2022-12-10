@@ -74,6 +74,12 @@ namespace org.herbal3d.Ragu {
         [ConfigParam(name: "UseDeepFilenames", valueType: typeof(bool), desc: "Reference Loden assets in multi-directory deep file storage")]
         public bool UseDeepFilenames = true;
 
+
+        [ConfigParam(name: "UIStatusDialog", valueType: typeof(bool), desc: "Whether to add stats display to the client view")]
+        public bool UIStatusDialog = true;
+        [ConfigParam(name: "UIChatDialog", valueType: typeof(bool), desc: "Whether to add chats dialog to the client view")]
+        public bool UIChatDialog = false;
+
         [ConfigParam(name: "LogBaseFilename", valueType: typeof(string), desc: "where to send log files")]
         public string LogBaseFilename = null;
         [ConfigParam(name: "LogToConsole", valueType: typeof(bool), desc: "Whether to also log directly to the console")]
