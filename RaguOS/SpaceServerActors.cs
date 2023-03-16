@@ -269,7 +269,7 @@ namespace org.herbal3d.Ragu {
         // Other actions use the "move to" or "auto pilot" feature to move the avatar.
         private AgentUpdateArgs _agentUpdateArgs = new AgentUpdateArgs();
         private static float degreesToRads = (float)(Math.PI / 180.0);
-        private static float turnRads = 10 * degreesToRads;
+        private static float turnRads = 30 * degreesToRads;
         private static double[] doubleDefault = new double[] { 0, 0, 0, 1 };
         public void AvatarAction(PresenceInfo pPi, BMessage pMsg) {
             ParamBlock props = new ParamBlock(pMsg.IProps);

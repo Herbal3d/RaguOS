@@ -222,6 +222,7 @@ namespace org.herbal3d.Ragu {
         // Login auth check for OpenSessions that were started with a MakeConnection request.
         // SpaceServerCC overrides this function to do actual account login check.
         protected virtual bool ValidateLoginAuth(OSAuthToken pUserAuth, out WaitingInfo pWaitingInfo) {
+            // _RContext.log.Debug("{0}: ValidateLoginAuth: pUserAuth={1}", _logHeader, pUserAuth.Dump());
             bool isAuthorized = false;
             string auth = pUserAuth.Token;
             WaitingInfo waitingInfo = _RContext.GetWaitingForOpenSession(auth);
@@ -233,12 +234,12 @@ namespace org.herbal3d.Ragu {
             else {
                 // There is no WaitingInfo. Maybe this is a login rather than a MakeConnection
                 // _RContext.log.Error("{0}: OpenSession with unknown token. Token: {1}", _logHeader, auth);
+                // Create a 'waitingInfo' as if we'd been waiting for this initial login OpenSession
                 waitingInfo = SpaceServerCC.CreateWaitingInfo(OMV.UUID.Zero, pUserAuth);
                 try {
                     string agentId = pUserAuth.GetProperty("aId");
                     OMV.UUID agentUUID = OMV.UUID.Parse(agentId);
                     waitingInfo.agentUUID = agentUUID;
-                    // Create a 'waitingInfo' as if we'd been waiting for this initial OpenSession
                     if (_RContext.parms.ShouldEnforceUserAuth) {
                         OMV.UUID sessionID = OMV.UUID.Parse(pUserAuth.GetProperty("sId"));
                         OMV.UUID secureSessionID = OMV.UUID.Parse(pUserAuth.GetProperty("SSID"));
