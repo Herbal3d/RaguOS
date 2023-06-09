@@ -68,13 +68,18 @@ namespace org.herbal3d.Ragu {
                 // Start the listener for this region.
                 // This will receive all the connections and OpenSession's and create the
                 //     space servers for same.
+                // The port is assumed to be one more than the region port.
+                //     This is because the region port is sent in the login response.
+                //     and there is, currently, no mechanism to send the WS port.
+                var wsPort = RContext.scene.RegionInfo.InternalEndPoint.Port + 1;
                 RContext.Listener = new SpaceServerListener(
                     context: RContext,
                     transportParams: new BTransportParams[] {
                         new BTransportWSParams() {
                             preferred       = true,
                             isSecure        = RContext.parms.GetConnectionParam<bool>(RContext, null, "WSIsSecure"),
-                            port            = RContext.parms.GetConnectionParam<int>(RContext, null, "WSPort"),
+                            // port            = RContext.parms.GetConnectionParam<int>(RContext, null, "WSPort"),
+                            port            = wsPort,
                             certificate     = RContext.parms.GetConnectionParam<string>(RContext, null, "WSCertificate"),
                             externalURLTemplate = RContext.parms.GetConnectionParam<string>(RContext, null, "WSExternalUrlTemplate"),
                             disableNaglesAlgorithm = RContext.parms.GetConnectionParam<bool>(RContext, null, "WSDisableNaglesAlgorithm")

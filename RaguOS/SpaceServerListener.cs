@@ -11,10 +11,13 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Linq;
-using System.Text;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using org.herbal3d.b.protocol;
 using org.herbal3d.transport;
@@ -24,6 +27,9 @@ using org.herbal3d.cs.CommonUtil;
 using OMV = OpenMetaverse;
 
 using OpenSim.Framework;
+using OpenSim.Framework.Servers;
+using OpenSim.Framework.Servers.HttpServer;
+using System.Text;
 
 namespace org.herbal3d.Ragu {
 
@@ -54,7 +60,11 @@ namespace org.herbal3d.Ragu {
         RaguContext _RContext;
         CreateSpaceServerProcessor _creator;
 
+        // HTTP GET handler for this region's /ragu/config handler
+        // RaguConfigGETStreamHandler _configGetHandler;
+
         BTransportParams[] _transportParams;
+        public BTransportParams[] TransportParams { get => _transportParams; }
         CancellationTokenSource _canceller;
 
         // Listen for a connection and call the passed SpaceServer creater when a connection is made.
@@ -68,6 +78,7 @@ namespace org.herbal3d.Ragu {
             _transportParams = transportParams;
             _canceller = canceller;
             _RContext = context;
+            // _RContext.log.Debug("{0} SpaceServerListener: _RContext.sessionKey={1}", _logHeader, _RContext.sessionKey); // DEBUG DEBUG
 
             // For the moment, we assume there is only the WS transport.
             // Eventually, the parameters will specifiy multiple transports
@@ -78,7 +89,7 @@ namespace org.herbal3d.Ragu {
                     _RContext.log.Debug("{0} Creating listener. Transport={1}, Protocol={2}, Port={3}",
                                     _logHeader, xportParam.transport, xportParam.protocol, xportParam.port);
                     if (xportParam is BTransportWSParams) {
-                        _ = BTransportWS.ConnectionListener(
+                        _ = new BTransportWSConnectionListener(
                             param: xportParam as BTransportWSParams,
                             logger: _RContext.log,
                             connectionProcessor: (pTrans, pCan) => SpaceServerListener.AcceptConnection(pTrans, _RContext, this, pCan),
@@ -90,8 +101,31 @@ namespace org.herbal3d.Ragu {
                     _RContext.log.Debug("{0} Exception creating listener for {1}: {2}", _logHeader, xportParam.transport, ee);
                 }
             }
-            // start listening and call SpaceServer creator when a connection is made
+
+            /*
+            // Start an HTTP listener for the Ragu configuration request.
+            // The port and version information could be passed in the login request but, rather
+            //    than modify the simulator code, this extra HTTP request exists to get the Ragu
+            //    port and version information for this region.
+            // The authentication can be either with the initial login token or a session token.
+            // A normal login process is to do the XMLRPC login and then do this request to get the
+            //    Ragu port and version information for the OpenSession to the region.
+            string HandlerPath = "/Ragu/Config";
+            var handlerKeys = MainServer.Instance.GetHTTPHandlerKeys();
+            string thisHandler = "GET:" + HandlerPath;
+            if (!handlerKeys.Contains(thisHandler)) {
+                _RContext.log.Debug("{0} Creating GET handler for path '{1}'",
+                                    _logHeader, HandlerPath);
+                _configGetHandler = new RaguConfigGETStreamHandler(_RContext, this, HandlerPath);
+
+                MainServer.Instance.AddStreamHandler(_configGetHandler);
+            }
+            else {
+                _RContext.log.Debug("{0} GET handler already exists. Not creating.", _logHeader);
+            }
+            */
         }
+
         // A connection has been received.
         // Listen for an OpenSession.
         private static void AcceptConnection(BTransport pTrans,
@@ -112,6 +146,7 @@ namespace org.herbal3d.Ragu {
                                     pListener.ProcessConnectionStateChange);
             connection.Start();
             pRContext.log.Debug("{0} AcceptConnection. xportT={1}, protoT={2}", _logHeader, pTrans.TransportType, protocol.ProtocolType);
+            // pRContext.log.Debug("{0} AcceptConnection: _RContext.sessionKey={1}", _logHeader, pRContext.sessionKey); // DEBUG DEBUG
         }
 
         // Called when the state of the connection changes.
@@ -129,7 +164,8 @@ namespace org.herbal3d.Ragu {
                 _listener = pListener;
             }
             public override void Process(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
-                _RContext.log.Debug("SpaceServerListenter.Process: msg received: {0}", pMsg);    // DEBUG DEBUG
+                // _RContext.log.Debug("SpaceServerListener.Process: msg received: {0}", pMsg);    // DEBUG DEBUG
+                // _RContext.log.Debug("SpaceServerListener.Process: _RContext.sessionKey={0}", _RContext.sessionKey); // DEBUG DEBUG
                 switch (pMsg.Op) {
                     case (uint)BMessageOps.OpenSessionReq:
                         _listener.ProcessOpenSessionReq(pMsg, pConnection, pProtocol);
@@ -150,8 +186,9 @@ namespace org.herbal3d.Ragu {
         // Have received the OpenSession request.
         // Check the authentication stuff and, if good, create the SpaceServer for this connection.
         public void ProcessOpenSessionReq(BMessage pMsg, BasilConnection pConnection, BProtocol pProtocol) {
+            // _RContext.log.Debug("{0} ProcessOpenSession: _RContext.sessionKey={1}", _logHeader, _RContext.sessionKey); // DEBUG DEBUG
             string errorReason = "";
-            // Get the login information from the OpenConnection
+            // Get the login information from the OpenSession
             OSAuthToken clientAuth = OpenSessionResp.GetClientAuth(pMsg);
             if (clientAuth != null) {
                 string incomingAuthString = pMsg.Auth;
@@ -200,6 +237,7 @@ namespace org.herbal3d.Ragu {
                     else {
                         // The OpenSession is not from a MakeConnection.
                         // See if this is an initial session with all the user information
+                        _RContext.log.Error("{0} OpenSession authorization failed: loginQuth={1}", _logHeader, loginAuth.Token);
                         errorReason = String.Format("Login credentials not valid ({0})", waitingInfo.spaceServerType);
                     }
                 }
@@ -228,52 +266,19 @@ namespace org.herbal3d.Ragu {
             WaitingInfo waitingInfo = _RContext.GetWaitingForOpenSession(auth);
             if (waitingInfo != null) {
                 // Return whether the authentication info matches (always true since the auth is the key)
-                // ret = waitingInfo.incomingAuth.Equals(pUserAuth);
-                isAuthorized = true;
+                isAuthorized = waitingInfo.incomingAuth.Equals(pUserAuth);
+                if (!isAuthorized) {
+                    _RContext.log.Error("{0}: ValidateLoginAuth: Failed with waitingInfo. incominAuth={1], pUserAuth={2}",
+                                        _logHeader, waitingInfo.incomingAuth.Dump(), pUserAuth.Dump());
+                }
             }
             else {
                 // There is no WaitingInfo. Maybe this is a login rather than a MakeConnection
-                // _RContext.log.Error("{0}: OpenSession with unknown token. Token: {1}", _logHeader, auth);
+                // _RContext.log.Debug("{0}: OpenSession with unknown token. Token: {1}", _logHeader, auth);
                 // Create a 'waitingInfo' as if we'd been waiting for this initial login OpenSession
                 waitingInfo = SpaceServerCC.CreateWaitingInfo(OMV.UUID.Zero, pUserAuth);
                 try {
-                    string agentId = pUserAuth.GetProperty("aId");
-                    OMV.UUID agentUUID = OMV.UUID.Parse(agentId);
-                    waitingInfo.agentUUID = agentUUID;
-                    if (_RContext.parms.ShouldEnforceUserAuth) {
-                        OMV.UUID sessionID = OMV.UUID.Parse(pUserAuth.GetProperty("sId"));
-                        OMV.UUID secureSessionID = OMV.UUID.Parse(pUserAuth.GetProperty("SSID"));
-                        uint circuitCode = UInt32.Parse(pUserAuth.GetProperty("CC"));
-                        // RContext.log.Debug("{0} ValidateLoginAuth: agentUUID={1}, sessionID={2}, secureSessionID={3}, circuitCode={4}",
-                        //             _logHeader, agentUUID, sessionID, secureSessionID, circuitCode);
-
-                        // If the user logged in via the proper channels, there will be an AgentCircuitData allocated
-                        AgentCircuitData acd = _RContext.scene.AuthenticateHandler.GetAgentCircuitData(agentUUID);
-                        if (acd != null) {
-                            if (acd.circuitcode == circuitCode) {
-                                if (acd.SessionID == sessionID) {
-                                    if (acd.SecureSessionID == secureSessionID) {
-                                        isAuthorized = true;
-                                    }
-                                    else {
-                                        _RContext.log.Error("{0} ValidateUserAuth: Failed secureSessionID test. AgentId={1}",
-                                                    _logHeader, agentId);
-                                    }
-                                }
-                                else {
-                                    _RContext.log.Error("{0} ValidateUserAuth: Failed sessionId test. AgentId={1}",
-                                                _logHeader, agentId);
-                                }
-                            }
-                            else {
-                                _RContext.log.Error("{0} ValidateUserAuth: Failed circuitCode test. AgentId={1}",
-                                            _logHeader, agentId);
-                            }
-                        }
-                    }
-                    else {
-                        isAuthorized = true;
-                    };
+                    isAuthorized = ValidateInitialLoginToken(pUserAuth, waitingInfo);
                 }
                 catch (Exception e) {
                     _RContext.log.Error("{0} ValidateUserAuth: exception authorizing: {1}", _logHeader, e);
@@ -281,6 +286,73 @@ namespace org.herbal3d.Ragu {
                 }
             }
             pWaitingInfo = waitingInfo;
+            return isAuthorized;
+        }
+
+        // The initial login token that is sent with the OpenSession request contains a bunch of OpenSimulator
+        //    identifiction info coded there-in. In particular, it has the agent UUID, circuit code, secure
+        //    session ID and the session ID.
+        // This routine checks that the agent UUID is valid and that the session ID and secure session ID
+        //    also correspond to a logged in session.
+        // Return true if the token is valid.
+        public bool ValidateInitialLoginToken(OSAuthToken pUserAuth, WaitingInfo pWaitingInfo) {
+            bool isAuthorized = false;
+            string agentId = pUserAuth.GetProperty("aId");
+            if (agentId == null) {
+                _RContext.log.Error("{0} ValidateUserAuth: No waiting info but no aId info for login. Auth={1}",
+                            _logHeader, pUserAuth.Dump());
+                isAuthorized = false;
+            }
+            else {
+                OMV.UUID agentUUID = OMV.UUID.Zero;
+                try {
+                    agentUUID = OMV.UUID.Parse(agentId);
+                }
+                catch (Exception e) {
+                    _RContext.log.Error("{0} ValidateUserAuth: exception parsing agentId={1}: {2}",
+                                _logHeader, agentId, e);
+                    return false;
+                }
+                pWaitingInfo.agentUUID = agentUUID;
+                if (_RContext.parms.ShouldEnforceUserAuth) {
+                    OMV.UUID sessionID = OMV.UUID.Parse(pUserAuth.GetProperty("sId"));
+                    OMV.UUID secureSessionID = OMV.UUID.Parse(pUserAuth.GetProperty("SSID"));
+                    uint circuitCode = UInt32.Parse(pUserAuth.GetProperty("CC"));
+                    // RContext.log.Debug("{0} ValidateLoginAuth: agentUUID={1}, sessionID={2}, secureSessionID={3}, circuitCode={4}",
+                    //             _logHeader, agentUUID, sessionID, secureSessionID, circuitCode);
+
+                    // If the user logged in via the proper channels, there will be an AgentCircuitData allocated
+                    AgentCircuitData acd = _RContext.scene.AuthenticateHandler.GetAgentCircuitData(agentUUID);
+                    if (acd != null) {
+                        if (acd.circuitcode == circuitCode) {
+                            if (acd.SessionID == sessionID) {
+                                if (acd.SecureSessionID == secureSessionID) {
+                                    isAuthorized = true;
+                                }
+                                else {
+                                    _RContext.log.Error("{0} ValidateUserAuth: Failed secureSessionID test. AgentId={1}",
+                                                _logHeader, agentId);
+                                }
+                            }
+                            else {
+                                _RContext.log.Error("{0} ValidateUserAuth: Failed sessionId test. AgentId={1}",
+                                            _logHeader, agentId);
+                            }
+                        }
+                        else {
+                            _RContext.log.Error("{0} ValidateUserAuth: Failed circuitCode test. AgentId={1}",
+                                        _logHeader, agentId);
+                        }
+                    }
+                    else {
+                        _RContext.log.Error("{0} ValidateUserAuth: No agent circuit data. AgentId={1}",
+                                    _logHeader, agentId);
+                    }
+                }
+                else {
+                    isAuthorized = true;
+                };
+            }
             return isAuthorized;
         }
 
@@ -307,4 +379,146 @@ namespace org.herbal3d.Ragu {
             };
         }
     }
+
+    /* Code to return "/Ragu/Config" but the functionality isn't needed.
+       Code kept as an example of using System.Text.Json.
+
+    public class RaguInstanceInfo {
+        public string raguVersion;
+        public string lodenVersion;
+        public string commonUtilVersion;
+        public string commonEntitiesVersion;
+    }
+    public class OpenSimSpecificInfo {
+        public OpenSimRegionInfo region;
+    }
+    public class OpenSimRegionInfo {
+        public string name;
+        public string location;
+        public uint regionLocX;
+        public uint regionLocY;
+        public uint httpPort;
+        public uint regionSizeX;
+        public uint regionSizeY;
+        public uint regionSizeZ;
+    }
+
+    public class RaguConfigInfo {
+        public RaguInstanceInfo ragu;
+        public BTransportParams[] listeners;
+        public OpenSimSpecificInfo opensim;
+    }
+
+    public class RaguConfigGETStreamHandler : BaseStreamHandler {
+        private readonly string _logHeader = "[RaguConfigGetStreamHandler]";
+
+        private readonly org.herbal3d.Ragu.RaguContext _context;
+
+        private readonly SpaceServerListener _listener;
+
+        // Handler for the HTTP GET request
+        public RaguConfigGETStreamHandler(RaguContext pContext, SpaceServerListener pListener, string pPath)
+                        : base("GET", pPath, "RaguGET" , "Ragu asset fetcher") {
+            _context = pContext;
+            _listener = pListener;
+        }
+
+        protected override byte[] ProcessRequest(string path, Stream request, IOSHttpRequest httpRequest, IOSHttpResponse httpResponse)
+        {
+            bool authorized = false;
+            if (_context.parms.ShouldEnforceConfigAccessAuthorization) {
+                string authValue = ExtractAuthorization(httpRequest);
+                if (authValue != null) {
+                    OSAuthToken authToken = OSAuthToken.FromString(authValue);
+                    WaitingInfo waitingInfo = SpaceServerCC.CreateWaitingInfo(OMV.UUID.Zero, authToken);
+                    if (_listener.ValidateInitialLoginToken(authToken, waitingInfo)) {
+                        authorized = true;
+                    }
+                }
+            }
+            else {
+                authorized = true;
+            }
+
+            if (authorized) {
+                RaguConfigInfo raguInfo = new RaguConfigInfo() {
+                    ragu = new RaguInstanceInfo() {
+                        raguVersion = org.herbal3d.Ragu.VersionInfo.longVersion,
+                        lodenVersion = org.herbal3d.Loden.VersionInfo.longVersion,
+                        commonEntitiesVersion = org.herbal3d.cs.CommonEntities.VersionInfo.longVersion,
+                        commonUtilVersion = org.herbal3d.cs.CommonUtil.VersionInfo.longVersion
+                    },
+                    listeners = _listener.TransportParams,
+                    opensim = new OpenSimSpecificInfo() {
+                        region = new OpenSimRegionInfo() {
+                            name = _context.scene.RegionInfo.RegionName,
+                            location = _context.scene.RegionInfo.RegionLocX + "," + _context.scene.RegionInfo.RegionLocY,
+                            regionLocX = _context.scene.RegionInfo.RegionLocX,
+                            regionLocY = _context.scene.RegionInfo.RegionLocY,
+                            httpPort = _context.scene.RegionInfo.HttpPort,
+                            regionSizeX = _context.scene.RegionInfo.RegionSizeX,
+                            regionSizeY = _context.scene.RegionInfo.RegionSizeY,
+                            regionSizeZ = _context.scene.RegionInfo.RegionSizeZ,
+                        }
+                    }
+                };
+
+                _context.log.Debug("{0} ragu version={1}", _logHeader, raguInfo.ragu.raguVersion);
+                var options = new JsonSerializerOptions {
+                    WriteIndented = true,   // pretty print
+                    IncludeFields = true    // normally fields are not serialized
+                };
+                string jsonString = JsonSerializer.Serialize<RaguConfigInfo>(raguInfo, options);
+
+                int jsonLength = jsonString.Length;
+                if (jsonLength > 0) {
+                    httpResponse.StatusCode = (int)System.Net.HttpStatusCode.OK;
+                    httpResponse.ContentLength = jsonLength;
+                    httpResponse.ContentType = "application/json";
+                    httpResponse.Body.Write(Encoding.ASCII.GetBytes(jsonString), 0, jsonLength);
+                    _context.log.Debug("{0} Returning asset fn={1}", _logHeader, jsonString);
+                }
+                else {
+                    httpResponse.StatusCode = (int)System.Net.HttpStatusCode.NotFound;
+                    _context.log.Debug("{0} Failed config fetch", _logHeader);
+                }
+                // Cross-Origin Resource Sharing with simple requests
+                httpResponse.AddHeader("Access-Control-Allow-Origin", "*");
+            }
+            else {
+                httpResponse.StatusCode = (int)System.Net.HttpStatusCode.Unauthorized;
+            }
+
+            return null;
+        }
+
+        // The authorization token is either in the 'Authorization' header or in the URL
+        private string ExtractAuthorization(IOSHttpRequest pReq) {
+            string ret = null;
+            // Check for 'Authorization' in the request header
+            NameValueCollection headers = pReq.Headers;
+            string authValue = headers.GetOne("Authorization");
+            if (authValue != null) {
+                ret = authValue;
+            }
+            else {
+                // if no 'Authorization', see if an access token was embedded in the URL.
+                // Tokens will be for the form ".../bearer-token/..." where "bearer-" is the
+                //     flag for the token, and "token" is the actual token string.
+                string[] segments = pReq.Url.Segments;
+                foreach (string segment in segments.Reverse()) {
+                    if (segment.StartsWith("bearer-")) {
+                        authValue = segment.Substring(7);
+                        if (authValue.EndsWith("/")) {
+                            authValue = authValue.Substring(0, authValue.Length - 1);
+                        }
+                        ret = authValue;
+                        break;
+                    }
+                }
+            }
+            return ret;
+        }
+    }
+    */
 }

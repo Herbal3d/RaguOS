@@ -107,22 +107,38 @@ namespace org.herbal3d.Ragu {
         public WaitingInfo RememberWaitingForOpenSession(WaitingInfo pWInfo) {
             lock (waitingForMakeConnection) {
                 waitingForMakeConnection.Add(pWInfo.incomingAuth.Token, pWInfo);
-                // log.Debug("SpaceServerBase.RememberWaitingForOpenSession: itoken={0}", pWInfo.incomingAuth.Token);
+                log.Debug("SpaceServerBase.RememberWaitingForOpenSession: itoken={0}", pWInfo.incomingAuth.Token);
             }
             return pWInfo;
         }
         // Look for the WaitingInfo indexed by the passed auth. Return the found WaitingInfo
         //    or null if not found.
         // This also removes the WaitingInfo from the list of waiting infos.
-        public WaitingInfo GetWaitingForOpenSession(string pAuth) {
+        public WaitingInfo GetWaitingForOpenSession(string pAuth, bool pRemove = true) {
             lock (waitingForMakeConnection) {
+                log.Debug("SpaceServerBase.GetWaitingForOpenSession: itoken={0}", pAuth);
                 if (waitingForMakeConnection.TryGetValue(pAuth, out WaitingInfo foundInfo)) {
-                    waitingForMakeConnection.Remove(pAuth);
+                    if (pRemove) {
+                        log.Debug("SpaceServerBase.GetWaitingForOpenSession: removing itoken={0}", pAuth);
+                        waitingForMakeConnection.Remove(pAuth);
+                    }
                     return foundInfo;
                 }
             }
+            log.Debug("SpaceServerBase.GetWaitingForOpenSession: failed to find itoken={0}", pAuth);
             return null;
         }
+        // DEBUG DEBUG
+        private void DumpWaitingForMakeConnection() {
+            lock (waitingForMakeConnection) {
+                // log.Debug("SpaceServerBase.DumpWaitingForMakeConnection: waitingForMakeConnection.Count={0}, Context.sessionKey", waitingForMakeConnection.Count, sessionKey);
+                foreach (var kvp in waitingForMakeConnection) {
+                    log.Debug("SpaceServerBase.DumpWaitingForMakeConnection: itoken={0}, inAuth={1}",
+                        kvp.Key, kvp.Value.incomingAuth.Token);
+                }
+            }
+        }
+        // END DEBUG DEBUG
     }
 
     [Extension(Path = "/OpenSim/RegionModules", NodeName = "RegionModule", Id = "RaguModule")]
@@ -180,6 +196,7 @@ namespace org.herbal3d.Ragu {
         public void AddRegion(Scene pScene) {
             // Remember all the loaded scenes
             _context.scene = pScene;
+            _context.log.Debug("{0} Region added. Scene={1}, sessionKey={2}", _logHeader, _context.scene.Name, _context.sessionKey);    // DEBUG DEBUG
         }
 
         // IRegionModuleBase.RemoveRegion
@@ -195,6 +212,7 @@ namespace org.herbal3d.Ragu {
         public void RegionLoaded(Scene scene) {
             if (_context.parms.Enabled) {
                 _context.log.Debug("{0} Region loaded. Starting region manager", _logHeader);
+                _context.log.Debug("{0}      RegionName={1}, RContext.sessionKey={2}", _logHeader, _context.scene.Name, _context.sessionKey);   // DEBUG DEBUG
                 _regionProcessor = new RaguRegion(_context);
                 _context.scene.RegisterModuleInterface<RaguRegion>(_regionProcessor);
                 _regionProcessor.Start();

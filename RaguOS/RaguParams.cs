@@ -56,6 +56,10 @@ namespace org.herbal3d.Ragu {
         [ConfigParam(name: "ShouldEnforceAssetAccessAuthorization", valueType: typeof(bool), desc: "All asset requests require an 'Authentication' header")]
         public bool ShouldEnforceAssetAccessAuthorization = false;
 
+        // Code commented out until someone decides they need the Ragu configuration HTTP request
+        // [ConfigParam(name: "ShouldEnforceConfigAccessAuthorization", valueType: typeof(bool), desc: "Enforce authentication to access /ragu/config")]
+        // public bool ShouldEnforceConfigAccessAuthorization = false;
+
         [ConfigParam(name: "ShouldAliveCheckSessions", valueType: typeof(bool), desc: "Whether to start AliveCheck messages for open connections")]
         public bool ShouldAliveCheckSessions = false;
 
@@ -279,9 +283,10 @@ namespace org.herbal3d.Ragu {
         private Dictionary<string, string> RememberConnectionParams = new Dictionary<string, string>();
         private string GetRegionInfoParam(RaguContext pContext, string parm) {
             string val = null;
-            if (!RememberConnectionParams.TryGetValue("RegionInfo-" + parm, out val)) {
+            string savedValKey = "RegionInfo-" + pContext.scene.RegionInfo.RegionName + "-" + parm;
+            if (!RememberConnectionParams.TryGetValue(savedValKey, out val)) {
                 val = pContext.scene.RegionInfo.GetSetting(parm);
-                RememberConnectionParams.Add("RegionInfo-" + parm, val);
+                RememberConnectionParams.Add(savedValKey, val);
             }
             return val;
         }

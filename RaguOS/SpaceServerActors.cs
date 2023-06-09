@@ -295,16 +295,16 @@ namespace org.herbal3d.Ragu {
                 controlFlags |= (uint)OMV.AgentManager.ControlFlags.AGENT_CONTROL_AT_NEG;
             }
             if ((cFlags & (uint)AbOSAvaUpdate.OSAvaUpdateMoveAction.TurnLeft) != 0) {
-                controlFlags |= (uint)OMV.AgentManager.ControlFlags.AGENT_CONTROL_NUDGE_AT_POS;
+                controlFlags |= (uint)OMV.AgentManager.ControlFlags.AGENT_CONTROL_TURN_LEFT;
                 var rotate = OMV.Quaternion.CreateFromAxisAngle(0, 0, 1, turnRads);
-                // this.RContext.log.Debug("{0}: AvatarAction.TurnLeft: rot={1}, bRot={2}, after={3}", _logHeader, rotate, bodyRot, bodyRot * rotate);
+                this._RContext.log.Debug("{0}: AvatarAction.TurnLeft: rot={1}, bRot={2}, after={3}", _logHeader, rotate, bodyRot, bodyRot * rotate);
                 bodyRot *= rotate;
                 headRot = bodyRot;
             }
             if ((cFlags & (uint)AbOSAvaUpdate.OSAvaUpdateMoveAction.TurnRight) != 0) {
-                controlFlags |= (uint)OMV.AgentManager.ControlFlags.AGENT_CONTROL_NUDGE_AT_POS;
+                controlFlags |= (uint)OMV.AgentManager.ControlFlags.AGENT_CONTROL_TURN_RIGHT;
                 var rotate = OMV.Quaternion.CreateFromAxisAngle(0, 0, 1, -turnRads);
-                // this.RContext.log.Debug("{0}: AvatarAction.TurnRight: rot={1}, bRot={2}, after={3}", _logHeader, rotate, bodyRot, bodyRot * rotate);
+                this._RContext.log.Debug("{0}: AvatarAction.TurnRight: rot={1}, bRot={2}, after={3}", _logHeader, rotate, bodyRot, bodyRot * rotate);
                 bodyRot *= rotate;
                 headRot = bodyRot;
             }
