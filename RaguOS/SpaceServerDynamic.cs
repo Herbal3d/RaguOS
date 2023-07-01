@@ -51,11 +51,12 @@ namespace org.herbal3d.Ragu {
         public static readonly string SpaceServerType = "Dynamic";
 
         public SpaceServerDynamic(RaguContext pContext,
+                                RaguRegion pRegion,
                                 CancellationTokenSource pCanceller,
                                 WaitingInfo pWaitingInfo,
                                 BasilConnection pConnection,
                                 BMessage pMsg) 
-                        : base(pContext, pCanceller, pConnection) {
+                        : base(pContext, pRegion, pCanceller, pConnection) {
             LayerType = SpaceServerType;
 
             pConnection.SetOpProcessor(new ProcessDynamicIncomingMessages(this), ProcessConnectionStateChange);
@@ -72,7 +73,8 @@ namespace org.herbal3d.Ragu {
         // Send a MakeConnection for connecting to a SpaceServer of this type.
         public static void MakeConnectionToSpaceServer(BasilConnection pConn,
                                                     OMV.UUID pAgentUUID,
-                                                    RaguContext pRContext) {
+                                                    RaguContext pRContext,
+                                                    RaguRegion pRegion) {
 
             // The authentication token that the client will send with the OpenSession
             OSAuthToken incomingAuth = OSAuthToken.SimpleToken();
@@ -82,14 +84,16 @@ namespace org.herbal3d.Ragu {
                 agentUUID = pAgentUUID,
                 incomingAuth = incomingAuth,
                 spaceServerType = SpaceServerDynamic.SpaceServerType,
-                createSpaceServer = (pC, pW, pConn, pMsgX, pCan) => {
-                    return new SpaceServerDynamic(pC, pCan, pW, pConn, pMsgX);
+                rContext = pRContext,
+                rRegion = pRegion,
+                createSpaceServer = (pC, pR, pW, pConn, pMsgX, pCan) => {
+                    return new SpaceServerDynamic(pC, pR, pCan, pW, pConn, pMsgX);
                 }
             };
             pRContext.RememberWaitingForOpenSession(wInfo);
 
             // Create the MakeConnection and send it
-            var pBlock = pRContext.Listener.ParamsForMakeConnection(pRContext.HostnameForExternalAccess, incomingAuth);
+            var pBlock = SpaceServerListener.ParamsForMakeConnection(pRContext, pRegion, incomingAuth);
             _ = pConn.MakeConnection(pBlock);
         }
 

@@ -19,6 +19,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+using OpenSim.Framework.Servers;
 using OpenSim.Region.Framework.Scenes;
 
 using org.herbal3d.transport;
@@ -34,9 +35,12 @@ namespace org.herbal3d.Ragu {
         // Cancellation token for all services started by Ragu for this region.
         private readonly CancellationTokenSource _canceller;
 
+        public Scene regionScene;   // the scene associated with this Ragu instance
+
         // Given a scene, do the LOD ("level of detail") conversion
-        public RaguRegion(RaguContext pContext) {
+        public RaguRegion(RaguContext pContext, Scene pScene) {
             RContext = pContext;
+            regionScene = pScene;
             _canceller = new CancellationTokenSource();
 
             // Do an early calcuation of host name. It can be specified in the parameter
@@ -47,7 +51,7 @@ namespace org.herbal3d.Ragu {
 
         public void Start() {
             // Wait for the region to have all its content before scanning
-            RContext.scene.EventManager.OnPrimsLoaded += Event_OnPrimsLoaded;
+            regionScene.EventManager.OnPrimsLoaded += Event_OnPrimsLoaded;
 
             // Ragu's process for external access to the Loden generated content.
             // TODO: This should be an external process.
@@ -65,28 +69,92 @@ namespace org.herbal3d.Ragu {
         private void Event_OnPrimsLoaded(Scene pScene) {
             RContext.log.Debug("{0} Prims loaded. Starting listener for inbound connections", _logHeader);
             try {
-                // Start the listener for this region.
+                // There are listeners for the CC SpaceServer. There is only one.
+                lock (RContext) {
+                    if (RaguContext.SimulatorCCListener == null) {
+                        if (RContext.parms.EnableOpenSimWebSocket) {
+                            RaguContext.SimulatorCCListener = new SpaceServerOSWSListener(
+                                    new BTransportOSWSParams() {
+                                        preferred       = true,
+                                        URLaddition     = "/Ragu/CC",
+                                        isSecure        = RContext.parms.GetConnectionParam<bool>(this, null, "OSWSIsSecure"),
+                                        host            = RContext.HostnameForExternalAccess,
+                                        port            = (int)MainServer.Instance.Port,
+                                        disableNaglesAlgorithm = RContext.parms.GetConnectionParam<bool>(this, null, "OSWSDisableNaglesAlgorithm")
+                                    },
+                                    _canceller,
+                                    RContext,
+                                    this
+                            );
+                        }
+                    }
+                }
+                // Start the listeners for this region.
                 // This will receive all the connections and OpenSession's and create the
                 //     space servers for same.
                 // The port is assumed to be one more than the region port.
                 //     This is because the region port is sent in the login response.
                 //     and there is, currently, no mechanism to send the WS port.
-                var wsPort = RContext.scene.RegionInfo.InternalEndPoint.Port + 1;
+                var wsPort = regionScene.RegionInfo.InternalEndPoint.Port + 1;
+                if (RContext.parms.EnableWebSocket) {
+                    RContext.addRegionListener(pScene.Name, BTransportWS.ID, new SpaceServerWSListener(
+                            new BTransportWSParams() {
+                                preferred       = false,
+                                isSecure        = RContext.parms.GetConnectionParam<bool>(this, null, "WSIsSecure"),
+                                host            = RContext.HostnameForExternalAccess,
+                                // port            = RContext.parms.GetConnectionParam<int>(this, null, "WSPort"),
+                                port            = wsPort,
+                                certificate     = RContext.parms.GetConnectionParam<string>(this, null, "WSCertificate"),
+                                externalURLTemplate = RContext.parms.GetConnectionParam<string>(this, null, "WSExternalUrlTemplate"),
+                                disableNaglesAlgorithm = RContext.parms.GetConnectionParam<bool>(this, null, "WSDisableNaglesAlgorithm")
+                            },
+                            _canceller,
+                            RContext,
+                            this
+                    ));
+                };
+                if (RContext.parms.EnableOpenSimWebSocket) {
+                    RContext.addRegionListener(pScene.Name, BTransportOSWS.ID, new SpaceServerOSWSListener(
+                            new BTransportOSWSParams() {
+                                preferred       = true,
+                                URLaddition     = "/Ragu/Region/" + pScene.Name,
+                                isSecure        = RContext.parms.GetConnectionParam<bool>(this, null, "OSWSIsSecure"),
+                                host            = RContext.HostnameForExternalAccess,
+                                port            = (int)MainServer.Instance.Port,
+                                disableNaglesAlgorithm = RContext.parms.GetConnectionParam<bool>(this, null, "OSWSDisableNaglesAlgorithm")
+                            },
+                            _canceller,
+                            RContext,
+                            this
+                    ));
+                };
+                if (RContext.parms.EnableTCP) {
+                    // TODO:
+                }
+                /*
                 RContext.Listener = new SpaceServerListener(
                     context: RContext,
                     transportParams: new BTransportParams[] {
                         new BTransportWSParams() {
-                            preferred       = true,
+                            preferred       = false,
                             isSecure        = RContext.parms.GetConnectionParam<bool>(RContext, null, "WSIsSecure"),
                             // port            = RContext.parms.GetConnectionParam<int>(RContext, null, "WSPort"),
                             port            = wsPort,
                             certificate     = RContext.parms.GetConnectionParam<string>(RContext, null, "WSCertificate"),
                             externalURLTemplate = RContext.parms.GetConnectionParam<string>(RContext, null, "WSExternalUrlTemplate"),
                             disableNaglesAlgorithm = RContext.parms.GetConnectionParam<bool>(RContext, null, "WSDisableNaglesAlgorithm")
+                        },
+                        new BTransportOSWSParams() {
+                            preferred       = true,
+                            isSecure        = RContext.parms.GetConnectionParam<bool>(RContext, null, "OSWSIsSecure"),
+                            port            = (int)MainServer.Instance.Port,
+                            URLaddition     = "CC",
+                            disableNaglesAlgorithm = RContext.parms.GetConnectionParam<bool>(RContext, null, "OSWSDisableNaglesAlgorithm")
                         }
                     },
                     canceller: _canceller
                 ) ;
+                */
             }
             catch (Exception e) {
                 RContext.log.Error("{0} Failed creation of SpaceServerCC: {1}", _logHeader, e);
@@ -99,9 +167,9 @@ namespace org.herbal3d.Ragu {
         // Find the first interface that is actually talking to the network and not
         //     one of the Docker interfaces.
         private void InitializeHostnameForExternalAccess(RaguContext pContext) {
-            if (! String.IsNullOrEmpty(RContext.scene.RegionInfo.ExternalHostName)) {
+            if (! String.IsNullOrEmpty(regionScene.RegionInfo.ExternalHostName)) {
                 // The region specifies an external hostname. Use that one.
-                pContext.HostnameForExternalAccess = RContext.scene.RegionInfo.ExternalHostName;
+                pContext.HostnameForExternalAccess = regionScene.RegionInfo.ExternalHostName;
             }
             else {
                 pContext.HostnameForExternalAccess = RContext.parms.ExternalAccessHostname;

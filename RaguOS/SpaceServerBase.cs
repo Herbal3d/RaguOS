@@ -30,7 +30,11 @@ namespace org.herbal3d.Ragu {
 
         public string LayerType = "XX";
 
+        // The simulator wide Ragu context information
         public readonly RaguContext _RContext;
+
+        // Each SpaceServer instance is associated with a region
+        public readonly RaguRegion _RRegion;
 
         // The UUID of the logged in agent we're working as
         public OMV.UUID AgentUUID;
@@ -41,8 +45,9 @@ namespace org.herbal3d.Ragu {
         // protected BTransport _transport;
         // protected BProtocol _protocol;
 
-        public SpaceServerBase(RaguContext pContext, CancellationTokenSource pCanceller, BasilConnection pConnection) {
+        public SpaceServerBase(RaguContext pContext, RaguRegion pRegion, CancellationTokenSource pCanceller, BasilConnection pConnection) {
             _RContext = pContext;
+            _RRegion = pRegion;
             _cancellerSource = pCanceller;
             _connection = pConnection;
             _RContext.addSpaceServer(this);

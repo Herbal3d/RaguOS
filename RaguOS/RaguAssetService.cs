@@ -12,16 +12,10 @@
 //     limitations under the License.
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Specialized;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
-using System.Web;
 
 using OpenSim.Framework;
 using OpenSim.Framework.Servers;
@@ -223,7 +217,7 @@ namespace org.herbal3d.Ragu {
                     httpResponse.ContentLength = assetLength;
                     httpResponse.ContentType = mimeType;
                     httpResponse.Body.Write(asset, 0, assetLength);
-                    _context.log.Debug("{0} Returning asset fn={1}", _logHeader, filename);
+                    // _context.log.Debug("{0} Returning asset fn={1}", _logHeader, filename);
                 }
                 else {
                     httpResponse.StatusCode = (int)System.Net.HttpStatusCode.NotFound;

@@ -56,6 +56,14 @@ namespace org.herbal3d.Ragu {
         [ConfigParam(name: "ShouldEnforceAssetAccessAuthorization", valueType: typeof(bool), desc: "All asset requests require an 'Authentication' header")]
         public bool ShouldEnforceAssetAccessAuthorization = false;
 
+        // Different communication systems can be opened for connections to the SpaceServer.
+        [ConfigParam(name: "EnableWebSocket", valueType: typeof(bool), desc: "enable Fleck websocket SpaceServer connections")]
+        public bool EnableWebSocket = true;
+        [ConfigParam(name: "EnableOpenSimWebSocket", valueType: typeof(bool), desc: "enable OpenSim websocket SpaceServer connections")]
+        public bool EnableOpenSimWebSocket = true;
+        [ConfigParam(name: "EnableTCP", valueType: typeof(bool), desc: "enable TCP SpaceServer connections")]
+        public bool EnableTCP = false;
+
         // Code commented out until someone decides they need the Ragu configuration HTTP request
         // [ConfigParam(name: "ShouldEnforceConfigAccessAuthorization", valueType: typeof(bool), desc: "Enforce authentication to access /ragu/config")]
         // public bool ShouldEnforceConfigAccessAuthorization = false;
@@ -226,13 +234,13 @@ namespace org.herbal3d.Ragu {
         /// <param name="pLayer">Name of layer getting connection for</param>
         /// <param name="pParam">The parameter name. Used to build names to look up in INI files</param>
         /// <returns>Parameter value. Note that the type will change depending on the parameter</returns>
-        public T GetConnectionParam<T>(RaguContext pContext, string pLayer, string pParam) {
-            string val = FindConnectionParam(pContext, pLayer, pParam);
+        public T GetConnectionParam<T>(RaguRegion pRegion, string pLayer, string pParam) {
+            string val = FindConnectionParam(pRegion, pLayer, pParam);
             if (val == null) {
                 // Couldn't find the value so see if it's one we can build or default
                 switch (pParam) {
                     case "WSPort":
-                        var basePort = FindConnectionParam(pContext, null, "BasePort");
+                        var basePort = FindConnectionParam(pRegion, null, "BasePort");
                         val = (Int32.Parse(basePort) + NextLayerPortOffset()).ToString();
                         break;
                     /* This is deprecated and not used by anyone
@@ -256,17 +264,17 @@ namespace org.herbal3d.Ragu {
         }
         // Search the RegionInfo and RaguParams for potential value and return the string value or null;
         // Looks for "SpaceServer_LAYER_PARAM" and then "SPACESERVER_PARAM"
-        private string FindConnectionParam(RaguContext pContext, string pLayer, string pParam) {
+        private string FindConnectionParam(RaguRegion pRegion, string pLayer, string pParam) {
             string val = null;
             string parm = "SpaceServer_" + (pLayer == null ? "" : (pLayer + "_")) + pParam;
-            val = GetRegionInfoParam(pContext, parm);
+            val = GetRegionInfoParam(pRegion, parm);
             if (val == null) {
                 // No explicit value in the RegionInfo file. One in the Ragu.ini file?
                 val = this.GetParameterValue(parm);
                 if (val == null || val.Length == 0) {
                     // No explicit value anywhere. Try the general value
                     parm = "SpaceServer_" + pParam;
-                    val = GetRegionInfoParam(pContext, parm);
+                    val = GetRegionInfoParam(pRegion, parm);
                     if (val == null) {
                         val = this.GetParameterValue(parm);
                         if (val == null || val.Length == 0) {
@@ -281,11 +289,11 @@ namespace org.herbal3d.Ragu {
         // Get RegionInfo param and remember what we got so we don't fetch multiple times.
         // This is done because RegionInfo outputs log messages if values are not found.
         private Dictionary<string, string> RememberConnectionParams = new Dictionary<string, string>();
-        private string GetRegionInfoParam(RaguContext pContext, string parm) {
+        private string GetRegionInfoParam(RaguRegion pRegion, string parm) {
             string val = null;
-            string savedValKey = "RegionInfo-" + pContext.scene.RegionInfo.RegionName + "-" + parm;
+            string savedValKey = "RegionInfo-" + pRegion.regionScene.RegionInfo.RegionName + "-" + parm;
             if (!RememberConnectionParams.TryGetValue(savedValKey, out val)) {
-                val = pContext.scene.RegionInfo.GetSetting(parm);
+                val = pRegion.regionScene.RegionInfo.GetSetting(parm);
                 RememberConnectionParams.Add(savedValKey, val);
             }
             return val;

@@ -18,12 +18,12 @@
     <BaseAddress>285212672</BaseAddress>
     <ConfigurationOverrideFile>
     </ConfigurationOverrideFile>
-    <DefineConstants>TRACE;DEBUG;</DefineConstants>
+    <DefineConstants>TRACE</DefineConstants>
     <DocumentationFile></DocumentationFile>
     <DebugSymbols>True</DebugSymbols>
     <FileAlignment>4096</FileAlignment>
     <Optimize>False</Optimize>
-    <TieredCompilation>false</TieredCompilation>
+    <TieredCompilationQuickJit>false</TieredCompilationQuickJit>
     <UseCommonOutputDirectory>True</UseCommonOutputDirectory>
     <AppendTargetFrameworkToOutputPath>False</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>False</AppendRuntimeIdentifierToOutputPath>
@@ -46,7 +46,7 @@
     <DebugSymbols>False</DebugSymbols>
     <FileAlignment>4096</FileAlignment>
     <Optimize>True</Optimize>
-    <TieredCompilation>false</TieredCompilation>
+    <TieredCompilationQuickJit>false</TieredCompilationQuickJit>
     <UseCommonOutputDirectory>True</UseCommonOutputDirectory>
     <AppendTargetFrameworkToOutputPath>False</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>False</AppendRuntimeIdentifierToOutputPath>
@@ -137,6 +137,9 @@
     <Compile Include="SpaceServerListener.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="SpaceServerWSListener.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="SpaceServerEnviron.cs">
       <SubType>Code</SubType>
     </Compile>
@@ -150,6 +153,12 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="RaguParams.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="BTransportOSWS.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SpaceServerOSWSListener.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="SpaceServerStatic.cs">

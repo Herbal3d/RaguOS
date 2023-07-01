@@ -11,7 +11,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using Mono.Addins;
 
@@ -40,7 +39,11 @@ namespace org.herbal3d.Ragu {
         public OSAuthToken incomingAuth;
         public DateTime whenCreated;
         public OMV.UUID agentUUID;
+        public RaguContext rContext;
+        public RaguRegion rRegion;
         public string spaceServerType;  // the type of the SpaceServer that is to be created
+        // Function called when OpenSession is received and authentication is verified.
+        //    This usually creates the SpaceServer that corresponds to the MakeConnection.
         public CreateSpaceServerProcessor createSpaceServer;
 
         public WaitingInfo() {
@@ -65,11 +68,23 @@ namespace org.herbal3d.Ragu {
         public BLogger log;
         public readonly string sessionKey;
 
-        public Scene scene;
+        // The RaguRegion instances created for each region
+        public Dictionary<string, RaguRegion> RaguRegions = new Dictionary<string, RaguRegion>();  // regions known to Ragu
+
         public BFrameOfRef frameOfRef;
 
-        // Listener for this region
-        public SpaceServerListener Listener;
+        // Listeners for the various SpaceServer advertizing transports
+        // There is only one of these. Checked under lock(RaguContext)
+        public static SpaceServerListener SimulatorCCListener;    // CC listener for simulator connections
+
+        // Each region gets a listener for each type of transport
+        // This is indexed by region name and then by transport type
+        //        listener = RegionListeners[regionName][transportType];
+        public Dictionary<string, Dictionary<string,SpaceServerListener>> RegionListeners =
+                        new Dictionary<string, Dictionary<string,SpaceServerListener>>();
+
+        // public Dictionary<string,SpaceServerListener> Listeners = new Dictionary<string, SpaceServerListener>();
+
         // All of the SpaceServers created for connections in this region.
         public List<SpaceServerBase> SpaceServers = new List<SpaceServerBase>();
         // When a client is sent a MakeConnection, the OpenSession auth info is added here
@@ -81,6 +96,17 @@ namespace org.herbal3d.Ragu {
         public RaguContext() {
             sessionKey = org.herbal3d.cs.CommonUtil.Util.RandomString(8);
         }
+
+        // Remember a listener for a particular region and transport type
+        public void addRegionListener(string pRegionName, string pTransportType, SpaceServerListener pListener) {
+            lock (RegionListeners) {
+                if (!RegionListeners.ContainsKey(pRegionName)) {
+                    RegionListeners.Add(pRegionName, new Dictionary<string, SpaceServerListener>());
+                }
+                RegionListeners[pRegionName].Add(pTransportType, pListener);
+            }
+        }
+
         public void addSpaceServer(SpaceServerBase pSS) {
             lock (this.SpaceServers) {
                 this.SpaceServers.Add(pSS);
@@ -107,7 +133,7 @@ namespace org.herbal3d.Ragu {
         public WaitingInfo RememberWaitingForOpenSession(WaitingInfo pWInfo) {
             lock (waitingForMakeConnection) {
                 waitingForMakeConnection.Add(pWInfo.incomingAuth.Token, pWInfo);
-                log.Debug("SpaceServerBase.RememberWaitingForOpenSession: itoken={0}", pWInfo.incomingAuth.Token);
+                // log.Debug("SpaceServerBase.RememberWaitingForOpenSession: itoken={0}", pWInfo.incomingAuth.Token);
             }
             return pWInfo;
         }
@@ -116,7 +142,7 @@ namespace org.herbal3d.Ragu {
         // This also removes the WaitingInfo from the list of waiting infos.
         public WaitingInfo GetWaitingForOpenSession(string pAuth, bool pRemove = true) {
             lock (waitingForMakeConnection) {
-                log.Debug("SpaceServerBase.GetWaitingForOpenSession: itoken={0}", pAuth);
+                // log.Debug("SpaceServerBase.GetWaitingForOpenSession: itoken={0}", pAuth);
                 if (waitingForMakeConnection.TryGetValue(pAuth, out WaitingInfo foundInfo)) {
                     if (pRemove) {
                         log.Debug("SpaceServerBase.GetWaitingForOpenSession: removing itoken={0}", pAuth);
@@ -125,7 +151,7 @@ namespace org.herbal3d.Ragu {
                     return foundInfo;
                 }
             }
-            log.Debug("SpaceServerBase.GetWaitingForOpenSession: failed to find itoken={0}", pAuth);
+            // log.Debug("SpaceServerBase.GetWaitingForOpenSession: failed to find itoken={0}", pAuth);
             return null;
         }
         // DEBUG DEBUG
@@ -142,7 +168,7 @@ namespace org.herbal3d.Ragu {
     }
 
     [Extension(Path = "/OpenSim/RegionModules", NodeName = "RegionModule", Id = "RaguModule")]
-    public class RaguModule : INonSharedRegionModule {
+    public class RaguModule : ISharedRegionModule {
         private static readonly ILog _log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
         private static readonly String _logHeader = "[RaguModule]";
 
@@ -191,30 +217,40 @@ namespace org.herbal3d.Ragu {
             }
         }
 
+        public void PostInitialise() {
+            if (_context.parms.Enabled) {
+                _context.log.Debug("{0} PostInitialize");
+            }
+        }
+
         // IRegionModuleBase.AddRegion
         // Called once for the region we're managing.
         public void AddRegion(Scene pScene) {
-            // Remember all the loaded scenes
-            _context.scene = pScene;
-            _context.log.Debug("{0} Region added. Scene={1}, sessionKey={2}", _logHeader, _context.scene.Name, _context.sessionKey);    // DEBUG DEBUG
+            return;
         }
 
         // IRegionModuleBase.RemoveRegion
         public void RemoveRegion(Scene pScene) {
-            if (_context.scene != null) {
-                Close();
-                _context.scene = null;
-            }
+            if (_context.RaguRegions.Remove(pScene.Name, out RaguRegion foundRegion)) {
+                foundRegion.Stop();
+            };
         }
 
         // IRegionModuleBase.RegionLoaded
         // Called once for each region loaded after all other regions have been loaded.
-        public void RegionLoaded(Scene scene) {
+        public void RegionLoaded(Scene pScene) {
             if (_context.parms.Enabled) {
                 _context.log.Debug("{0} Region loaded. Starting region manager", _logHeader);
-                _context.log.Debug("{0}      RegionName={1}, RContext.sessionKey={2}", _logHeader, _context.scene.Name, _context.sessionKey);   // DEBUG DEBUG
-                _regionProcessor = new RaguRegion(_context);
-                _context.scene.RegisterModuleInterface<RaguRegion>(_regionProcessor);
+                _context.log.Debug("{0}      RegionName={1}, RContext.sessionKey={2}", _logHeader, pScene.Name, _context.sessionKey);   // DEBUG DEBUG
+
+                // Create the Ragu processor for this region
+                _regionProcessor = new RaguRegion(_context, pScene);
+                pScene.RegisterModuleInterface<RaguRegion>(_regionProcessor);
+
+                // Remember the region processor for this region
+                _context.RaguRegions.Add(pScene.Name, _regionProcessor);
+
+                // Make it go
                 _regionProcessor.Start();
             }
         }

@@ -55,11 +55,12 @@ namespace org.herbal3d.Ragu {
         public static readonly string SpaceServerType = "Static";
 
         public SpaceServerStatic(RaguContext pContext,
+                            RaguRegion pRegion,
                             CancellationTokenSource pCanceller,
                             WaitingInfo pWaitingInfo,
                             BasilConnection pConnection,
                             BMessage pMsg) 
-                        : base(pContext, pCanceller, pConnection) {
+                        : base(pContext, pRegion, pCanceller, pConnection) {
 
             LayerType = SpaceServerType;
 
@@ -71,7 +72,7 @@ namespace org.herbal3d.Ragu {
             try {
 
                 // Get region tile definition
-                LodenRegion lodenRegion = _RContext.scene.RequestModuleInterface<LodenRegion>();
+                LodenRegion lodenRegion = _RRegion.regionScene.RequestModuleInterface<LodenRegion>();
                 string regionSpecURL = RaguAssetService.Instance.CreateAccessURL(lodenRegion.RegionTopLevelSpecURL);
 
                 // Get the top level description of the region
@@ -140,7 +141,8 @@ namespace org.herbal3d.Ragu {
         // Send a MakeConnection for connecting to a SpaceServer of this type.
         public static void MakeConnectionToSpaceServer(BasilConnection pConn,
                                                     OMV.UUID pAgentUUID,
-                                                    RaguContext pRContext) {
+                                                    RaguContext pRContext,
+                                                    RaguRegion pRegion) {
 
             // The authentication token that the client will send with the OpenSession
             // OSAuthToken incomingAuth = new OSAuthToken();
@@ -151,14 +153,17 @@ namespace org.herbal3d.Ragu {
                 agentUUID = pAgentUUID,
                 incomingAuth = incomingAuth,
                 spaceServerType = SpaceServerStatic.SpaceServerType,
-                createSpaceServer = (pC, pW, pConn, pMsgX, pCan) => {
-                    return new SpaceServerStatic(pC, pCan, pW, pConn, pMsgX);
+                rContext = pRContext,
+                rRegion = pRegion,
+                // Function called when the OpenSession is received
+                createSpaceServer = (pC, pR, pW, pConn, pMsgX, pCan) => {
+                    return new SpaceServerStatic(pC, pR, pCan, pW, pConn, pMsgX);
                 }
             };
             pRContext.RememberWaitingForOpenSession(wInfo);
 
             // Create the MakeConnection and send it
-            var pBlock = pRContext.Listener.ParamsForMakeConnection(pRContext.HostnameForExternalAccess, incomingAuth);
+            var pBlock = SpaceServerListener.ParamsForMakeConnection(pRContext, pRegion, incomingAuth);
             _ = pConn.MakeConnection(pBlock);
         }
 

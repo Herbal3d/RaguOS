@@ -84,11 +84,12 @@ namespace org.herbal3d.Ragu {
         public static readonly string SpaceServerType = "Actors";
 
         public SpaceServerActors(RaguContext pContext,
+                                RaguRegion pRegion,
                                 CancellationTokenSource pCanceller,
                                 WaitingInfo pWaitingInfo,
                                 BasilConnection pConnection,
                                 BMessage pMsg) 
-                        : base(pContext, pCanceller, pConnection) {
+                        : base(pContext, pRegion, pCanceller, pConnection) {
             LayerType = SpaceServerType;
 
             // Remember the UUID of the logged-in/controlling actor
@@ -112,7 +113,8 @@ namespace org.herbal3d.Ragu {
         // Send a MakeConnection for connecting to a SpaceServer of this type.
         public static void MakeConnectionToSpaceServer(BasilConnection pConn,
                                                     OMV.UUID pAgentUUID,
-                                                    RaguContext pRContext) {
+                                                    RaguContext pRContext,
+                                                    RaguRegion pRRegion) {
 
             // The authentication token that the client will send with the OpenSession
             OSAuthToken incomingAuth = OSAuthToken.SimpleToken();
@@ -122,14 +124,16 @@ namespace org.herbal3d.Ragu {
                 agentUUID = pAgentUUID,
                 incomingAuth = incomingAuth,
                 spaceServerType = SpaceServerActors.SpaceServerType,
-                createSpaceServer = (pC, pW, pConn, pMsgX, pCan) => {
-                    return new SpaceServerActors(pC, pCan, pW, pConn, pMsgX);
+                rContext = pRContext,
+                rRegion = pRRegion,
+                createSpaceServer = (pC, pR, pW, pConn, pMsgX, pCan) => {
+                    return new SpaceServerActors(pC, pR, pCan, pW, pConn, pMsgX);
                 }
             };
             pRContext.RememberWaitingForOpenSession(wInfo);
 
             // Create the MakeConnection and send it
-            var pBlock = pRContext.Listener.ParamsForMakeConnection(pRContext.HostnameForExternalAccess, incomingAuth);
+            var pBlock = SpaceServerListener.ParamsForMakeConnection(pRContext, pRRegion, incomingAuth);
             _ = pConn.MakeConnection(pBlock);
         }
 
@@ -139,41 +143,41 @@ namespace org.herbal3d.Ragu {
             // When client is added on login.
             // RContext.scene.EventManager.OnClientLogin       += Event_OnClientLogin;
             // New presence is added to scene. Child, root, and NPC. See Scene.AddNewAgent()
-            _RContext.scene.EventManager.OnNewPresence       += Event_OnNewPresence;
-            _RContext.scene.EventManager.OnRemovePresence    += Event_OnRemovePresence;
+            _RRegion.regionScene.EventManager.OnNewPresence       += Event_OnNewPresence;
+            _RRegion.regionScene.EventManager.OnRemovePresence    += Event_OnRemovePresence;
             // update to client position (either this or 'significant')
-            _RContext.scene.EventManager.OnClientMovement    += Event_OnClientMovement;
+            _RRegion.regionScene.EventManager.OnClientMovement    += Event_OnClientMovement;
             // "significant" update to client position
-            _RContext.scene.EventManager.OnSignificantClientMovement += Event_OnSignificantClientMovement;
+            _RRegion.regionScene.EventManager.OnSignificantClientMovement += Event_OnSignificantClientMovement;
             // Gets called for most position/camera/action updates. Seems to be once a second.
-            // RContext.scene.EventManager.OnScenePresenceUpdated      += Event_OnScenePresenceUpdated;
+            // _RRegion.regionScene.EventManager.OnScenePresenceUpdated      += Event_OnScenePresenceUpdated;
 
-            // RContext.scene.EventManager.OnIncomingSceneObject += Event_OnIncomingSceneObject;
-            // RContext.scene.EventManager.OnObjectAddedToScene += Event_OnObjectAddedToScene;
-            // RContext.scene.EventManager.OnDeRezRequested += Event_OnDeRezRequested;
-            // RContext.scene.EventManager.OnObjectBeingRemovedFromScene += Event_OnObjectBeingRemovedFromScene;
-            // RContext.scene.EventManager.OnObjectAddedToPhysicalScene += Event_OnObjectAddedToPhysicalScene;
-            // RContext.scene.EventManager.OnObjectRemovedToPhysicalScene += Event_OnObjectRemovedToPhysicalScene;
+            // _RRegion.regionScene.EventManager.OnIncomingSceneObject += Event_OnIncomingSceneObject;
+            // _RRegion.regionScene.EventManager.OnObjectAddedToScene += Event_OnObjectAddedToScene;
+            // _RRegion.regionScene.EventManager.OnDeRezRequested += Event_OnDeRezRequested;
+            // _RRegion.regionScene.EventManager.OnObjectBeingRemovedFromScene += Event_OnObjectBeingRemovedFromScene;
+            // _RRegion.regionScene.EventManager.OnObjectAddedToPhysicalScene += Event_OnObjectAddedToPhysicalScene;
+            // _RRegion.regionScene.EventManager.OnObjectRemovedToPhysicalScene += Event_OnObjectRemovedToPhysicalScene;
 
             //When scene is shutting down
             // RContext.scene.EventManager.OnShutdown  += Event_OnShutdown;
         }
         private void RemoveEventSubscriptions() {
-            // RContext.scene.EventManager.OnNewClient         -= Event_OnNewClient;
-            // RContext.scene.EventManager.OnClientLogin       -= Event_OnClientLogin;
-            _RContext.scene.EventManager.OnNewPresence       -= Event_OnNewPresence;
-            _RContext.scene.EventManager.OnRemovePresence    -= Event_OnRemovePresence;
+            // _RRegion.regionScene.EventManager.OnNewClient         -= Event_OnNewClient;
+            // _RRegion.regionScene.EventManager.OnClientLogin       -= Event_OnClientLogin
+            _RRegion.regionScene.EventManager.OnNewPresence       -= Event_OnNewPresence;
+            _RRegion.regionScene.EventManager.OnRemovePresence    -= Event_OnRemovePresence;
             // update to client position (either this or 'significant')
-            _RContext.scene.EventManager.OnClientMovement    -= Event_OnClientMovement;
+            _RRegion.regionScene.EventManager.OnClientMovement    -= Event_OnClientMovement;
             // "significant" update to client position
-            _RContext.scene.EventManager.OnSignificantClientMovement -= Event_OnSignificantClientMovement;
+            _RRegion.regionScene.EventManager.OnSignificantClientMovement -= Event_OnSignificantClientMovement;
             // Gets called for most position/camera/action updates
-            // RContext.scene.EventManager.OnScenePresenceUpdated      -= Event_OnScenePresenceUpdated;
+            // _RRegion.regionScene.EventManager.OnScenePresenceUpdated      -= Event_OnScenePresenceUpdated;
 
             // RContext.scene.EventManager.OnShutdown  -= Event_OnShutdown;
         }
         private void AddExistingPresences() {
-            _RContext.scene.GetScenePresences().ForEach(pres => {
+            _RRegion.regionScene.GetScenePresences().ForEach(pres => {
                 PresenceInfo pi = new PresenceInfo(pres, _connection, this, _RContext);
                 AddPresence(pi);
                 pi.AddAppearanceInstance();

@@ -10,11 +10,7 @@
 // limitations under the License.
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 using org.herbal3d.OSAuth;
 using org.herbal3d.transport;
@@ -70,11 +66,12 @@ namespace org.herbal3d.Ragu {
         // Handles the in-world presence of the world and causes the other SpaceServers to be connected
         //    to the client.
         public SpaceServerCC(RaguContext pContext,
+                            RaguRegion pRegion,
                             CancellationTokenSource pCanceller,
                             WaitingInfo pWaitingInfo,
                             BasilConnection pConnection,
                             BMessage pMsg) 
-                        : base(pContext, pCanceller, pConnection) {
+                        : base(pContext, pRegion, pCanceller, pConnection) {
             LayerType = SpaceServerType;
 
             // Save some connection parameters for use by Start()
@@ -93,13 +90,13 @@ namespace org.herbal3d.Ragu {
                 //    and send a MakeConnection to the new client to send an OpenConnection
                 //    to the listeners. The WaitingInfo saves the authentication information.
 
-                SpaceServerStatic.MakeConnectionToSpaceServer(_connection, AgentUUID, _RContext);
+                SpaceServerStatic.MakeConnectionToSpaceServer(_connection, AgentUUID, _RContext, _RRegion);
 
-                SpaceServerActors.MakeConnectionToSpaceServer(_connection, AgentUUID, _RContext);
+                SpaceServerActors.MakeConnectionToSpaceServer(_connection, AgentUUID, _RContext, _RRegion);
 
-                SpaceServerDynamic.MakeConnectionToSpaceServer(_connection, AgentUUID, _RContext);
+                SpaceServerDynamic.MakeConnectionToSpaceServer(_connection, AgentUUID, _RContext, _RRegion);
 
-                SpaceServerEnviron.MakeConnectionToSpaceServer(_connection, AgentUUID, _RContext);
+                SpaceServerEnviron.MakeConnectionToSpaceServer(_connection, AgentUUID, _RContext, _RRegion);
 
             }
             catch (Exception e) {
@@ -113,13 +110,15 @@ namespace org.herbal3d.Ragu {
         }
 
         // Create the waiting info for waiting for an incoming connection to this SpaceServer
-        public static WaitingInfo CreateWaitingInfo(OMV.UUID pAgentUUID, OSAuthToken pIncomingAuth) {
+        public static WaitingInfo CreateWaitingInfo(RaguContext pRContext, RaguRegion pRRegion, OMV.UUID pAgentUUID, OSAuthToken pIncomingAuth) {
             return new WaitingInfo() {
                 agentUUID = pAgentUUID,
                 incomingAuth = pIncomingAuth,
                 spaceServerType = SpaceServerCC.SpaceServerType,
-                createSpaceServer = (pC, pW, pConn, pMsgX, pCan) => {
-                    return new SpaceServerCC(pC, pCan, pW, pConn, pMsgX);
+                rContext = pRContext,
+                rRegion = pRRegion,
+                createSpaceServer = (pC, pR, pW, pConn, pMsgX, pCan) => {
+                    return new SpaceServerCC(pC, pR, pCan, pW, pConn, pMsgX);
                 }
             };
         }
@@ -144,7 +143,7 @@ namespace org.herbal3d.Ragu {
                 uint circuitCode = UInt32.Parse(pUserAuth.GetProperty("CC"));
 
                 // The login operation created the initial circuit
-                AgentCircuitData acd = _RContext.scene.AuthenticateHandler.GetAgentCircuitData(agentUUID);
+                AgentCircuitData acd = _RRegion.regionScene.AuthenticateHandler.GetAgentCircuitData(agentUUID);
 
                 if (acd is not null) {
                     if (acd.SessionID == sessionUUID) {
@@ -160,7 +159,7 @@ namespace org.herbal3d.Ragu {
                                                         acd.startpos,   /* initial position */
                                                         OMV.UUID.Zero,  /* owner */
                                                         true,           /* senseAsAgent */
-                                                        _RContext.scene,
+                                                        _RRegion.regionScene,
                                                         acd.circuitcode,
                                                         _RContext,
                                                         this);
@@ -173,7 +172,7 @@ namespace org.herbal3d.Ragu {
                         newClient.Start();
 
                         // Get the ScenePresence just to make sure we can
-                        if (_RContext.scene.TryGetScenePresence(agentUUID, out ScenePresence sp)) {
+                        if (_RRegion.regionScene.TryGetScenePresence(agentUUID, out ScenePresence sp)) {
                             _RContext.log.Info("{0} Successful login for {1} {2} ({3})",
                                         _logHeader, firstName, lastName, agentId);
                             AgentUUID = agentUUID;
@@ -195,7 +194,7 @@ namespace org.herbal3d.Ragu {
                     }
                 }
                 else {
-                    _RContext.log.Error("{0} CreateOpenSimPresence: presence was not created. AgentID={1}",
+                    _RContext.log.Error("{0} CreateOpenSimPresence: presence was not created. No ACD. AgentID={1}",
                                 _logHeader, agentId);
                 }
             }
@@ -213,7 +212,7 @@ namespace org.herbal3d.Ragu {
         //    connection with the client (like removing the avatar from the scene, etc).
         protected void ShutdownUserAgent(string pReason) {
             if (AgentUUID != null) {
-                _RContext.scene.CloseAgent(AgentUUID, false);
+                _RRegion.regionScene.CloseAgent(AgentUUID, false);
             }
             else {
                 _RContext.log.Error("{0} ShutdownUserAgent: no AgentUUIT", _logHeader);
