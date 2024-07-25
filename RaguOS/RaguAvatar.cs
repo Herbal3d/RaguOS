@@ -502,6 +502,7 @@ namespace org.herbal3d.Ragu {
         public event GenericCall2 OnUpdateThrottles;
         public event AgentFOV OnAgentFOV;
 
+
 #pragma warning restore 67
 
         #endregion
@@ -526,6 +527,9 @@ namespace org.herbal3d.Ragu {
             get { return m_agentId; }
             set { m_agentId = value; }
         }
+        public float FOV { get; set; }
+        public int viewHeight { get; set; }
+        public int viewWidth { get; set; }
 
         public UUID SessionId
         {
@@ -580,6 +584,7 @@ namespace org.herbal3d.Ragu {
             get { return 0; }
             set { }
         }
+        public ViewerFlags ViewerFlags { get;}
 
         public bool IsGroupMember(UUID groupID)
         {
